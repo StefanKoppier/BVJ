@@ -2,6 +2,8 @@ module{Analysis.Complete}{}
 {
 import Language.Java.Syntax
 import Analysis.Flow
+
+import Data.Maybe
 }
 
 include "Syntax.ag"

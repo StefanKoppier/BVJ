@@ -1,6 +1,7 @@
 class Main {
     public static void main(String[] args) {
-        if (true); else;
-        return;
+        for (int i = 0; i < 10; i++) {
+            assert i < 10;
+        }
     }
 }

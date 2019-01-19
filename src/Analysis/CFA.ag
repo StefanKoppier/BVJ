@@ -1,6 +1,15 @@
 data Node
-    | Node      label :: {Label}
-                stat  :: BlockStmt'
+    | NodeStmt      label :: {Label}
+                    value  :: Stmt'
+
+    | NodeVarDecl   label :: {Label}
+                    value :: BlockStmt'
+
+    | NodeForInit   label :: {Label}
+                    value :: {ForInit}
+
+    | NodeForUpdate label :: {Label}
+                    value :: {[Exp]}
 deriving  Node : Eq
 
 type Nodes = [Node]
@@ -26,13 +35,13 @@ sem BlockStmts'
     
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label
-                    .nodes = [Node (new @lhs.label) @self]
+                    .nodes = [NodeVarDecl (new @lhs.label) @self]
                     .init  = new @lhs.label
                     .final = [new @lhs.label]
 
 sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
     | StmtBlock'    lhs.label = maximum @block.final
-                       -- .nodes = (node (new @lhs.label) @self) : @block.nodes
+                      -- .nodes = (node (new @lhs.label) @self) : @block.nodes
                        .init  = @block.init
                        .final = @block.final
                        .flow  = @block.flow
@@ -55,12 +64,29 @@ sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
                     stat1.label = new @lhs.label
                     stat2.label = maximum @stat1.final
 
-    | While'        lhs .label = maximum @stat.final
-                        .nodes = (node (new @lhs.label) @self) : @stat.nodes
+    | While'        lhs .label = maximum @body.final
+                        .nodes = (node (new @lhs.label) @self) : @body.nodes
                         .init  = new @lhs.label
                         .final = [new @lhs.label]
-                        .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow <> (intraEdges @stat.final (new @lhs.label))
-                    stat.label = new @lhs.label
+                        .flow  = (intraEdge (new @lhs.label) @body.init)   <> 
+                                 @body.flow                                <> 
+                                 (intraEdges @body.final (new @lhs.label))
+                    body.label = new @lhs.label
+
+    | BasicFor'     lhs.label = maximum @body.final
+                       .nodes = [node (new @lhs.label) @self]              ++ -- Condition node
+                                (forInitNode (new $ new @lhs.label) @init) ++ -- Initialisation node
+                                @body.nodes                                ++ -- body nodes
+                                (forUpdateNode (new $ new $ newIfJust @init @lhs.label) @update) --update node
+                       .init  = new $ newIfJust @init @lhs.label -- Initialisation if it exists, otherwise the condition
+                       .final = [new @lhs.label] -- Condition
+                       .flow  = maybe mempty (const $ intraEdge (new $ new @lhs.label) (new @lhs.label)) @init <> -- Initialisation -> Condition
+                                intraEdge (new @lhs.label) @body.init <> -- Condition -> Body
+                                intraEdges @body.final (maybe (new @lhs.label) (const $ new $ new $ newIfJust @init @lhs.label) @update) <> -- Body -> Update/Condition
+                                maybe mempty (const $ intraEdge (new $ new $ newIfJust @init @lhs.label) (new @lhs.label)) @update <> -- Update -> Condition
+                                @body.flow 
+                    body.label = new $ newIfJust @init $ newIfJust @update @lhs.label
+
 
     | Empty'        lhs.label = new @lhs.label
                        .nodes = [node (new @lhs.label) @self]
@@ -99,8 +125,20 @@ newest = new . maximum
 new :: Label -> Label
 new = (1+)
 
+newIfJust :: Maybe a -> Label -> Label
+newIfJust (Just _) = new
+newIfJust Nothing  = id
+
 node :: Label -> Stmt' -> Node
-node l s = Node l (BlockStmt' s)
+node l s = NodeStmt l s
+
+forInitNode :: Label -> Maybe ForInit -> [Node]
+forInitNode l (Just i) = [NodeForInit l i]
+forInitNode _ Nothing  = []
+
+forUpdateNode :: Label -> Maybe [Exp] -> [Node]
+forUpdateNode l (Just es) = [NodeForUpdate l es]
+forUpdateNode _ Nothing   = []
 
 flowOfBlock :: Block' -> Flow
 flowOfBlock block
@@ -115,5 +153,8 @@ nodesOfBlock block
         initial = Inh_Block' { label_Inh_Block' = 0 } 
 
 instance Show Node where
-    show (Node l s) = show l ++ show s
+    show (NodeStmt l s)      = show l ++ ": " ++ show s
+    show (NodeVarDecl l s)   = show l ++ ": " ++ show s
+    show (NodeForInit l s)   = show l ++ ": " ++ show s
+    show (NodeForUpdate l s) = show l ++ ": " ++ show s
 }

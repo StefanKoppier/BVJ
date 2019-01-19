@@ -34,32 +34,35 @@ data ArrayInit'
 deriving ArrayInit' : Eq, Show
 
 data Stmt'
-    | StmtBlock'    block :: Block' 
+    | StmtBlock'    block  :: Block' 
 
-    | IfThen'       exp  :: Exp
-                    stat :: Stmt'
+    | IfThen'       exp    :: Exp
+                    stat   :: Stmt'
 
-    | IfThenElse'   exp   :: Exp
-                    stat1 :: Stmt'
-                    stat2 :: Stmt'
+    | IfThenElse'   exp    :: Exp
+                    stat1  :: Stmt'
+                    stat2  :: Stmt'
 
-    | While'        exp   :: Exp
-                    stat  :: Stmt' 
+    | While'        exp    :: Exp
+                    body   :: Stmt' 
 
-    -- | BasicFor
+    | BasicFor'     init   :: {Maybe ForInit}
+                    guard  :: {Maybe Exp}
+                    update :: {Maybe [Exp]}
+                    body   :: Stmt'
     -- | EnhancedFor
 
     | Empty'
 
-    | ExpStmt'      exp :: Exp
+    | ExpStmt'      exp    :: Exp
 
-    | Assert'       exp   :: Exp
-                    error :: {Maybe Exp}
+    | Assert'       exp    :: Exp
+                    error  :: {Maybe Exp}
 
     -- | Switch
     -- | Do
-    | Break'        ident :: {Maybe Ident}
-    | Continue'     ident :: {Maybe Ident}
+    | Break'        ident  :: {Maybe Ident}
+    | Continue'     ident  :: {Maybe Ident}
 
     | Return'       exp :: {Maybe Exp}
     
@@ -129,7 +132,8 @@ transformStmt :: Stmt -> Stmt'
 transformStmt (StmtBlock b)        = StmtBlock' $ transformBlock b
 transformStmt (IfThen e s)         = IfThen' e $ transformStmt s 
 transformStmt (IfThenElse e s1 s2) = IfThenElse' e (transformStmt s1) (transformStmt s2) 
-transformStmt (While e s)          = While' e $ transformStmt s
+transformStmt (While e b)          = While' e $ transformStmt b
+transformStmt (BasicFor i g u b)   = BasicFor' i g u $ transformStmt b
 transformStmt Empty                = Empty'
 transformStmt (ExpStmt e)          = ExpStmt' e
 transformStmt (Assert e error)     = Assert' e error
