@@ -62,10 +62,10 @@ sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
                         .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow <> (intraEdges @stat.final (new @lhs.label))
                     stat.label = new @lhs.label
 
-    -- TODO: check if this is correct for an empty statement.
-    | Empty'        lhs.label = @lhs.label
-                       .init  = @lhs.label
-                       .final = [@lhs.label]
+    | Empty'        lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
 
     | ExpStmt'      lhs.label = new @lhs.label
                        .nodes = [node (new @lhs.label) @self]

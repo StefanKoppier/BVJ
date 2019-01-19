@@ -6,7 +6,7 @@ module Analysis.Complete where
 import Language.Java.Syntax
 import Analysis.Flow
 
-{-# LINE 95 "CFA.ag" #-}
+{-# LINE 96 "CFA.ag" #-}
 
 newest :: Labels -> Label
 newest = new . maximum
@@ -785,34 +785,34 @@ sem_Stmt'_Empty' :: (T_Stmt')
 sem_Stmt'_Empty' =
     (\ _lhsIlabel ->
          (let _lhsOlabel :: Label
+              _lhsOnodes :: Nodes
               _lhsOinit :: Label
               _lhsOfinal :: Labels
               _lhsOflow :: Flow
-              _lhsOnodes :: Nodes
               _lhsOself :: Stmt'
               _lhsOlabel =
                   ({-# LINE 66 "CFA.ag" #-}
-                   _lhsIlabel
+                   new _lhsIlabel
                    {-# LINE 797 "Complete.hs" #-}
                    )
-              _lhsOinit =
+              _lhsOnodes =
                   ({-# LINE 67 "CFA.ag" #-}
-                   _lhsIlabel
+                   [node (new _lhsIlabel) _self]
                    {-# LINE 802 "Complete.hs" #-}
                    )
-              _lhsOfinal =
+              _lhsOinit =
                   ({-# LINE 68 "CFA.ag" #-}
-                   [_lhsIlabel]
+                   new _lhsIlabel
                    {-# LINE 807 "Complete.hs" #-}
+                   )
+              _lhsOfinal =
+                  ({-# LINE 69 "CFA.ag" #-}
+                   [new _lhsIlabel]
+                   {-# LINE 812 "Complete.hs" #-}
                    )
               _lhsOflow =
                   ({-# LINE 10 "CFA.ag" #-}
                    mempty
-                   {-# LINE 812 "Complete.hs" #-}
-                   )
-              _lhsOnodes =
-                  ({-# LINE 9 "CFA.ag" #-}
-                   []
                    {-# LINE 817 "Complete.hs" #-}
                    )
               _self =
@@ -831,22 +831,22 @@ sem_Stmt'_ExpStmt' exp_ =
               _lhsOflow :: Flow
               _lhsOself :: Stmt'
               _lhsOlabel =
-                  ({-# LINE 70 "CFA.ag" #-}
+                  ({-# LINE 71 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 837 "Complete.hs" #-}
                    )
               _lhsOnodes =
-                  ({-# LINE 71 "CFA.ag" #-}
+                  ({-# LINE 72 "CFA.ag" #-}
                    [node (new _lhsIlabel) _self]
                    {-# LINE 842 "Complete.hs" #-}
                    )
               _lhsOinit =
-                  ({-# LINE 72 "CFA.ag" #-}
+                  ({-# LINE 73 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 847 "Complete.hs" #-}
                    )
               _lhsOfinal =
-                  ({-# LINE 73 "CFA.ag" #-}
+                  ({-# LINE 74 "CFA.ag" #-}
                    [new _lhsIlabel]
                    {-# LINE 852 "Complete.hs" #-}
                    )
@@ -872,22 +872,22 @@ sem_Stmt'_Assert' exp_ error_ =
               _lhsOflow :: Flow
               _lhsOself :: Stmt'
               _lhsOlabel =
-                  ({-# LINE 75 "CFA.ag" #-}
+                  ({-# LINE 76 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 878 "Complete.hs" #-}
                    )
               _lhsOnodes =
-                  ({-# LINE 76 "CFA.ag" #-}
+                  ({-# LINE 77 "CFA.ag" #-}
                    [node (new _lhsIlabel) _self]
                    {-# LINE 883 "Complete.hs" #-}
                    )
               _lhsOinit =
-                  ({-# LINE 77 "CFA.ag" #-}
+                  ({-# LINE 78 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 888 "Complete.hs" #-}
                    )
               _lhsOfinal =
-                  ({-# LINE 78 "CFA.ag" #-}
+                  ({-# LINE 79 "CFA.ag" #-}
                    [new _lhsIlabel]
                    {-# LINE 893 "Complete.hs" #-}
                    )
@@ -912,22 +912,22 @@ sem_Stmt'_Break' ident_ =
               _lhsOflow :: Flow
               _lhsOself :: Stmt'
               _lhsOlabel =
-                  ({-# LINE 80 "CFA.ag" #-}
+                  ({-# LINE 81 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 918 "Complete.hs" #-}
                    )
               _lhsOnodes =
-                  ({-# LINE 81 "CFA.ag" #-}
+                  ({-# LINE 82 "CFA.ag" #-}
                    [node (new _lhsIlabel) _self]
                    {-# LINE 923 "Complete.hs" #-}
                    )
               _lhsOinit =
-                  ({-# LINE 82 "CFA.ag" #-}
+                  ({-# LINE 83 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 928 "Complete.hs" #-}
                    )
               _lhsOfinal =
-                  ({-# LINE 83 "CFA.ag" #-}
+                  ({-# LINE 84 "CFA.ag" #-}
                    [new _lhsIlabel]
                    {-# LINE 933 "Complete.hs" #-}
                    )
@@ -952,22 +952,22 @@ sem_Stmt'_Continue' ident_ =
               _lhsOflow :: Flow
               _lhsOself :: Stmt'
               _lhsOlabel =
-                  ({-# LINE 85 "CFA.ag" #-}
+                  ({-# LINE 86 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 958 "Complete.hs" #-}
                    )
               _lhsOnodes =
-                  ({-# LINE 86 "CFA.ag" #-}
+                  ({-# LINE 87 "CFA.ag" #-}
                    [node (new _lhsIlabel) _self]
                    {-# LINE 963 "Complete.hs" #-}
                    )
               _lhsOinit =
-                  ({-# LINE 87 "CFA.ag" #-}
+                  ({-# LINE 88 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 968 "Complete.hs" #-}
                    )
               _lhsOfinal =
-                  ({-# LINE 88 "CFA.ag" #-}
+                  ({-# LINE 89 "CFA.ag" #-}
                    [new _lhsIlabel]
                    {-# LINE 973 "Complete.hs" #-}
                    )
@@ -992,22 +992,22 @@ sem_Stmt'_Return' exp_ =
               _lhsOflow :: Flow
               _lhsOself :: Stmt'
               _lhsOlabel =
-                  ({-# LINE 90 "CFA.ag" #-}
+                  ({-# LINE 91 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 998 "Complete.hs" #-}
                    )
               _lhsOnodes =
-                  ({-# LINE 91 "CFA.ag" #-}
+                  ({-# LINE 92 "CFA.ag" #-}
                    [node (new _lhsIlabel) _self]
                    {-# LINE 1003 "Complete.hs" #-}
                    )
               _lhsOinit =
-                  ({-# LINE 92 "CFA.ag" #-}
+                  ({-# LINE 93 "CFA.ag" #-}
                    new _lhsIlabel
                    {-# LINE 1008 "Complete.hs" #-}
                    )
               _lhsOfinal =
-                  ({-# LINE 93 "CFA.ag" #-}
+                  ({-# LINE 94 "CFA.ag" #-}
                    [new _lhsIlabel]
                    {-# LINE 1013 "Complete.hs" #-}
                    )
