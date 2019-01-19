@@ -1,0 +1,235 @@
+\documentclass[a4paper]{article}
+
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\usepackage{minted}
+\usepackage{float}
+\usepackage[page]{appendix}
+
+\begin{document}
+
+\title{Plan: Bounded Verification of Java}
+\author{S. Koppier, 6002978}
+\maketitle
+
+\section{Java subset}
+We consider the following language constructs described below. Note that the 
+object oriented concepts, the do while loop, the switch, exceptional flow, and 
+synchronized behaviour are not supported.
+
+\begin{description}
+    \item [IfThen] The basic if loop structure.
+    \item [IfThenElse] The basic if then else structure.
+    \item [While] The basic while loop structure.
+    \item [For] The for statement, which can be transformed in a while statement.
+    \item [Break] The break statement.
+    \item [Continue] The continue statement.
+    \item [Return] The return statement.
+    \item [Empty] The empty statement.
+    \item [Assert] The assert statement, to be translated to cbmc assertions.
+    \item [Expressions] The complete set of expressions should be supported.
+    \item [\textit{Annotations}] These annotations might be useful to define the
+    verification DSL.
+\end{description}
+
+\section{Tasks}
+\subsection{Library} \label{sec:library}
+\subsubsection{Lexing and Parsing}
+We need to determine what subset of Java that will be implemented. There exists 
+a hackage package, language-java, which can likely take care of the parsing
+subproblem. 
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Determine the subset of Java that will be supported.
+    \item Create a phase which allows us to parse Java files into an AST.
+\end{enumerate}
+
+\subsubsection{Control Flow Analysis}
+We need to transform the resulting AST of the parsing phase into the CFG. This
+can be done in either Haskell or using an attribute grammar, e.g. UUAGC. 
+
+The attribute grammar system UUAGC does not support extensions of existing data 
+types, thus we have the option of branching the existing Java parser, and creating
+a copy of the AST in UUAGC code. A good starting point for this task is described 
+by Nilsson-Nyman et al. \cite{nilsson2009declarative}. 
+
+Another option is to use the existing fold, and write the CFA directly in Haskell.
+When Haskell is used directly, we can use the existing fold. But the downside of 
+this is that it will likely result in hard to write and unmaintainable code. 
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Design and create the data type of the CFG.
+    \item Create a phase which allows us to transform an AST into the CFG.
+    \item Implement the Control Flow Analysis for Java; preferably using an attribute
+    grammar system.
+\end{enumerate}
+
+\subsubsection{Program paths}
+We need to transform the CFG into a set of program paths, each of length at most 
+$n$. Each branch in the CFG will result in an extra program path, as was taught 
+during the course Program Semantics and Verification. 
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Unwind loops: \mintinline{java}{while, for, do while}.
+    \item Remove branching: \mintinline{java}{if else, switch}.
+    \item Find out how to deal with exceptions: \mintinline{java}{throw, catch}.
+    \item Unwind recursion, which can be done in a way similar to loop unwinding.
+    This needs to be looked into.
+    \item Create a phase which allows us to transform a CFG into all program paths
+    of length at most $n$.
+\end{enumerate}
+
+\subsubsection{Conversion to C}
+We need to convert each program path into it's C representation. This includes
+all data types, and called methods. 
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Define a mapping between the standard data types: byte, short, int, 
+    long, float, double, bool, and if the time allows it char and String.
+    \item Define a mapping between the language flow constructs: 
+    \mintinline{java}{if, goto}.
+    \item Define a mapping of the memory management: allocation using the 
+    \mintinline{java}{new} keyword and the deallocation.
+    \item Define a mapping of a class:
+        \begin{enumerate}
+            \item The data type itself;
+            \item the constructors;
+            \item the methods;
+            \item the variables;
+            \item the static methods and variables;
+        \end{enumerate}
+    \item Define a mapping of inheritance.
+    \item Define a mapping of interface implementation.
+    \item Create a phase which allows us to transform a program path into the C
+    representation.
+\end{enumerate}
+
+\subsubsection{Verification}
+We will pass each Java program path converted to it's C program path counterpart
+into cbmc to do the verification. 
+
+The verification options are:
+
+\begin{enumerate}
+    \item \textbf{Array bounds checks}
+    \item \textbf{Pointer checks}
+    \item Memory leaks
+    \item \textbf{Division by zero checks}
+    \item \textbf{Signed arithmetic over- and underflow checks}
+    \item Pointer arithmetic over- and underflow checks
+    \item Value representation after type cast
+    \item \textbf{Shift greater than bit-width}
+    \item \textbf{Floating-point for +/ Inf}
+    \item \textbf{Floating-point for NaN}
+    \item \textbf{User assertions}
+    \item \textbf{User assumptions}
+\end{enumerate}
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Determine the arguments of cbmc that we should be able to tweak/set.
+    \item Create a Haskell interface which allow us to use cbmc.
+    \item Create a phase which allows us to verify a program path in its C 
+    representation.
+\end{enumerate}
+
+\subsection{Application}
+To showcase and verify the functionality of the library, as described in section
+\ref{sec:library}, we need to develop an application using its functionality. 
+
+The concrete tasks that are associated with this part are:
+\begin{enumerate}
+    \item Develop an application that uses all phases of the library, actually 
+    performing the bounded verification.
+\end{enumerate}
+
+\subsection{Documentation}
+
+\subsubsection{Project report}
+Write a document that sums up the activities, functionality, and results of the 
+project.
+
+\subsubsection{Manual}
+Documentation of the written code, i.e. pandoc documentation.
+
+\subsubsection{Presentation}
+\textit{Might not be an actual part of the project - } give a colloqium talk
+about the project.
+
+\section{Extensions} \label{sec:extensions}
+\subsection{Verification DSL} \label{sec:extensions_verdsl}
+Design and implement a verification DSL which allows to write pre- and postconditions
+of functions. Something in the form of method annotations could work, but needs 
+more research. For example:
+
+\begin{minted}{java}
+@Verify(pre  = ((x, y) -> y != 0)
+       ,post = ((x, y, result) -> result == (x / y)))
+public static int divide(int x, int y) {
+    int result = x / y;
+    return result;
+}
+\end{minted}
+
+\section{Schedule}
+The project starts on the 4th of February 2019 (week 6) and  lasts until the 12th 
+of April 2019 (week 15), which is 10 weeks, 50 days, or 400 hours. 
+
+When we follow the schedule described below, we need approximately 270 hours, or
+34 days. Thus we have 16 days left, which we can use to research the possibilities 
+for the extension described in section \ref{sec:extensions_verdsl}.
+
+\begin{table}[H]
+    \label{table:schedule}
+    \begin{tabular}{ll}
+    \textbf{Task}                                                                                                                                       & \textbf{Hours}  \\
+    \textbf{Lexing and Parsing}                                                                                                                         & \textbf{8}      \\
+    Determine the subset of Java that will be supported                                                                                                 & 4               \\
+    Create a phase which allows us to parse Java files into an AST                                                                                      & 4               \\
+                                                                                                                                                        &                 \\
+    \textbf{Control Flow Analysis}                                                                                                                      & \textbf{52}     \\
+    Design and create the data type of the CFG                                                                                                          & 4               \\
+    Create a phase which allows us to transform an AST into the CFG                                                                                     & 8               \\
+    Implement the Control Flow Analysis for Java                                                                                                        & 40              \\
+                                                                                                                                                        &                 \\
+    \textbf{Program paths}                                                                                                                              & \textbf{48}     \\
+    Unwind loops                                                                                                                                        & 4               \\
+    Remove branching                                                                                                                                    & 4               \\
+    Find out how to deal with exceptions                                                                                                                & 16              \\
+    Unwind recursion                                                                                                                                    & 16              \\
+    Create a phase which allows us to transform a CFG into all program paths                                                                            & 8               \\
+                                                                                                                                                        &                 \\
+    \textbf{Conversion to C}                                                                                                                            & \textbf{68}     \\
+    Define a mapping between the standard data types                                                                                                    & 8               \\
+    Define a mapping between the language flow constructs                                                                                               & 4               \\
+    Define a mapping of the memory                                                                                                                      & 16              \\
+    Define a mapping of: data type                                                                                                                      & 4               \\
+    Define a mapping of: constructors                                                                                                                   & 8               \\
+    Define a mapping of: methods                                                                                                                        & 8               \\
+    Define a mapping of: variables                                                                                                                      & 4               \\
+    Define a mapping of: static methods and variables                                                                                                   & 8               \\
+    \begin{tabular}[c]{@{}l@{}}Create a phase which allows us to transform a program path into the C \\ representation\end{tabular}                     & 8               \\
+                                                                                                                                                        &                 \\
+    \textbf{Verification}                                                                                                                               & \textbf{28}     \\
+    Determine the arguments of cbmc that we should be able to tweak/set                                                                                 & 4               \\
+    Create a Haskell interface which allow us to use cbmc                                                                                               & 16              \\
+    \begin{tabular}[c]{@{}l@{}}Create a phase which allows us to verify a program path in its C \\ representation\end{tabular}                          & 8               \\
+                                                                                                                                                        &                 \\
+    \textbf{Application}                                                                                                                                & \textbf{48}     \\
+    \begin{tabular}[c]{@{}l@{}}Develop an application that uses all phases of the library, actually \\ performing the bounded verification\end{tabular} & 48              \\
+                                                                                                                                                        &                 \\
+    \textbf{Documentation}                                                                                                                              & \textbf{18}     \\
+    Project report                                                                                                                                      & 16              \\
+    Manual                                                                                                                                              & 2               \\
+                                                                                                                                                        &                 \\
+                                                                                                                                                        & 270 (34 days)
+    \end{tabular}
+\end{table}
+
+\bibliographystyle{plain}
+\bibliography{bibliography.bib} 
+
+\end{document}
