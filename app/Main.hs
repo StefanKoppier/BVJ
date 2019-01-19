@@ -1,15 +1,35 @@
 module Main where
 
-import Language.Java.Parser
-import Language.Java.Pretty
+import Parsing.Parser
+import Parsing.Pretty
 
-open :: FilePath -> IO ()
-open file = do
+import Analysis.Complete
+
+perform :: FilePath -> IO ()
+perform file = do
     content <- readFile file
-    let ast = parser compilationUnit content
-    case ast of
-        Right p -> (putStrLn . prettyPrint) p
-        Left _  -> putStrLn "Parsing error"
+    let result = parse content
+    case result of
+        Left e  -> print e
+        Right p -> do 
+            putStrLn "Program to be verified: "
+            putStrLn $ show p
+
+            putStrLn "\nNodes of Program:"
+            let block = transformBlock $ getMainMethod  p
+            print $ nodesOfBlock block
+            
+            putStrLn "\nFlow of Program:"
+            let block = transformBlock $ getMainMethod  p
+            print $ flowOfBlock block
+
+getMainMethod :: CompilationUnit -> Block
+getMainMethod (CompilationUnit _ _ 
+                (ClassTypeDecl 
+                  (ClassDecl _ _ _ _ _ 
+                    (ClassBody [MemberDecl (MethodDecl _ _ _ _ _ _ _ 
+                      (MethodBody (Just block)))])) : _))
+    = block
 
 main :: IO ()
-main = open "examples/Test.java"
+main = perform "examples/Test.java"

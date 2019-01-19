@@ -1,0 +1,119 @@
+data Node
+    | Node      label :: {Label}
+                stat  :: BlockStmt'
+deriving  Node : Eq
+
+type Nodes = [Node]
+
+attr Block' BlockStmts' BlockStmt' Stmt'
+    syn nodes   use {++} {[]}       :: {Nodes}
+    syn flow    use {<>} {mempty}   :: {Flow}
+    syn init                        :: {Label}
+    syn final                       :: {Labels}
+    chn label                       :: {Label}
+
+sem Block'
+    | Block' lhs.label = @blocks.label
+
+sem BlockStmts'
+    | Cons  lhs.label = maximum @tl.final
+               .init  = @hd.init
+               .final = @tl.final
+               .flow  = @hd.flow <> @tl.flow <> intraEdges @hd.final @tl.init
+
+    | Nil   lhs.init  = @lhs.label
+               .final = [@lhs.label]
+    
+sem BlockStmt'
+    | LocalVars' lhs.label = new @lhs.label
+                    .nodes = [Node (new @lhs.label) @self]
+                    .init  = new @lhs.label
+                    .final = [new @lhs.label]
+
+sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
+    | StmtBlock'    lhs.label = maximum @block.final
+                       -- .nodes = (node (new @lhs.label) @self) : @block.nodes
+                       .init  = @block.init
+                       .final = @block.final
+                       .flow  = @block.flow
+
+    | IfThen'       lhs .label = maximum @stat.final
+                        .nodes = (node (new @lhs.label) @self) : @stat.nodes
+                        .init  = new @lhs.label
+                        .final = @stat.final
+                        .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow
+                    stat.label = new @lhs.label
+
+    | IfThenElse'   lhs  .label = maximum @stat2.final
+                         .nodes = (node (new @lhs.label) @self) : (@stat1.nodes ++ @stat2.nodes)
+                         .init  = new @lhs.label
+                         .final = @stat1.final ++ @stat2.final
+                         .flow  = (intraEdge (new @lhs.label) @stat1.init) <> 
+                                  (intraEdge (new @lhs.label) @stat2.init) <> 
+                                  @stat1.flow                              <> 
+                                  @stat2.flow
+                    stat1.label = new @lhs.label
+                    stat2.label = maximum @stat1.final
+
+    | While'        lhs .label = maximum @stat.final
+                        .nodes = (node (new @lhs.label) @self) : @stat.nodes
+                        .init  = new @lhs.label
+                        .final = [new @lhs.label]
+                        .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow <> (intraEdges @stat.final (new @lhs.label))
+                    stat.label = new @lhs.label
+
+    -- TODO: check if this is correct for an empty statement.
+    | Empty'        lhs.label = @lhs.label
+                       .init  = @lhs.label
+                       .final = [@lhs.label]
+
+    | ExpStmt'      lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
+
+    | Assert'       lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
+
+    | Break'        lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
+        
+    | Continue'     lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
+
+    | Return'       lhs.label = new @lhs.label
+                       .nodes = [node (new @lhs.label) @self]
+                       .init  = new @lhs.label
+                       .final = [new @lhs.label]
+
+{
+newest :: Labels -> Label
+newest = new . maximum
+
+new :: Label -> Label
+new = (1+)
+
+node :: Label -> Stmt' -> Node
+node l s = Node l (BlockStmt' s)
+
+flowOfBlock :: Block' -> Flow
+flowOfBlock block
+    = flow_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+    where
+        initial = Inh_Block' { label_Inh_Block' = 0 } 
+        
+nodesOfBlock :: Block' -> Nodes
+nodesOfBlock block
+    = nodes_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+    where
+        initial = Inh_Block' { label_Inh_Block' = 0 } 
+
+instance Show Node where
+    show (Node l s) = show l ++ show s
+}
