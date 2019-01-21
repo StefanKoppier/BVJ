@@ -24,17 +24,13 @@ attr Block' BlockStmts' BlockStmt' Stmt'
 sem Block'
     | Block' lhs.label = @blocks.label
 
-{-sem BlockStmts'
-    | Cons  lhs.label = maximum @tl.final
-               .init  = @hd.init
-               .final = @tl.final
-               .flow  = @hd.flow                                            <> 
-                        intraEdges @hd.final @tl.init                       <> 
-                        @tl.flow
-
-    | Nil   lhs.init  = @lhs.label
-               .final = [@lhs.label]
--}
+sem BlockStmts'
+    | Seq'  lhs.label = maximum @s2.final
+               .init  = @s1.init
+               .final = @s2.final
+               .flow  = @s1.flow                      <> 
+                        @s2.flow                      <>
+                        intraEdges @s1.final @s2.init 
 
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label

@@ -2,8 +2,6 @@ data Block'
     | Block'    blocks :: BlockStmts'
 deriving Block' : Eq, Show
 
--- type BlockStmts' = [BlockStmt']
-
 data BlockStmts'
     | Seq'      s1 :: BlockStmts'
                 s2 :: BlockStmts'
@@ -57,6 +55,7 @@ data Stmt'
                     guard  :: {Maybe Exp}
                     update :: {Maybe [Exp]}
                     body   :: Stmt'
+
     -- | EnhancedFor
 
     | Empty'
@@ -68,10 +67,12 @@ data Stmt'
 
     -- | Switch
     -- | Do
+
     | Break'        ident  :: {Maybe Ident}
+
     | Continue'     ident  :: {Maybe Ident}
 
-    | Return'       exp :: {Maybe Exp}
+    | Return'       exp    :: {Maybe Exp}
     
     -- | Synchronized
     -- | Throw
@@ -118,9 +119,12 @@ deriving Stmt' : Eq, Show
 
 {
 transformBlock :: Block -> Block'
-transformBlock (Block [])     = Block' $ Stmt' $ BlockStmt' $ Empty'
-transformBlock (Block (s:[])) = Block' $ Stmt' s
-transformBlock (Block ss)     = Block' $ foldr1 (\ s1 s2 -> Seq (transformBlockStmt s1) (transformBlockStmt s2)) ss
+transformBlock (Block ss) = Block' $ transformBlockStmts ss
+
+transformBlockStmts :: [BlockStmt] -> BlockStmts'
+transformBlockStmts []     = Stmt' $ BlockStmt' $ Empty'
+transformBlockStmts (s:[]) = Stmt' $ transformBlockStmt s
+transformBlockStmts (s:ss) = Seq' (transformBlockStmts [s]) (transformBlockStmts ss)
 
 transformBlockStmt :: BlockStmt -> BlockStmt'
 transformBlockStmt (BlockStmt s)        = BlockStmt' $ transformStmt s
@@ -138,16 +142,15 @@ transformArrayInit :: ArrayInit -> ArrayInit'
 transformArrayInit (ArrayInit inits) = ArrayInit' $ map transformVarInit inits
 
 transformStmt :: Stmt -> Stmt'
-transformStmt (StmtBlock (Block [])) = Empty'
-transformStmt (StmtBlock b)          = StmtBlock' $ transformBlock b
-transformStmt (IfThen e s)           = IfThen' e $ transformStmt s 
-transformStmt (IfThenElse e s1 s2)   = IfThenElse' e (transformStmt s1) (transformStmt s2) 
-transformStmt (While e b)            = While' e $ transformStmt b
-transformStmt (BasicFor i g u b)     = BasicFor' i g u $ transformStmt b
-transformStmt Empty                  = Empty'
-transformStmt (ExpStmt e)            = ExpStmt' e
-transformStmt (Assert e error)       = Assert' e error
-transformStmt (Break i)              = Break' i
-transformStmt (Continue i)           = Continue' i
-transformStmt (Return e)             = Return' e 
+transformStmt (StmtBlock b)        = StmtBlock' $ transformBlock b
+transformStmt (IfThen e s)         = IfThen' e $ transformStmt s 
+transformStmt (IfThenElse e s1 s2) = IfThenElse' e (transformStmt s1) (transformStmt s2) 
+transformStmt (While e b)          = While' e $ transformStmt b
+transformStmt (BasicFor i g u b)   = BasicFor' i g u $ transformStmt b
+transformStmt Empty                = Empty'
+transformStmt (ExpStmt e)          = ExpStmt' e
+transformStmt (Assert e error)     = Assert' e error
+transformStmt (Break i)            = Break' i
+transformStmt (Continue i)         = Continue' i
+transformStmt (Return e)           = Return' e 
 }

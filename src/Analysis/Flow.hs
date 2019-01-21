@@ -34,7 +34,5 @@ instance Show Flow where
 intraEdge :: Label -> Label -> Flow
 intraEdge a b = Flow [IntraEdge a b]
 
--- TODO: filter (/= b) is a hacky way to remove the generated self-edges
--- these shouldn't be generated in the first place.
 intraEdges :: Labels -> Label -> Flow
-intraEdges es b = Flow $ map (`IntraEdge` b) es -- $ filter (/= b) es
+intraEdges es b = Flow $ map (`IntraEdge` b) es
