@@ -3,10 +3,10 @@ data Block'
 deriving Block' : Eq, Show
 
 data BlockStmts'
-    | Seq'      s1 :: BlockStmts'
+    | Seq'      s1 :: BlockStmt'
                 s2 :: BlockStmts'
 
-    | Stmt'     s  :: BlockStmt' 
+    | Single'   s  :: BlockStmt' 
 deriving BlockStmts' : Eq, Show
 
 data BlockStmt'
@@ -122,9 +122,9 @@ transformBlock :: Block -> Block'
 transformBlock (Block ss) = Block' $ transformBlockStmts ss
 
 transformBlockStmts :: [BlockStmt] -> BlockStmts'
-transformBlockStmts []     = Stmt' $ BlockStmt' $ Empty'
-transformBlockStmts (s:[]) = Stmt' $ transformBlockStmt s
-transformBlockStmts (s:ss) = Seq' (transformBlockStmts [s]) (transformBlockStmts ss)
+transformBlockStmts []     = Single' $ BlockStmt' $ Empty'
+transformBlockStmts (s:[]) = Single' $ transformBlockStmt s
+transformBlockStmts (s:ss) = Seq' (transformBlockStmt s) (transformBlockStmts ss)
 
 transformBlockStmt :: BlockStmt -> BlockStmt'
 transformBlockStmt (BlockStmt s)        = BlockStmt' $ transformStmt s

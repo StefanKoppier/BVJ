@@ -30,7 +30,14 @@ sem BlockStmts'
                .final = @s2.final
                .flow  = @s1.flow                      <> 
                         @s2.flow                      <>
-                        intraEdges @s1.final @s2.init 
+                        case @s1.self of 
+                            BlockStmt' (Continue' _)
+                                -> undefined
+                            BlockStmt' (Break' _)
+                                -> undefined
+                            BlockStmt' (Return' _)
+                                -> undefined
+                            _   -> intraEdges @s1.final @s2.init 
 
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label

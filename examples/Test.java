@@ -1,5 +1,9 @@
 class Main {
     public static void main(String[] args) {
-        for (; false; ) {}
+        for (; false; ) {
+            assert x;
+            continue;
+            assert x;
+        }
     }
 }
