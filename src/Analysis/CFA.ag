@@ -28,7 +28,9 @@ sem BlockStmts'
     | Cons  lhs.label = maximum @tl.final
                .init  = @hd.init
                .final = @tl.final
-               .flow  = @hd.flow <> @tl.flow <> intraEdges @hd.final @tl.init
+               .flow  = @hd.flow                                            <> 
+                        intraEdges @hd.final @tl.init                       <> 
+                        @tl.flow
 
     | Nil   lhs.init  = @lhs.label
                .final = [@lhs.label]
@@ -39,9 +41,8 @@ sem BlockStmt'
                     .init  = new @lhs.label
                     .final = [new @lhs.label]
 
-sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
+sem Stmt'
     | StmtBlock'    lhs.label = maximum @block.final
-                      -- .nodes = (node (new @lhs.label) @self) : @block.nodes
                        .init  = @block.init
                        .final = @block.final
                        .flow  = @block.flow
@@ -71,7 +72,7 @@ sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
                         .flow  = (intraEdge (new @lhs.label) @body.init)   <> 
                                  @body.flow                                <> 
                                  (intraEdges @body.final (new @lhs.label))
-                    body.label = new @lhs.label
+                    body.label         = new @lhs.label
 
     | BasicFor'     lhs.label = maximum @body.final
                        .nodes = [node (new @lhs.label) @self]              ++ -- Condition node
@@ -86,7 +87,6 @@ sem Stmt' -- TODO: is @lhs.label : a solution to empty maxima?
                                 maybe mempty (const $ intraEdge (new $ new $ newIfJust @init @lhs.label) (new @lhs.label)) @update <> -- Update -> Condition
                                 @body.flow 
                     body.label = new $ newIfJust @init $ newIfJust @update @lhs.label
-
 
     | Empty'        lhs.label = new @lhs.label
                        .nodes = [node (new @lhs.label) @self]

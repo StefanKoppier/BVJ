@@ -129,15 +129,16 @@ transformArrayInit :: ArrayInit -> ArrayInit'
 transformArrayInit (ArrayInit inits) = ArrayInit' $ map transformVarInit inits
 
 transformStmt :: Stmt -> Stmt'
-transformStmt (StmtBlock b)        = StmtBlock' $ transformBlock b
-transformStmt (IfThen e s)         = IfThen' e $ transformStmt s 
-transformStmt (IfThenElse e s1 s2) = IfThenElse' e (transformStmt s1) (transformStmt s2) 
-transformStmt (While e b)          = While' e $ transformStmt b
-transformStmt (BasicFor i g u b)   = BasicFor' i g u $ transformStmt b
-transformStmt Empty                = Empty'
-transformStmt (ExpStmt e)          = ExpStmt' e
-transformStmt (Assert e error)     = Assert' e error
-transformStmt (Break i)            = Break' i
-transformStmt (Continue i)         = Continue' i
-transformStmt (Return e)           = Return' e 
+transformStmt (StmtBlock (Block [])) = Empty'
+transformStmt (StmtBlock b)          = StmtBlock' $ transformBlock b
+transformStmt (IfThen e s)           = IfThen' e $ transformStmt s 
+transformStmt (IfThenElse e s1 s2)   = IfThenElse' e (transformStmt s1) (transformStmt s2) 
+transformStmt (While e b)            = While' e $ transformStmt b
+transformStmt (BasicFor i g u b)     = BasicFor' i g u $ transformStmt b
+transformStmt Empty                  = Empty'
+transformStmt (ExpStmt e)            = ExpStmt' e
+transformStmt (Assert e error)       = Assert' e error
+transformStmt (Break i)              = Break' i
+transformStmt (Continue i)           = Continue' i
+transformStmt (Return e)             = Return' e 
 }
