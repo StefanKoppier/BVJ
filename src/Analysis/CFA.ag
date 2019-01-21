@@ -24,7 +24,7 @@ attr Block' BlockStmts' BlockStmt' Stmt'
 sem Block'
     | Block' lhs.label = @blocks.label
 
-sem BlockStmts'
+{-sem BlockStmts'
     | Cons  lhs.label = maximum @tl.final
                .init  = @hd.init
                .final = @tl.final
@@ -34,7 +34,8 @@ sem BlockStmts'
 
     | Nil   lhs.init  = @lhs.label
                .final = [@lhs.label]
-    
+-}
+
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label
                     .nodes = [NodeVarDecl (new @lhs.label) @self]
@@ -72,7 +73,7 @@ sem Stmt'
                         .flow  = (intraEdge (new @lhs.label) @body.init)   <> 
                                  @body.flow                                <> 
                                  (intraEdges @body.final (new @lhs.label))
-                    body.label         = new @lhs.label
+                    body.label = new @lhs.label
 
     | BasicFor'     lhs.label = maximum @body.final
                        .nodes = [node (new @lhs.label) @self]              ++ -- Condition node

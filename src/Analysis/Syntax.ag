@@ -2,7 +2,14 @@ data Block'
     | Block'    blocks :: BlockStmts'
 deriving Block' : Eq, Show
 
-type BlockStmts' = [BlockStmt']
+-- type BlockStmts' = [BlockStmt']
+
+data BlockStmts'
+    | Seq'      s1 :: BlockStmts'
+                s2 :: BlockStmts'
+
+    | Stmt'     s  :: BlockStmt' 
+deriving BlockStmts' : Eq, Show
 
 data BlockStmt'
     | BlockStmt'    stat :: Stmt'
@@ -111,7 +118,9 @@ deriving Stmt' : Eq, Show
 
 {
 transformBlock :: Block -> Block'
-transformBlock (Block ss) = Block' $ map transformBlockStmt ss
+transformBlock (Block [])     = Block' $ Stmt' $ BlockStmt' $ Empty'
+transformBlock (Block (s:[])) = Block' $ Stmt' s
+transformBlock (Block ss)     = Block' $ foldr1 (\ s1 s2 -> Seq (transformBlockStmt s1) (transformBlockStmt s2)) ss
 
 transformBlockStmt :: BlockStmt -> BlockStmt'
 transformBlockStmt (BlockStmt s)        = BlockStmt' $ transformStmt s
