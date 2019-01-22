@@ -3,10 +3,10 @@ data Block'
 deriving Block' : Eq, Show
 
 data BlockStmts'
-    | Seq'      s1 :: BlockStmt'
-                s2 :: BlockStmts'
+    | Seq'      stat1 :: BlockStmt'
+                stat2 :: BlockStmts'
 
-    | Single'   s  :: BlockStmt' 
+    | Single'   s     :: BlockStmt' 
 deriving BlockStmts' : Eq, Show
 
 data BlockStmt'
@@ -68,9 +68,9 @@ data Stmt'
     -- | Switch
     -- | Do
 
-    | Break'        ident  :: {Maybe Ident}
+    | Break'        --ident  :: {Maybe Ident}
 
-    | Continue'     ident  :: {Maybe Ident}
+    | Continue'     --ident  :: {Maybe Ident}
 
     | Return'       exp    :: {Maybe Exp}
     
@@ -119,40 +119,43 @@ deriving Stmt' : Eq, Show
 -}
 
 {
-transformBlock :: Block -> Block'
-transformBlock (Block ss) = Block' $ transformBlockStmts ss
+transformBlock :: Block -> PhaseResult Block'
+transformBlock (Block ss) = Block' <$> transformBlockStmts ss
 
-transformBlockStmts :: [BlockStmt] -> BlockStmts'
-transformBlockStmts []     = Single' $ BlockStmt' $ Empty'
-transformBlockStmts (s:[]) = Single' $ transformBlockStmt s
-transformBlockStmts (s:ss) = Seq' (transformBlockStmt s) (transformBlockStmts ss)
+transformBlockStmts :: [BlockStmt] -> PhaseResult  BlockStmts'
+transformBlockStmts []     = return $ Single' $ BlockStmt' $ Empty'
+transformBlockStmts (s:[]) = Single' <$> transformBlockStmt s
+transformBlockStmts (s:ss) = Seq' <$> transformBlockStmt s <*> transformBlockStmts ss
 
-transformBlockStmt :: BlockStmt -> BlockStmt'
-transformBlockStmt (BlockStmt s)        = BlockStmt' $ transformStmt s
-transformBlockStmt (LocalVars ms ty vs) = LocalVars' ms ty (map transformVarDecl vs)
+transformBlockStmt :: BlockStmt -> PhaseResult BlockStmt'
+transformBlockStmt (BlockStmt s)        = BlockStmt' <$> transformStmt s
+transformBlockStmt (LocalVars ms ty vs) = LocalVars' ms ty <$> (mapM transformVarDecl vs)
 
-transformVarDecl :: VarDecl -> VarDecl'
-transformVarDecl (VarDecl name (Just init)) = VarDecl' name $ Just (transformVarInit init)
-transformVarDecl (VarDecl name Nothing)     = VarDecl' name Nothing
+transformVarDecl :: VarDecl -> PhaseResult VarDecl'
+transformVarDecl (VarDecl name Nothing)     = return $ VarDecl' name Nothing
+transformVarDecl (VarDecl name (Just init)) = do
+    init' <- transformVarInit init
+    return $ VarDecl' name (Just init')
 
-transformVarInit :: VarInit -> VarInit'
-transformVarInit (InitExp e)      = InitExp' e
-transformVarInit (InitArray init) = InitArray' $ transformArrayInit init
+transformVarInit :: VarInit -> PhaseResult VarInit'
+transformVarInit (InitExp e)      = return $ InitExp' e
+transformVarInit (InitArray init) = InitArray' <$> transformArrayInit init
 
-transformArrayInit :: ArrayInit -> ArrayInit'
-transformArrayInit (ArrayInit inits) = ArrayInit' $ map transformVarInit inits
+transformArrayInit :: ArrayInit -> PhaseResult ArrayInit'
+transformArrayInit (ArrayInit inits) = ArrayInit' <$> mapM transformVarInit inits
 
-transformStmt :: Stmt -> Stmt'
-transformStmt (StmtBlock b)        = StmtBlock' $ transformBlock b
-transformStmt (IfThen e s)         = IfThen' e $ transformStmt s 
-transformStmt (IfThenElse e s1 s2) = IfThenElse' e (transformStmt s1) (transformStmt s2) 
-transformStmt (While e b)          = While' e $ transformStmt b
-transformStmt (BasicFor i g u b)   = BasicFor' i g u $ transformStmt b
-transformStmt Empty                = Empty'
-transformStmt (ExpStmt e)          = ExpStmt' e
-transformStmt (Assert e error)     = Assert' e error
-transformStmt (Break i)            = Break' i
-transformStmt (Continue i)         = Continue' i
-transformStmt (Return e)           = Return' e 
-transformStmt (Labeled l s)        = Labeled' l $ transformStmt s 
+transformStmt :: Stmt -> PhaseResult Stmt'
+transformStmt (StmtBlock b)        = StmtBlock' <$> transformBlock b
+transformStmt (IfThen e s)         = IfThen' e <$> transformStmt s 
+transformStmt (IfThenElse e s1 s2) = IfThenElse' e <$> transformStmt s1 <*> transformStmt s2 
+transformStmt (While e b)          = While' e <$> transformStmt b
+transformStmt (BasicFor i g u b)   = BasicFor' i g u <$> transformStmt b
+transformStmt Empty                = return Empty'
+transformStmt (ExpStmt expr)       = return $ ExpStmt' expr
+transformStmt (Assert expr err)    = return $ Assert' expr err
+transformStmt (Break Nothing)      = return Break'
+transformStmt (Continue Nothing)   = return Continue' 
+transformStmt (Return e)           = return $ Return' e 
+transformStmt (Labeled l s)        = Labeled' l <$> transformStmt s 
+transformStmt s                    = Left $ SyntaxTransformation $  "The statment " ++ show s ++ " is not supported"
 }

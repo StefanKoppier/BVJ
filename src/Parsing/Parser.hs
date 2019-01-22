@@ -8,7 +8,7 @@ import Language.Java.Syntax
 
 import Phase
 
-parse :: String -> Either PhaseError CompilationUnit
+parse :: String -> PhaseResult CompilationUnit
 parse content 
     = case parser compilationUnit content of
         Left _       -> Left ParseError

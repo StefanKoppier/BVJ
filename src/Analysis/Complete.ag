@@ -2,6 +2,7 @@ module{Analysis.Complete}{}
 {
 import Language.Java.Syntax
 import Analysis.Flow
+import Phase
 
 import           Data.Maybe
 import qualified Data.Map   as M

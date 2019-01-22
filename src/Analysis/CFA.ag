@@ -14,51 +14,30 @@ deriving  Node : Eq
 
 type Nodes = [Node]
 
-{
-type Environment a = M.Map Ident a
-
-unlabeled :: Ident
-unlabeled = Ident "$loop$"
-}
+attr Node
+    syn label :: {Label}
 
 attr Block' BlockStmts' BlockStmt' Stmt'
     syn nodes   use {++} {[]}       :: {Nodes}
     syn flow    use {<>} {mempty}   :: {Flow}
     syn init                        :: {Label}
     syn final                       :: {Labels}
-    inh label                       :: {Label}
-    inh labelings                   :: {Environment (Label, Label)}
+    inh next                        :: {Maybe Label}
+    chn label                       :: {Label}
 
 sem Block'
     | Block' lhs.label = @blocks.label
 
 sem BlockStmts'
-    | Seq'  lhs.label = maximum @s2.final
-               .init  = @s1.init
-               .final = @s2.final
-               .flow  = case @s1.self of 
-                            BlockStmt' (Continue' Nothing) -- continue an unlabeled loop
-                                -> intraEdges @s1.final (fst $ @lhs.labelings M.! unlabeled)
-                            BlockStmt' (Continue' (Just l)) -- continue a labeled loop
-                                -> intraEdges @s1.final (fst $ @lhs.labelings M.! l)
+    | Seq'  lhs  .label = @stat2.label
+                 .init  = @stat1.init
+                 .final = @stat2.final
+                 .flow  = @stat1.flow <> intraEdges @stat1.final @stat2.init <> @stat2.flow
+            stat1.label = @lhs.label
+            stat1.next  = Just @stat2.init
+            stat2.label = @stat1.label
 
-                            BlockStmt' (Break' _) -- break an unlabeled loop
-                                -> intraEdges @s1.final (snd $ @lhs.labelings M.! unlabeled)
-                            BlockStmt' (Break' (Just l)) -- break a labeled loop
-                                -> intraEdges @s1.final (snd $ @lhs.labelings M.! l)
-
-                            BlockStmt' (Return' _)
-                                -> undefined
-
-                            _   -> @s1.flow <> intraEdges @s1.final @s2.init <> @s2.flow
-            s1.label  = @lhs.label
-            s2.label  = maximum @s1.final
-    | Single' lhs.flow = case @s.self of
-                            BlockStmt' (Continue' (Just l))
-                                -> intraEdges @s.final (fst $ @lhs.labelings M.! l)
-                            BlockStmt' (Break' (Just l))
-                                -> intraEdges @s.final (snd $ @lhs.labelings M.! l)
-                            _   -> @s.flow
+    | Single' lhs.flow = @s.flow
 
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label
@@ -67,19 +46,19 @@ sem BlockStmt'
                     .final = [new @lhs.label]
 
 sem Stmt'
-    | StmtBlock'    lhs.label = maximum @block.final
+    | StmtBlock'    lhs.label = @block.label
                        .init  = @block.init
                        .final = @block.final
                        .flow  = @block.flow
 
-    | IfThen'       lhs .label = maximum @stat.final
+    | IfThen'       lhs .label = @stat.label
                         .nodes = (node (new @lhs.label) @self) : @stat.nodes
                         .init  = new @lhs.label
                         .final = @stat.final
                         .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow
                     stat.label = new @lhs.label
 
-    | IfThenElse'   lhs  .label = maximum @stat2.final
+    | IfThenElse'   lhs  .label = @stat2.label
                          .nodes = (node (new @lhs.label) @self) : (@stat1.nodes ++ @stat2.nodes)
                          .init  = new @lhs.label
                          .final = @stat1.final ++ @stat2.final
@@ -88,9 +67,9 @@ sem Stmt'
                                   @stat1.flow                              <> 
                                   @stat2.flow
                     stat1.label = new @lhs.label
-                    stat2.label = maximum @stat1.final
+                    stat2.label = @stat1.label
 
-    | While'        lhs .label     = maximum @body.final
+    | While'        lhs .label     = @body.label
                         .nodes     = (node (new @lhs.label) @self) : @body.nodes
                         .init      = new @lhs.label
                         .final     = [new @lhs.label]
@@ -98,20 +77,19 @@ sem Stmt'
                                      @body.flow                                <> 
                                      (intraEdges @body.final (new @lhs.label))
                     body.label     = new @lhs.label
-                        .labelings = M.insert unlabeled (new @lhs.label, (-1)) @lhs.labelings
 
-    | BasicFor'     lhs.label = maximum @body.final
-                       .nodes = [node (new @lhs.label) @self]              ++ -- Condition node
-                                (forInitNode (new $ new @lhs.label) @init) ++ -- Initialisation node
-                                @body.nodes                                ++ -- body nodes
-                                (forUpdateNode (new $ new $ newIfJust @init @lhs.label) @update) --update node
-                       .init  = new $ newIfJust @init @lhs.label -- Initialisation if it exists, otherwise the condition
-                       .final = [new @lhs.label] -- Condition
-                       .flow  = maybe mempty (const $ intraEdge (new $ new @lhs.label) (new @lhs.label)) @init <> -- Initialisation -> Condition
-                                intraEdge (new @lhs.label) @body.init <> -- Condition -> Body
-                                intraEdges @body.final (maybe (new @lhs.label) (const $ new $ new $ newIfJust @init @lhs.label) @update) <> -- Body -> Update/Condition
-                                maybe mempty (const $ intraEdge (new $ new $ newIfJust @init @lhs.label) (new @lhs.label)) @update <> -- Update -> Condition
-                                @body.flow 
+    | BasicFor'     lhs .label = @body.label
+                        .nodes = [node (new @lhs.label) @self]              ++ -- Condition node
+                                 (forInitNode (new $ new @lhs.label) @init) ++ -- Initialisation node
+                                 @body.nodes                                ++ -- body nodes
+                                 (forUpdateNode (new $ new $ newIfJust @init @lhs.label) @update) --update node
+                        .init  = new $ newIfJust @init @lhs.label -- Initialisation if it exists, otherwise the condition
+                        .final = [new @lhs.label] -- Condition
+                        .flow  = maybe mempty (const $ intraEdge (new $ new @lhs.label) (new @lhs.label)) @init <> -- Initialisation -> Condition
+                                 intraEdge (new @lhs.label) @body.init <> -- Condition -> Body
+                                 intraEdges @body.final (maybe (new @lhs.label) (const $ new $ new $ newIfJust @init @lhs.label) @update) <> -- Body -> Update/Condition
+                                 maybe mempty (const $ intraEdge (new $ new $ newIfJust @init @lhs.label) (new @lhs.label)) @update <> -- Update -> Condition
+                                 @body.flow 
                     body.label = new $ newIfJust @init $ newIfJust @update @lhs.label
 
     | Empty'        lhs.label = new @lhs.label
@@ -144,16 +122,12 @@ sem Stmt'
                        .init  = new @lhs.label
                        .final = [new @lhs.label]
 
-    | Labeled'      lhs .label     = maximum @stat.final
-                        .nodes     = @stat.nodes
-                        .init      = @stat.init
-                        .final     = @stat.final
-                    stat.labelings = M.insert @ident (@stat.init, (-1)) @lhs.labelings 
+    | Labeled'      lhs  .label     = @stat.label
+                         .nodes     = @stat.nodes
+                         .init      = @stat.init
+                         .final     = @stat.final
 
 {
-newest :: Labels -> Label
-newest = new . maximum
-
 new :: Label -> Label
 new = (1+)
 
@@ -177,14 +151,14 @@ flowOfBlock block
     = flow_Syn_Block' $ wrap_Block' (sem_Block' block) initial
     where
         initial = Inh_Block' { label_Inh_Block'     = 0
-                             , labelings_Inh_Block' = M.empty } 
+                             , next_Inh_Block'      = Nothing } 
         
 nodesOfBlock :: Block' -> Nodes
 nodesOfBlock block
     = nodes_Syn_Block' $ wrap_Block' (sem_Block' block) initial
     where
         initial = Inh_Block' { label_Inh_Block'     = 0
-                             , labelings_Inh_Block' = M.empty } 
+                             , next_Inh_Block'      = Nothing } 
 
 instance Show Node where
     show (NodeStmt l s)      = show l ++ ": " ++ show s

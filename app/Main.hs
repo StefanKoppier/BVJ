@@ -9,21 +9,21 @@ import Analysis.Complete
 perform :: FilePath -> IO ()
 perform file = do
     content <- readFile file
-    let result = parse content
-    case result of
-        Left e  -> print e
-        Right p -> do 
+    case parse content of
+        Left e        -> print e
+        Right program -> do 
             putStrLn "Program to be verified: "
-            putStrLn $ show p
+            print program
 
-            putStrLn "\nNodes of Program:"
-            let block = transformBlock $ getMainMethod  p
-            print $ nodesOfBlock block
-            
-            putStrLn "\nFlow of Program:"
-            let block = transformBlock $ getMainMethod  p
-            let flow  = flowOfBlock block
-            print flow
+            case transformBlock $ getMainMethod  program of 
+                Left e      -> print e
+                Right block -> do
+                    putStrLn "\nNodes of Program:"
+                    print $ nodesOfBlock block
+                    
+                    putStrLn "\nFlow of Program:"
+                    let flow = flowOfBlock block
+                    print flow
 
 getMainMethod :: CompilationUnit -> Block
 getMainMethod (CompilationUnit _ _ 
