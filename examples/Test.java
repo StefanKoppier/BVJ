@@ -1,9 +1,11 @@
 class Main {
     public static void main(String[] args) {
-        for (; false; ) {
-            assert x;
-            continue;
-            assert x;
+        a: while (true) {
+            while (true) {
+                assert true;
+                continue a;
+                assert true;
+            }
         }
     }
 }

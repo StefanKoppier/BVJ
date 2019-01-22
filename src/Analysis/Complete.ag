@@ -3,7 +3,10 @@ module{Analysis.Complete}{}
 import Language.Java.Syntax
 import Analysis.Flow
 
-import Data.Maybe
+import           Data.Maybe
+import qualified Data.Map   as M
+
+import Debug.Trace
 }
 
 include "Syntax.ag"

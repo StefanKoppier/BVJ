@@ -3,6 +3,7 @@ module Main where
 import Parsing.Parser
 import Parsing.Pretty
 
+import Analysis.Flow
 import Analysis.Complete
 
 perform :: FilePath -> IO ()
@@ -21,7 +22,8 @@ perform file = do
             
             putStrLn "\nFlow of Program:"
             let block = transformBlock $ getMainMethod  p
-            print $ flowOfBlock block
+            let flow  = flowOfBlock block
+            print flow
 
 getMainMethod :: CompilationUnit -> Block
 getMainMethod (CompilationUnit _ _ 

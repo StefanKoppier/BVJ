@@ -77,7 +77,8 @@ data Stmt'
     -- | Synchronized
     -- | Throw
     -- | Try
-    -- | Labeled
+    | Labeled'      ident :: {Ident}
+                    stat  :: Stmt'
 deriving Stmt' : Eq, Show
 
 {-data Exp'
@@ -153,4 +154,5 @@ transformStmt (Assert e error)     = Assert' e error
 transformStmt (Break i)            = Break' i
 transformStmt (Continue i)         = Continue' i
 transformStmt (Return e)           = Return' e 
+transformStmt (Labeled l s)        = Labeled' l $ transformStmt s 
 }
