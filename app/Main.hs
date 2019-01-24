@@ -3,8 +3,8 @@ module Main where
 import Parsing.Parser
 import Parsing.Pretty
 
-import Analysis.Flow
 import Analysis.Complete
+import Analysis.Utility
 
 perform :: FilePath -> IO ()
 perform file = do
@@ -18,12 +18,13 @@ perform file = do
             case transformBlock $ getMainMethod  program of 
                 Left e      -> print e
                 Right block -> do
-                    putStrLn "\nNodes of Program:"
-                    print $ nodesOfBlock block
-                    
-                    putStrLn "\nFlow of Program:"
-                    let flow = flowOfBlock block
-                    print flow
+                    putStrLn "\nControl Flow Graph of main:"
+                    let cfg = cfgOfBlock block
+                    putStrLn $ prettify cfg
+
+                    putStrLn "\nLevels of the nodes:"
+                    let minDistance = distance block cfg
+                    print minDistance
 
 getMainMethod :: CompilationUnit -> Block
 getMainMethod (CompilationUnit _ _ 

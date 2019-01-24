@@ -1,12 +1,9 @@
 class Main {
     public static void main(String[] args) {
-        while (true) {
+        int x = 0;
+        for (int i = 0; i < 10; ++i) {
             assert 1 == 1;
-            while (false) {
-                assert 2 == 2;
-            }
-            assert 3 == 3;
         }
-        ;
+        assert 2 == 2;
     }
 }

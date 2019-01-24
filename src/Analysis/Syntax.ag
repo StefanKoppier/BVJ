@@ -40,7 +40,7 @@ deriving ArrayInit' : Eq, Show
 
 data Stmt'
     | StmtBlock'    block  :: Block' 
-
+    
     | IfThen'       exp    :: Exp
                     stat   :: Stmt'
 
@@ -64,6 +64,8 @@ data Stmt'
 
     | Assert'       exp    :: Exp
                     error  :: {Maybe Exp}
+
+    | Assume'       exp    :: Exp
 
     -- | Switch
     -- | Do
@@ -146,15 +148,15 @@ transformArrayInit (ArrayInit inits) = ArrayInit' <$> mapM transformVarInit init
 
 transformStmt :: Stmt -> PhaseResult Stmt'
 transformStmt (StmtBlock b)        = StmtBlock' <$> transformBlock b
-transformStmt (IfThen e s)         = IfThen' e <$> transformStmt s 
+transformStmt (IfThen e s)         = IfThen' e <$> transformStmt s
 transformStmt (IfThenElse e s1 s2) = IfThenElse' e <$> transformStmt s1 <*> transformStmt s2 
 transformStmt (While e b)          = While' e <$> transformStmt b
 transformStmt (BasicFor i g u b)   = BasicFor' i g u <$> transformStmt b
 transformStmt Empty                = return Empty'
 transformStmt (ExpStmt expr)       = return $ ExpStmt' expr
 transformStmt (Assert expr err)    = return $ Assert' expr err
-transformStmt (Break Nothing)      = return Break'
-transformStmt (Continue Nothing)   = return Continue' 
+--transformStmt (Break Nothing)      = return Break'
+--transformStmt (Continue Nothing)   = return Continue' 
 transformStmt (Return e)           = return $ Return' e 
 transformStmt (Labeled l s)        = Labeled' l <$> transformStmt s 
 transformStmt s                    = Left $ SyntaxTransformation $  "The statment " ++ show s ++ " is not supported"

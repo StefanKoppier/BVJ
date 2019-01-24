@@ -1,13 +1,12 @@
 module{Analysis.Complete}{}
 {
 import Language.Java.Syntax
-import Analysis.Flow
 import Phase
 
 import           Data.Maybe
 import qualified Data.Map   as M
-
-import Debug.Trace
+import           Data.Graph.Inductive.Graph
+import           Data.Graph.Inductive.PatriciaTree
 }
 
 include "Syntax.ag"

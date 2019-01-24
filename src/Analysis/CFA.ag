@@ -1,168 +1,198 @@
-data Node
-    | NodeStmt      label :: {Label}
-                    value  :: Stmt'
+{
+data CFGNodeValue
+    = NodeStmt      Stmt'
+    | NodeVarDecl   BlockStmt'
+    | NodeForInit   ForInit
+    | NodeForUpdate [Exp]
+    deriving (Show, Eq)
+    
+type CFGNode = LNode CFGNodeValue
 
-    | NodeVarDecl   label :: {Label}
-                    value :: BlockStmt'
+type CFGNodes = [CFGNode]
 
-    | NodeForInit   label :: {Label}
-                    value :: {ForInit}
+type CFGEdge = UEdge
 
-    | NodeForUpdate label :: {Label}
-                    value :: {[Exp]}
-deriving  Node : Eq
+type CFGEdges = [CFGEdge]
 
-type Nodes = [Node]
+type CFGContext = (Adj (), CFGNode, CFGNodeValue, Adj ())
 
-attr Node
-    syn label :: {Label}
+type CFG = Gr CFGNodeValue ()
+}
 
 attr Block' BlockStmts' BlockStmt' Stmt'
-    syn nodes   use {++} {[]}       :: {Nodes}
-    syn flow    use {<>} {mempty}   :: {Flow}
-    syn init                        :: {Label}
-    syn final                       :: {Labels}
-    inh next                        :: {Maybe Label}
-    chn label                       :: {Label}
+    syn init                        :: {CFGNode}
+    syn final                       :: {CFGNodes}
+    chn cfg                         :: {CFG}
+    chn label                       :: {Node}
 
 sem Block'
     | Block' lhs.label = @blocks.label
-
+                
 sem BlockStmts'
     | Seq'  lhs  .label = @stat2.label
                  .init  = @stat1.init
                  .final = @stat2.final
-                 .flow  = @stat1.flow <> intraEdges @stat1.final @stat2.init <> @stat2.flow
+                 .cfg   = @stat2.cfg
             stat1.label = @lhs.label
-            stat1.next  = Just @stat2.init
+                 .cfg   = @lhs.cfg
             stat2.label = @stat1.label
+                 .cfg   = insEdges (intraEdges @stat1.final @stat2.init) @stat1.cfg
 
-    | Single' lhs.flow = @s.flow
+    | Single' lhs.cfg = @s.cfg
 
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label
-                    .nodes = [NodeVarDecl (new @lhs.label) @self]
-                    .init  = new @lhs.label
-                    .final = [new @lhs.label]
+                    .nodes = [nodeVarDecl (new @lhs.label) @self]
+                    .init  = nodeVarDecl (new @lhs.label) @self
+                    .final = [nodeVarDecl (new @lhs.label) @self]
+                    .cfg   = insNode (nodeVarDecl (new @lhs.label) @self) @lhs.cfg
 
 sem Stmt'
-    | StmtBlock'    lhs.label = @block.label
-                       .init  = @block.init
-                       .final = @block.final
-                       .flow  = @block.flow
-
     | IfThen'       lhs .label = @stat.label
-                        .nodes = (node (new @lhs.label) @self) : @stat.nodes
-                        .init  = new @lhs.label
-                        .final = @stat.final
-                        .flow  = (intraEdge (new @lhs.label) @stat.init) <> @stat.flow
+                        .init  = nodeStmt (new @lhs.label) @self
+                        .final = nodeStmt (new @lhs.label) @self : @stat.final
+                        .cfg   = let self = nodeStmt (new @lhs.label) @self in
+                                    -- Edge from condition to init of true branch.
+                                    insEdge (intraEdge self @stat.init) $
+                                    -- The node itself.
+                                    insNode self @stat.cfg
                     stat.label = new @lhs.label
+                        .cfg   = @lhs.cfg
 
     | IfThenElse'   lhs  .label = @stat2.label
-                         .nodes = (node (new @lhs.label) @self) : (@stat1.nodes ++ @stat2.nodes)
-                         .init  = new @lhs.label
+                         .init  = nodeStmt (new @lhs.label) @self
                          .final = @stat1.final ++ @stat2.final
-                         .flow  = (intraEdge (new @lhs.label) @stat1.init) <> 
-                                  (intraEdge (new @lhs.label) @stat2.init) <> 
-                                  @stat1.flow                              <> 
-                                  @stat2.flow
+                         .cfg   = let self = nodeStmt (new @lhs.label) @self in
+                                    -- Edge from condition to init of true branch.
+                                    insEdge (intraEdge self @stat1.init) $
+                                    -- Edge from condition to init of false branch.
+                                    insEdge (intraEdge self @stat2.init) $
+                                    -- The node itself.
+                                    insNode self @stat2.cfg
                     stat1.label = new @lhs.label
+                         .cfg   = @lhs.cfg
                     stat2.label = @stat1.label
-
-    | While'        lhs .label     = @body.label
-                        .nodes     = (node (new @lhs.label) @self) : @body.nodes
-                        .init      = new @lhs.label
-                        .final     = [new @lhs.label]
-                        .flow      = (intraEdge (new @lhs.label) @body.init)   <> 
-                                     @body.flow                                <> 
-                                     (intraEdges @body.final (new @lhs.label))
-                    body.label     = new @lhs.label
-
-    | BasicFor'     lhs .label = @body.label
-                        .nodes = [node (new @lhs.label) @self]              ++ -- Condition node
-                                 (forInitNode (new $ new @lhs.label) @init) ++ -- Initialisation node
-                                 @body.nodes                                ++ -- body nodes
-                                 (forUpdateNode (new $ new $ newIfJust @init @lhs.label) @update) --update node
-                        .init  = new $ newIfJust @init @lhs.label -- Initialisation if it exists, otherwise the condition
-                        .final = [new @lhs.label] -- Condition
-                        .flow  = maybe mempty (const $ intraEdge (new $ new @lhs.label) (new @lhs.label)) @init <> -- Initialisation -> Condition
-                                 intraEdge (new @lhs.label) @body.init <> -- Condition -> Body
-                                 intraEdges @body.final (maybe (new @lhs.label) (const $ new $ new $ newIfJust @init @lhs.label) @update) <> -- Body -> Update/Condition
-                                 maybe mempty (const $ intraEdge (new $ new $ newIfJust @init @lhs.label) (new @lhs.label)) @update <> -- Update -> Condition
-                                 @body.flow 
+                         .cfg   = @stat1.cfg
+    
+    | While'        lhs .label = @body.label
+                        .init  = nodeStmt (new @lhs.label) @self
+                        .final = [nodeStmt (new @lhs.label) @self]
+                        .cfg   = let self = nodeStmt (new @lhs.label) @self in
+                                    -- Edge from condition to the init of body.
+                                    insEdge (intraEdge self @body.init)    $
+                                    -- Edge from finals of body to the condition.
+                                    insEdges (intraEdges @body.final self) $
+                                    -- The node itself.
+                                    insNode self @body.cfg
+                    body.label = new @lhs.label
+                        .cfg   = @lhs.cfg
+    
+    | BasicFor'    lhs .label  = @body.label
+                       .init   = maybe (nodeStmt (new @lhs.label) @self) (nodeForInit . new $ new @lhs.label) @init -- Init if it exists, otherwise the condition.
+                       .final  = [nodeStmt (new @lhs.label) @self]
+                       .cfg    = let self   = nodeStmt      (new @lhs.label) @self
+                                     init   = nodeForInit   (new $ new @lhs.label)                   <$> @init
+                                     update = nodeForUpdate (new $ new $ newIfJust @init @lhs.label) <$> @update in
+                                    -- Edge from condition to init of body.
+                                    insEdge (intraEdge self @body.init)                             $
+                                    -- Edge from body to update or condition, depending if update exists.
+                                    insEdges (intraEdges @body.final (maybe self id update))        $
+                                    -- Edge from initialisation to condition, if it exists.
+                                    maybe id (\ init' -> insEdge $ intraEdge init' self) init       $
+                                    -- Edge from update to condition, if it exists.
+                                    maybe id (\ update' -> insEdge $ intraEdge update' self) update $
+                                    -- The condition node, if it exists.
+                                    maybe id insNode init                                           $
+                                    -- The update node, if it exists.
+                                    maybe id insNode update                                         $
+                                    -- The node itself.
+                                    insNode self @body.cfg
                     body.label = new $ newIfJust @init $ newIfJust @update @lhs.label
+                        .cfg   = @lhs.cfg
 
     | Empty'        lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
     | ExpStmt'      lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
     | Assert'       lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
+                       
+    | Assume'       lhs.label = new @lhs.label
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
     | Break'        lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
         
     | Continue'     lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
     | Return'       lhs.label = new @lhs.label
-                       .nodes = [node (new @lhs.label) @self]
-                       .init  = new @lhs.label
-                       .final = [new @lhs.label]
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
-    | Labeled'      lhs  .label     = @stat.label
-                         .nodes     = @stat.nodes
-                         .init      = @stat.init
-                         .final     = @stat.final
+    | Labeled'      lhs.label = new @lhs.label
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .init  = nodeStmt (new @lhs.label) @self
+                       .final = [nodeStmt (new @lhs.label) @self]
 
 {
-new :: Label -> Label
+new :: Node -> Node
 new = (1+)
 
-newIfJust :: Maybe a -> Label -> Label
-newIfJust (Just _) = new
-newIfJust Nothing  = id
+newIfJust :: Maybe a -> Node -> Node
+newIfJust = maybe id (const new)
 
-node :: Label -> Stmt' -> Node
-node l s = NodeStmt l s
+nodeStmt :: Node -> Stmt' -> CFGNode
+nodeStmt l s = (l, NodeStmt s)
 
-forInitNode :: Label -> Maybe ForInit -> [Node]
-forInitNode l (Just i) = [NodeForInit l i]
-forInitNode _ Nothing  = []
+nodeVarDecl :: Node -> BlockStmt' -> CFGNode
+nodeVarDecl l b = (l, NodeVarDecl b)
 
-forUpdateNode :: Label -> Maybe [Exp] -> [Node]
-forUpdateNode l (Just es) = [NodeForUpdate l es]
-forUpdateNode _ Nothing   = []
+nodeForInit :: Node -> ForInit -> CFGNode
+nodeForInit l i = (l, NodeForInit i)
 
-flowOfBlock :: Block' -> Flow
-flowOfBlock block
-    = flow_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+nodeForUpdate :: Node -> [Exp] -> CFGNode
+nodeForUpdate l u = (l, NodeForUpdate u)
+
+intraEdge :: CFGNode -> CFGNode -> CFGEdge
+intraEdge (x,_) (y,_) = (x, y, ())
+
+intraEdges :: CFGNodes -> CFGNode -> CFGEdges
+intraEdges xs y = map ((flip intraEdge) y) xs
+
+finalOfBlock :: Block' -> CFGNodes
+finalOfBlock block
+    = final_Syn_Block' $ wrap_Block' (sem_Block' block) initial
     where
-        initial = Inh_Block' { label_Inh_Block'     = 0
-                             , next_Inh_Block'      = Nothing } 
-        
-nodesOfBlock :: Block' -> Nodes
-nodesOfBlock block
-    = nodes_Syn_Block' $ wrap_Block' (sem_Block' block) initial
-    where
-        initial = Inh_Block' { label_Inh_Block'     = 0
-                             , next_Inh_Block'      = Nothing } 
+        initial = Inh_Block' { label_Inh_Block' = 0
+                             , cfg_Inh_Block'   = empty }
 
-instance Show Node where
-    show (NodeStmt l s)      = show l ++ ": " ++ show s
-    show (NodeVarDecl l s)   = show l ++ ": " ++ show s
-    show (NodeForInit l s)   = show l ++ ": " ++ show s
-    show (NodeForUpdate l s) = show l ++ ": " ++ show s
+initOfBlock :: Block' -> CFGNode
+initOfBlock block
+    = init_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+    where
+        initial = Inh_Block' { label_Inh_Block' = 0
+                             , cfg_Inh_Block'   = empty }
+
+cfgOfBlock :: Block' -> CFG
+cfgOfBlock block
+    = cfg_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+    where
+        initial = Inh_Block' { label_Inh_Block' = 0
+                             , cfg_Inh_Block'   = empty }
 }
