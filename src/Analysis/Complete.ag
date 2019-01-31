@@ -1,10 +1,8 @@
 module{Analysis.Complete}{}
 {
-import Language.Java.Syntax
-import Phase
-
-import           Data.Maybe
-import qualified Data.Map   as M
+import           Language.Java.Syntax
+import           Data.Monoid
+import qualified Data.Set                          as S
 import           Data.Graph.Inductive.Graph
 import           Data.Graph.Inductive.PatriciaTree
 }

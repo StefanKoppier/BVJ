@@ -8,7 +8,10 @@ data CFGNodeValue
     
 type CFGNode = LNode CFGNodeValue
 
-type CFGNodes = [CFGNode]
+instance {-# OVERLAPS #-} Ord CFGNode where
+    (x,_) <= (y,_) = x <= y
+
+type CFGNodes = S.Set CFGNode
 
 type CFGEdge = UEdge
 
@@ -22,6 +25,8 @@ type CFG = Gr CFGNodeValue ()
 attr Block' BlockStmts' BlockStmt' Stmt'
     syn init                        :: {CFGNode}
     syn final                       :: {CFGNodes}
+    syn breaks    use {<>} {mempty} :: {CFGNodes}
+    syn continues use {<>} {mempty} :: {CFGNodes}
     chn cfg                         :: {CFG}
     chn label                       :: {Node}
 
@@ -36,21 +41,25 @@ sem BlockStmts'
             stat1.label = @lhs.label
                  .cfg   = @lhs.cfg
             stat2.label = @stat1.label
-                 .cfg   = insEdges (intraEdges @stat1.final @stat2.init) @stat1.cfg
+                 .cfg   = case @stat1.self of
+                            BlockStmt' (Break' _)
+                                -> @stat1.cfg
+                            BlockStmt' (Continue' _)
+                                -> @stat1.cfg
+                            _   -> insEdges (intraEdges @stat1.final @stat2.init) @stat1.cfg
 
     | Single' lhs.cfg = @s.cfg
 
 sem BlockStmt'
     | LocalVars' lhs.label = new @lhs.label
-                    .nodes = [nodeVarDecl (new @lhs.label) @self]
                     .init  = nodeVarDecl (new @lhs.label) @self
-                    .final = [nodeVarDecl (new @lhs.label) @self]
+                    .final = S.singleton $ nodeVarDecl (new @lhs.label) @self
                     .cfg   = insNode (nodeVarDecl (new @lhs.label) @self) @lhs.cfg
 
 sem Stmt'
     | IfThen'       lhs .label = @stat.label
                         .init  = nodeStmt (new @lhs.label) @self
-                        .final = nodeStmt (new @lhs.label) @self : @stat.final
+                        .final = S.insert (nodeStmt (new @lhs.label) @self) @stat.final
                         .cfg   = let self = nodeStmt (new @lhs.label) @self in
                                     -- Edge from condition to init of true branch.
                                     insEdge (intraEdge self @stat.init) $
@@ -61,7 +70,7 @@ sem Stmt'
 
     | IfThenElse'   lhs  .label = @stat2.label
                          .init  = nodeStmt (new @lhs.label) @self
-                         .final = @stat1.final ++ @stat2.final
+                         .final = @stat1.final `S.union` @stat2.final
                          .cfg   = let self = nodeStmt (new @lhs.label) @self in
                                     -- Edge from condition to init of true branch.
                                     insEdge (intraEdge self @stat1.init) $
@@ -74,81 +83,86 @@ sem Stmt'
                     stat2.label = @stat1.label
                          .cfg   = @stat1.cfg
     
-    | While'        lhs .label = @body.label
-                        .init  = nodeStmt (new @lhs.label) @self
-                        .final = [nodeStmt (new @lhs.label) @self]
-                        .cfg   = let self = nodeStmt (new @lhs.label) @self in
-                                    -- Edge from condition to the init of body.
-                                    insEdge (intraEdge self @body.init)    $
-                                    -- Edge from finals of body to the condition.
-                                    insEdges (intraEdges @body.final self) $
-                                    -- The node itself.
-                                    insNode self @body.cfg
-                    body.label = new @lhs.label
-                        .cfg   = @lhs.cfg
+    | While'        lhs .label     = @body.label
+                        .init      = nodeStmt (new @lhs.label) @self
+                        .final     = S.insert (nodeStmt (new @lhs.label) @self) (S.filter (isLabelOfThisLoop @ident) @body.breaks)
+                        .cfg       = let self = nodeStmt (new @lhs.label) @self in
+                                        -- Edge from condition to the init of body.
+                                        insEdge (intraEdge self @body.init)                                              $
+                                        -- Edge(s) from finals of body to the condition.
+                                        insEdges (intraEdges @body.final self)                                           $
+                                        -- Edge(s) from continues of this loop to the condition.
+                                        insEdges (intraEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) self) $
+                                        -- The node itself.
+                                        insNode self @body.cfg
+                        .breaks    = S.filter (not . isLabelOfThisLoop @ident) @body.breaks
+                        .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
+                    body.label     = new @lhs.label
+                        .cfg       = @lhs.cfg
     
-    | BasicFor'    lhs .label  = @body.label
-                       .init   = maybe (nodeStmt (new @lhs.label) @self) (nodeForInit . new $ new @lhs.label) @init -- Init if it exists, otherwise the condition.
-                       .final  = [nodeStmt (new @lhs.label) @self]
-                       .cfg    = let self   = nodeStmt      (new @lhs.label) @self
-                                     init   = nodeForInit   (new $ new @lhs.label)                   <$> @init
-                                     update = nodeForUpdate (new $ new $ newIfJust @init @lhs.label) <$> @update in
-                                    -- Edge from condition to init of body.
-                                    insEdge (intraEdge self @body.init)                             $
-                                    -- Edge from body to update or condition, depending if update exists.
-                                    insEdges (intraEdges @body.final (maybe self id update))        $
-                                    -- Edge from initialisation to condition, if it exists.
-                                    maybe id (\ init' -> insEdge $ intraEdge init' self) init       $
-                                    -- Edge from update to condition, if it exists.
-                                    maybe id (\ update' -> insEdge $ intraEdge update' self) update $
-                                    -- The condition node, if it exists.
-                                    maybe id insNode init                                           $
-                                    -- The update node, if it exists.
-                                    maybe id insNode update                                         $
-                                    -- The node itself.
-                                    insNode self @body.cfg
-                    body.label = new $ newIfJust @init $ newIfJust @update @lhs.label
-                        .cfg   = @lhs.cfg
+    | BasicFor'    lhs  .label  = @body.label
+                        .init   = maybe (nodeStmt (new @lhs.label) @self) (nodeForInit . new $ new @lhs.label) @init -- Init if it exists, otherwise the condition.
+                        .final  = S.insert (nodeStmt (new @lhs.label) @self) (S.filter (isLabelOfThisLoop @ident) @body.breaks)
+                        .cfg    = let self   = nodeStmt      (new @lhs.label) @self
+                                      init   = nodeForInit   (new $ new @lhs.label)                   <$> @init
+                                      update = nodeForUpdate (new $ new $ newIfJust @init @lhs.label) <$> @update in
+                                        -- Edge from condition to init of body.
+                                        insEdge (intraEdge self @body.init)                                                                $
+                                        -- Edge(s) from body to update or condition, depending if update exists.
+                                        insEdges (intraEdges @body.final (maybe self id update))                                           $
+                                        -- Edge from initialisation to condition, if it exists.
+                                        maybe id (\ init' -> insEdge $ intraEdge init' self) init                                          $
+                                        -- Edge from update to condition, if it exists.
+                                        maybe id (\ update' -> insEdge $ intraEdge update' self) update                                    $
+                                        -- Edge(s) from continues of this loop to the update or condition, depending if update exists.
+                                        insEdges (intraEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) (maybe self id update)) $
+                                        -- The condition node, if it exists.
+                                        maybe id insNode init                                                                              $
+                                        -- The update node, if it exists.
+                                        maybe id insNode update                                                                            $
+                                        -- The node itself.
+                                        insNode self @body.cfg
+                        .breaks    = S.filter (not . isLabelOfThisLoop @ident) @body.breaks
+                        .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
+                    body.label     = new $ newIfJust @init $ newIfJust @update @lhs.label
+                        .cfg       = @lhs.cfg
 
     | Empty'        lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
 
     | ExpStmt'      lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
 
     | Assert'       lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        
     | Assume'       lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
 
-    | Break'        lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+    | Break'        lhs.label  = new @lhs.label
+                       .init   = nodeStmt (new @lhs.label) @self
+                       .final  = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg    = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .breaks = S.singleton $ nodeStmt (new @lhs.label) @self
         
-    | Continue'     lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
+    | Continue'     lhs.label     = new @lhs.label
+                       .init      = nodeStmt (new @lhs.label) @self
+                       .final     = S.singleton $ nodeStmt (new @lhs.label) @self
+                       .cfg       = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
+                       .continues = S.singleton $ nodeStmt (new @lhs.label) @self
 
     | Return'       lhs.label = new @lhs.label
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
                        .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
-
-    | Labeled'      lhs.label = new @lhs.label
+                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
                        .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = [nodeStmt (new @lhs.label) @self]
 
 {
 new :: Node -> Node
@@ -173,7 +187,16 @@ intraEdge :: CFGNode -> CFGNode -> CFGEdge
 intraEdge (x,_) (y,_) = (x, y, ())
 
 intraEdges :: CFGNodes -> CFGNode -> CFGEdges
-intraEdges xs y = map ((flip intraEdge) y) xs
+intraEdges xs y = S.toList $ S.map ((flip intraEdge) y) xs
+
+isLabelOfThisLoop :: Maybe Ident -> CFGNode -> Bool
+isLabelOfThisLoop _        (_, NodeStmt (Break' Nothing))      = True
+isLabelOfThisLoop _        (_, NodeStmt (Continue' Nothing))   = True
+isLabelOfThisLoop Nothing  (_, NodeStmt (Break' (Just _)))     = False
+isLabelOfThisLoop Nothing  (_, NodeStmt (Continue' (Just _)))  = False
+isLabelOfThisLoop (Just l) (_, NodeStmt (Break' (Just l')))    = l == l'
+isLabelOfThisLoop (Just l) (_, NodeStmt (Continue' (Just l'))) = l == l'
+isLabelOfThisLoop _        _                                   = error "Not a break or continue statement."
 
 finalOfBlock :: Block' -> CFGNodes
 finalOfBlock block

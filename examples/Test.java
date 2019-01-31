@@ -1,9 +1,12 @@
 class Main {
     public static void main(String[] args) {
-        int x = 0;
-        for (int i = 0; i < 10; ++i) {
-            assert 1 == 1;
+        b: while (true) {
+            a: for (;true;) {
+                int x = 0;
+                continue b;
+                int y = 0;
+            }
         }
-        assert 2 == 2;
+        assert 1 == 1;
     }
 }

@@ -1,38 +1,24 @@
 module Main where
 
-import Parsing.Parser
-import Parsing.Pretty
-
-import Analysis.Complete
+import Control.Phase
+import Control.Verbosity
+import Parsing.Phase
+import Analysis.Phase
 import Analysis.Utility
 
-perform :: FilePath -> IO ()
-perform file = do
-    content <- readFile file
-    case parse content of
-        Left e        -> print e
-        Right program -> do 
-            putStrLn "Program to be verified: "
-            print program
-
-            case transformBlock $ getMainMethod  program of 
-                Left e      -> print e
-                Right block -> do
-                    putStrLn "\nControl Flow Graph of main:"
-                    let cfg = cfgOfBlock block
-                    putStrLn $ prettify cfg
-
-                    putStrLn "\nLevels of the nodes:"
-                    let minDistance = distance block cfg
-                    print minDistance
-
-getMainMethod :: CompilationUnit -> Block
-getMainMethod (CompilationUnit _ _ 
-                (ClassTypeDecl 
-                  (ClassDecl _ _ _ _ _ 
-                    (ClassBody [MemberDecl (MethodDecl _ _ _ _ _ _ _ 
-                      (MethodBody (Just block)))])) : _))
-    = block
+perform :: Verbosity -> FilePath -> IO ()
+perform verbosity file = do
+    content     <- readFile file
+    parseResult <- runEitherT $ parsingPhase verbosity content
+    case parseResult of 
+        Left  e       -> putStrLn $ "An error occurred: " ++ show e
+        Right program -> do
+            cfg <- runEitherT $ analysisPhase verbosity program
+            case cfg of
+                Left e  -> putStrLn $ "An error occurred: " ++ show e
+                Right r -> do 
+                    printTitled "Final result" (prettify r)
+                    return ()
 
 main :: IO ()
-main = perform "examples/Test.java"
+main = perform Everything "examples/Test.java"

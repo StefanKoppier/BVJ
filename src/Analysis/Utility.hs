@@ -3,6 +3,7 @@ module Analysis.Utility where
 import           Data.Graph.Inductive.Basic
 import           Data.Graph.Inductive.Graph
 import           Data.Graph.Inductive.Query.BFS
+import qualified Data.Set                       as S
 import qualified Data.Map                       as M
 import           Analysis.Complete
 
@@ -16,5 +17,5 @@ distance block cfg
     | (l:ls) <- levels = foldr (M.unionWith min) l ls
     where
         cfgReverse = grev cfg
-        final      = map fst $ finalOfBlock block
-        levels     = map (\ f -> M.fromList $ level f cfgReverse) final
+        final      = S.map fst $ finalOfBlock block
+        levels     = S.toList $ S.map (\ f -> M.fromList $ level f cfgReverse) final

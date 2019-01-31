@@ -48,10 +48,12 @@ data Stmt'
                     stat1  :: Stmt'
                     stat2  :: Stmt'
 
-    | While'        exp    :: Exp
-                    body   :: Stmt' 
+    | While'        ident  :: {Maybe Ident}
+                    exp    :: Exp
+                    body   :: Stmt'
 
-    | BasicFor'     init   :: {Maybe ForInit}
+    | BasicFor'     ident  :: {Maybe Ident}
+                    init   :: {Maybe ForInit}
                     guard  :: {Maybe Exp}
                     update :: {Maybe [Exp]}
                     body   :: Stmt'
@@ -70,17 +72,16 @@ data Stmt'
     -- | Switch
     -- | Do
 
-    | Break'        --ident  :: {Maybe Ident}
+    | Break'        ident  :: {Maybe Ident}
 
-    | Continue'     --ident  :: {Maybe Ident}
+    | Continue'     ident  :: {Maybe Ident}
 
     | Return'       exp    :: {Maybe Exp}
     
     -- | Synchronized
     -- | Throw
     -- | Try
-    | Labeled'      ident :: {Ident}
-                    stat  :: Stmt'
+    
 deriving Stmt' : Eq, Show
 
 {-data Exp'
@@ -119,45 +120,3 @@ deriving Stmt' : Eq, Show
     -- | Lambda
     -- | MethodRef
 -}
-
-{
-transformBlock :: Block -> PhaseResult Block'
-transformBlock (Block ss) = Block' <$> transformBlockStmts ss
-
-transformBlockStmts :: [BlockStmt] -> PhaseResult  BlockStmts'
-transformBlockStmts []     = return $ Single' $ BlockStmt' $ Empty'
-transformBlockStmts (s:[]) = Single' <$> transformBlockStmt s
-transformBlockStmts (s:ss) = Seq' <$> transformBlockStmt s <*> transformBlockStmts ss
-
-transformBlockStmt :: BlockStmt -> PhaseResult BlockStmt'
-transformBlockStmt (BlockStmt s)        = BlockStmt' <$> transformStmt s
-transformBlockStmt (LocalVars ms ty vs) = LocalVars' ms ty <$> (mapM transformVarDecl vs)
-
-transformVarDecl :: VarDecl -> PhaseResult VarDecl'
-transformVarDecl (VarDecl name Nothing)     = return $ VarDecl' name Nothing
-transformVarDecl (VarDecl name (Just init)) = do
-    init' <- transformVarInit init
-    return $ VarDecl' name (Just init')
-
-transformVarInit :: VarInit -> PhaseResult VarInit'
-transformVarInit (InitExp e)      = return $ InitExp' e
-transformVarInit (InitArray init) = InitArray' <$> transformArrayInit init
-
-transformArrayInit :: ArrayInit -> PhaseResult ArrayInit'
-transformArrayInit (ArrayInit inits) = ArrayInit' <$> mapM transformVarInit inits
-
-transformStmt :: Stmt -> PhaseResult Stmt'
-transformStmt (StmtBlock b)        = StmtBlock' <$> transformBlock b
-transformStmt (IfThen e s)         = IfThen' e <$> transformStmt s
-transformStmt (IfThenElse e s1 s2) = IfThenElse' e <$> transformStmt s1 <*> transformStmt s2 
-transformStmt (While e b)          = While' e <$> transformStmt b
-transformStmt (BasicFor i g u b)   = BasicFor' i g u <$> transformStmt b
-transformStmt Empty                = return Empty'
-transformStmt (ExpStmt expr)       = return $ ExpStmt' expr
-transformStmt (Assert expr err)    = return $ Assert' expr err
---transformStmt (Break Nothing)      = return Break'
---transformStmt (Continue Nothing)   = return Continue' 
-transformStmt (Return e)           = return $ Return' e 
-transformStmt (Labeled l s)        = Labeled' l <$> transformStmt s 
-transformStmt s                    = Left $ SyntaxTransformation $  "The statment " ++ show s ++ " is not supported"
-}
