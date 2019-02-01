@@ -40,7 +40,7 @@ syntaxTransformationSubphase verbosity block = do
     transformBlock block
 
 transformBlock :: Block -> PhaseResult Block'
-transformBlock = undefined
+transformBlock (Block bs) = _
 
 transformStmt :: Stmt -> PhaseResult Stmt'
 transformStmt = foldStmt alg
@@ -49,20 +49,20 @@ transformStmt = foldStmt alg
               , \ g s       -> IfThen' g <$> s
               , \ g s1 s2   -> IfThenElse' g <$> s1 <*> s2
               , \ g s       -> While' Nothing g <$> s
-              , \ i g u s   -> _
+              , \ i g u s   -> BasicFor' Nothing i g u <$> s
               , \ m t i g s -> unsupported "for"
               ,                return Empty'
               , \ e         -> return $ ExpStmt' e
               , \ g e       -> return $ Assert' g e
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , \ e s   -> unsupported "synchronized"
-              , \ b c f -> unsupported "try catch (finally)"
-              , \ l s -> labelize (Just l) <$> s
+              , \ e b       -> unsupported "switch"
+              , \ s e       -> unsupported "do"
+              , \ l         -> return $ Break' l
+              , \ l         -> return $ Continue' l
+              , \ e         -> return $ Return' e
+              , \ e s       -> unsupported "synchronized"
+              , \ e         -> unsupported "throw"
+              , \ b c f     -> unsupported "try catch (finally)"
+              , \ l s       -> labelize (Just l) <$> s
               )
         labelize l (While' _ g s)        = While' l g s 
         labelize l (BasicFor' _ i g u s) = BasicFor' l i g u s 
