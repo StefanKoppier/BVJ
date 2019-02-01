@@ -1,0 +1,60 @@
+\chapter{Phases of the Tool}
+
+\section{Lexing and Parsing}
+
+\section{Analysis}
+
+\subsection{Syntax Transformation}
+
+\subsection{Control Flow Analysis}
+We perform the Control Flow Analysis (CFA) in a way similar to that described by
+Nielson et al. \cite{nielson2015principles}.
+
+We define the CFA as:
+
+\begin{align*}
+    init([x = e]^l)                                             &= l          \\
+    init([S_1];\;[S_2])                                         &= init(S_1)  \\
+    init([\textbf{assert}\;e\;g]^l)                             &= l          \\
+    init([\textbf{assume}\;e\;g]^l)                             &= l          \\
+    init([\textbf{break}\;x]^l)                                 &= l          \\
+    init([\textbf{continue}\;x]^l)                              &= l          \\
+    init(\textbf{if}\;([e]^l)\;\{S\})                           &= l          \\
+    init(\textbf{if}\;([e]^l)\;\{S_1\}\;\textbf{else}\;\{S_2\}) &= l          \\
+    init(\textbf{while}\;([e]^l)\;\{S\})                        &= l          \\
+    init(\textbf{for}\;(;\;[e]^l;\;\dots)\;\{S\})               &= l          \\
+    init(\textbf{for}\;([i]^{l'};\;[e]^l;\;\dots)\;\{S\})       &= l'
+\end{align*}
+
+\begin{align*}
+    final([x = e]^l)                                             &= \{l\}                      \\
+    final([S_1];\;[S_2])                                         &= final(S_2)                 \\
+    final([\textbf{assert}\;e\;g]^l)                             &= \{l\}                      \\
+    final([\textbf{assume}\;e\;g]^l)                             &= \{l\}                      \\
+    final([\textbf{break}\;x]^l)                                 &= \{l\}                      \\
+    final([\textbf{continue}\;x]^l)                              &= \{l\}                      \\
+    final(\textbf{if}\;([e]^l)\;\{S\})                           &= final(S)                   \\
+    final(\textbf{if}\;([e]^l)\;\{S_1\}\;\textbf{else}\;\{S_2\}) &= final(S_1) \cup final(S_2) \\
+    final(\textbf{while}\;([e]^l)\;\{S\})                        &= \{l\} \cup breaks_0(S)     \\
+    final(\textbf{for}\;(\dots;\;[e]^l;\;\dots)\;\{S\})          &= \{l\} \cup breaks_0(S)     \\
+    final(x:\;\textbf{while}\;([e]^l)\;\{S\})                    &= \{l\} \cup breaks_x(S)     \\
+    final(x:\;\textbf{for}\;(\dots;\;[e]^l;\;\dots)\;\{S\})      &= \{l\} \cup breaks_x(S) 
+\end{align*}
+
+\begin{align*}
+    flow([x = e]^l)                                             &= \emptyset  \\
+    flow([S];\;[\textbf{break}\;x]^l)                           &= flow(S)    \\
+    flow([S];\;[\textbf{continue}\;x]^l)                        &= flow(S)    \\
+    flow([S_1];\;[S_2])                                         &= flow(S_1) \cup flow(S_2) \cup \{(l,init(S_2)\;| \in final(S_1))\}  \\
+    flow([\textbf{assert}\;e\;g]^l)                             &= \emptyset          \\
+    flow([\textbf{assume}\;e\;g]^l)                             &= \emptyset          \\
+    flow([\textbf{break}\;x]^l)                                 &= \emptyset          \\
+    flow([\textbf{continue}\;x]^l)                              &= \emptyset          \\
+    flow(\textbf{if}\;([e]^l)\;\{S\})                           &= flow(S) \cup (l,init(S))  \\
+    flow(\textbf{if}\;([e]^l)\;\{S_1\}\;\textbf{else}\;\{S_2\}) &= flow(S_1) \cup flow(S_2) \cup (l,init(S_1)) \cup (l,init(S_2)) \\
+    flow(\textbf{while}\;([e]^l)\;\{S\})                        &= todo           \\
+    flow(\textbf{for}\;(;\;[e]^l;\;\dots)\;\{S\})               &= todo           \\
+    flow(\textbf{for}\;([i]^{l'};\;[e]^l;\;\dots)\;\{S\})       &= todo 
+\end{align*}
+
+\subsection{Reachability Analysis}

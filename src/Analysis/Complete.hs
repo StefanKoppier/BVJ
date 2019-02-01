@@ -29,7 +29,7 @@ type CFGEdge = UEdge
 
 type CFGEdges = [CFGEdge]
 
-type CFGContext = (Adj (), CFGNode, CFGNodeValue, Adj ())
+type CFGContext = (Adj (), Node, CFGNodeValue, Adj ())
 
 type CFG = Gr CFGNodeValue ()
 {-# LINE 36 "Complete.hs" #-}

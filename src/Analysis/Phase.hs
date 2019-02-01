@@ -1,5 +1,6 @@
 module Analysis.Phase where
 
+import           Fold
 import           Control.Phase
 import           Control.Verbosity
 import           Analysis.Complete
@@ -39,9 +40,63 @@ syntaxTransformationSubphase verbosity block = do
     transformBlock block
 
 transformBlock :: Block -> PhaseResult Block'
+transformBlock = undefined
+
+transformStmt :: Stmt -> PhaseResult Stmt'
+transformStmt = foldStmt alg
+    where
+        alg = ( \ b         -> StmtBlock' <$> transformBlock b
+              , \ g s       -> IfThen' g <$> s
+              , \ g s1 s2   -> IfThenElse' g <$> s1 <*> s2
+              , \ g s       -> While' Nothing g <$> s
+              , \ i g u s   -> _
+              , \ m t i g s -> unsupported "for"
+              ,                return Empty'
+              , \ e         -> return $ ExpStmt' e
+              , \ g e       -> return $ Assert' g e
+              , undefined
+              , undefined
+              , undefined
+              , undefined
+              , undefined
+              , undefined
+              , \ e s   -> unsupported "synchronized"
+              , \ b c f -> unsupported "try catch (finally)"
+              , \ l s -> labelize (Just l) <$> s
+              )
+        labelize l (While' _ g s)        = While' l g s 
+        labelize l (BasicFor' _ i g u s) = BasicFor' l i g u s 
+
+unsupported :: String -> PhaseResult Stmt'
+unsupported = left . UnsupportedSyntax
+
+{-
+        alg = (Block -> r, -- StmtBlock
+               Exp -> r -> r, -- IfThen
+               Exp -> r -> r -> r, -- IfThenElse
+               Exp -> r -> r,  -- While
+               Maybe ForInit -> Maybe Exp -> Maybe [Exp] -> r -> r,  -- BasicFor
+               [Modifier] -> Type -> Ident -> Exp -> r -> r,  -- EnhancedFor
+               r, -- Empty
+               Exp -> r, -- ExpStmt
+               Exp -> Maybe Exp -> r, -- Assert
+               Exp -> [SwitchBlock] -> r, -- Switch
+               r -> Exp -> r, -- Do
+               Maybe Ident -> r, -- Break
+               Maybe Ident -> r, -- Continue
+               Maybe Exp -> r, -- Return
+               Exp -> Block -> r, -- Synchronized
+               Exp -> r, -- Throw
+               Block -> [Catch] -> Maybe Block -> r, -- Try
+               Ident -> r -> r -- Labeled
+               )
+-}
+
+{-
+transformBlock :: Block -> PhaseResult Block'
 transformBlock (Block ss) = Block' <$> transformBlockStmts ss
 
-transformBlockStmts :: [BlockStmt] -> PhaseResult  BlockStmts'
+transformBlockStmts :: [BlockStmt] -> PhaseResult BlockStmts'
 transformBlockStmts []     = return $ Single' $ BlockStmt' Empty'
 transformBlockStmts [s]    = Single' <$> transformBlockStmt s
 transformBlockStmts (s:ss) = Seq' <$> transformBlockStmt s <*> transformBlockStmts ss
@@ -79,7 +134,7 @@ transformStmt (Break i)                      = return $ Break' i
 transformStmt (Continue i)                   = return $ Continue' i
 -- transformStmt (Return e)                     = return $ Return' e 
 transformStmt s                              = left $ UnsupportedSyntax $ "The statment " ++ show s ++ " is not supported"
-           
+-}
 --------------------------------------------------------------------------------
 -- Control Flow Analysis subphase
 --------------------------------------------------------------------------------
