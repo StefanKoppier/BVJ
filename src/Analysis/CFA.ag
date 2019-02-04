@@ -1,10 +1,5 @@
 {
-data CFGNodeValue
-    = NodeStmt      Stmt'
-    | NodeVarDecl   BlockStmt'
-    | NodeForInit   ForInit
-    | NodeForUpdate [Exp]
-    deriving (Show, Eq)
+type CFGNodeValue = CompoundStmt'
     
 type CFGNode = LNode CFGNodeValue
 
@@ -13,16 +8,23 @@ instance {-# OVERLAPS #-} Ord CFGNode where
 
 type CFGNodes = S.Set CFGNode
 
-type CFGEdge = UEdge
+data CFGEdgeValue
+    = Edge
+    | ConditionalEdge Bool
+    deriving (Show, Eq, Ord)
+
+type CFGEdge = LEdge CFGEdgeValue
 
 type CFGEdges = [CFGEdge]
 
-type CFGContext = (Adj (), Node, CFGNodeValue, Adj ())
+type CFGAdj = Adj CFGEdgeValue
 
-type CFG = Gr CFGNodeValue ()
+type CFGContext = (CFGAdj, Node, CFGNodeValue, CFGAdj)
+
+type CFG = Gr CFGNodeValue CFGEdgeValue
 }
 
-attr Block' BlockStmts' BlockStmt' Stmt'
+attr CompoundStmt' Stmt'
     syn init                        :: {CFGNode}
     syn final                       :: {CFGNodes}
     syn breaks    use {<>} {mempty} :: {CFGNodes}
@@ -30,6 +32,103 @@ attr Block' BlockStmts' BlockStmt' Stmt'
     chn cfg                         :: {CFG}
     chn label                       :: {Node}
 
+sem CompoundStmt'
+    | Seq'          lhs     .label = @stat2.label
+                            .init  = @stat1.init
+                            .final = @stat2.final
+                            .cfg   = @stat2.cfg
+                    stat1   .label = @lhs.label
+                            .cfg   = @lhs.cfg
+                    stat2   .label = @stat1.label
+                            .cfg   = case @stat1.self of
+                                        Stmt' (Break' _)
+                                            -> @stat1.cfg
+                                        Stmt' (Continue' _)
+                                            -> @stat1.cfg
+                                        While' _ _ _
+                                            -> let conditional = @stat1.init
+                                                   normal      = @stat1.final S.\\ S.singleton conditional in
+                                                    -- Edge from condition to init of next.
+                                                    insEdge (newCondEdge conditional @stat2.init False) $
+                                                    -- Edge from break(s) to init of next.
+                                                    insEdges (newEdges normal @stat2.init) @stat1.cfg
+                                        _   -> insEdges (newEdges @stat1.final @stat2.init) @stat1.cfg
+                    
+    | IfThenElse'   lhs     .label = @stat2.label
+                            .init  = node (new @lhs.label) @self
+                            .final = @stat1.final `S.union` @stat2.final
+                            .cfg   = let self = node (new @lhs.label) @self in
+                                        -- Edge from condition to init of true branch.
+                                        insEdge (newCondEdge self @stat1.init True)  $
+                                        -- Edge from condition to init of false branch.
+                                        insEdge (newCondEdge self @stat2.init False) $
+                                        -- The node itself.
+                                        insNode self @stat2.cfg
+                    stat1   .label = new @lhs.label
+                            .cfg   = @lhs.cfg
+                    stat2   .label = @stat1.label
+                            .cfg   = @stat1.cfg
+
+    | While'        lhs     .label     = @body.label
+                            .init      = node (new @lhs.label) @self
+                            .final     = S.insert (node (new @lhs.label) @self) (S.filter (isLabelOfThisLoop @ident) @body.breaks)
+                            .cfg       = let self = node (new @lhs.label) @self in
+                                            -- Edge from condition to the init of body.
+                                            insEdge (newCondEdge self @body.init True)                                              $
+                                            -- Edge(s) from finals of body to the condition.
+                                            insEdges (newEdges @body.final self)                                           $
+                                            -- Edge(s) from continues of this loop to the condition.
+                                            insEdges (newEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) self) $
+                                            -- The node itself.
+                                            insNode self @body.cfg
+                            .breaks    = S.filter (not . isLabelOfThisLoop @ident) @body.breaks
+                            .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
+                    body    .label     = new @lhs.label
+                            .cfg       = @lhs.cfg
+
+sem Stmt'
+    | VarDecl'  lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+    | Empty'    lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+    | ExpStmt'  lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+    | Assert'   lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+    | Assume'   lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+    | Break'    lhs .label  = new @lhs.label
+                    .init   = node (new @lhs.label) (Stmt' @self)
+                    .final  = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .breaks = S.singleton $ node (new @lhs.label) (Stmt' @self)
+
+    | Continue' lhs .label     = new @lhs.label
+                    .init      = node (new @lhs.label) (Stmt' @self)
+                    .final     = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg       = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .continues = S.singleton $ node (new @lhs.label) (Stmt' @self)
+
+    | Return'   lhs .label = new @lhs.label
+                    .init  = node (new @lhs.label) (Stmt' @self)
+                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+{-
 sem Block'
     | Block' lhs.label = @blocks.label
                 
@@ -126,44 +225,7 @@ sem Stmt'
                         .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
                     body.label     = new $ newIfJust @init $ newIfJust @update @lhs.label
                         .cfg       = @lhs.cfg
-
-    | Empty'        lhs.label = new @lhs.label
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-
-    | ExpStmt'      lhs.label = new @lhs.label
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-
-    | Assert'       lhs.label = new @lhs.label
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       
-    | Assume'       lhs.label = new @lhs.label
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-
-    | Break'        lhs.label  = new @lhs.label
-                       .init   = nodeStmt (new @lhs.label) @self
-                       .final  = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg    = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       .breaks = S.singleton $ nodeStmt (new @lhs.label) @self
-        
-    | Continue'     lhs.label     = new @lhs.label
-                       .init      = nodeStmt (new @lhs.label) @self
-                       .final     = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg       = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-                       .continues = S.singleton $ nodeStmt (new @lhs.label) @self
-
-    | Return'       lhs.label = new @lhs.label
-                       .init  = nodeStmt (new @lhs.label) @self
-                       .final = S.singleton $ nodeStmt (new @lhs.label) @self
-                       .cfg   = insNode (nodeStmt (new @lhs.label) @self) @lhs.cfg
-
+-}
 {
 new :: Node -> Node
 new = (1+)
@@ -171,51 +233,48 @@ new = (1+)
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
 
-nodeStmt :: Node -> Stmt' -> CFGNode
-nodeStmt l s = (l, NodeStmt s)
+node :: Node -> CompoundStmt' -> CFGNode
+node l s = (l, s)
 
-nodeVarDecl :: Node -> BlockStmt' -> CFGNode
-nodeVarDecl l b = (l, NodeVarDecl b)
+newEdge :: CFGNode -> CFGNode -> CFGEdge
+newEdge (x,_) (y,_) = (x, y, Edge)
 
-nodeForInit :: Node -> ForInit -> CFGNode
-nodeForInit l i = (l, NodeForInit i)
+newEdges :: CFGNodes -> CFGNode -> CFGEdges
+newEdges xs y = S.toList $ S.map ((flip newEdge) y) xs
 
-nodeForUpdate :: Node -> [Exp] -> CFGNode
-nodeForUpdate l u = (l, NodeForUpdate u)
+newCondEdge :: CFGNode -> CFGNode -> Bool -> CFGEdge
+newCondEdge (x,_) (y,_) b = (x, y, ConditionalEdge b)
 
-intraEdge :: CFGNode -> CFGNode -> CFGEdge
-intraEdge (x,_) (y,_) = (x, y, ())
-
-intraEdges :: CFGNodes -> CFGNode -> CFGEdges
-intraEdges xs y = S.toList $ S.map ((flip intraEdge) y) xs
+newCondEdges :: CFGNodes -> CFGNode -> Bool -> CFGEdges
+newCondEdges xs y b = S.toList $ S.map (\ x -> newCondEdge x y b) xs
 
 isLabelOfThisLoop :: Maybe Ident -> CFGNode -> Bool
-isLabelOfThisLoop _        (_, NodeStmt (Break' Nothing))      = True
-isLabelOfThisLoop _        (_, NodeStmt (Continue' Nothing))   = True
-isLabelOfThisLoop Nothing  (_, NodeStmt (Break' (Just _)))     = False
-isLabelOfThisLoop Nothing  (_, NodeStmt (Continue' (Just _)))  = False
-isLabelOfThisLoop (Just l) (_, NodeStmt (Break' (Just l')))    = l == l'
-isLabelOfThisLoop (Just l) (_, NodeStmt (Continue' (Just l'))) = l == l'
+isLabelOfThisLoop _        (_, Stmt' (Break' Nothing))      = True
+isLabelOfThisLoop _        (_, Stmt' (Continue' Nothing))   = True
+isLabelOfThisLoop Nothing  (_, Stmt' (Break' (Just _)))     = False
+isLabelOfThisLoop Nothing  (_, Stmt' (Continue' (Just _)))  = False
+isLabelOfThisLoop (Just l) (_, Stmt' (Break' (Just l')))    = l == l'
+isLabelOfThisLoop (Just l) (_, Stmt' (Continue' (Just l'))) = l == l'
 isLabelOfThisLoop _        _                                   = error "Not a break or continue statement."
 
-finalOfBlock :: Block' -> CFGNodes
-finalOfBlock block
-    = final_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+finalOfStmt :: CompoundStmt' -> CFGNodes
+finalOfStmt stat
+    = final_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
     where
-        initial = Inh_Block' { label_Inh_Block' = 0
-                             , cfg_Inh_Block'   = empty }
+        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
+                                    , cfg_Inh_CompoundStmt'   = empty }
 
-initOfBlock :: Block' -> CFGNode
-initOfBlock block
-    = init_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+initOfStmt :: CompoundStmt' -> CFGNode
+initOfStmt stat
+    = init_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
     where
-        initial = Inh_Block' { label_Inh_Block' = 0
-                             , cfg_Inh_Block'   = empty }
+        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
+                                    , cfg_Inh_CompoundStmt'   = empty }
 
-cfgOfBlock :: Block' -> CFG
-cfgOfBlock block
-    = cfg_Syn_Block' $ wrap_Block' (sem_Block' block) initial
+cfgOfStmt :: CompoundStmt' -> CFG
+cfgOfStmt stat
+    = cfg_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
     where
-        initial = Inh_Block' { label_Inh_Block' = 0
-                             , cfg_Inh_Block'   = empty }
+        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
+                                    , cfg_Inh_CompoundStmt'   = empty }
 }

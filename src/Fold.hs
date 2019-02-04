@@ -8,9 +8,6 @@ module Fold where
 
 import Language.Java.Syntax
 
-type BlockAlgebra r = (Stmt -> r,
-                       [Modifier] -> Type -> [VarDecl] -> r)
-
 type StmtAlgebra r = (Block -> r, -- StmtBlock
                       Exp -> r -> r, -- IfThen
                       Exp -> r -> r -> r, -- IfThenElse
@@ -99,13 +96,6 @@ defExpAlgebraExp =
              ExpName PostIncrement PostDecrement PreIncrement PreDecrement
              PrePlus PreMinus PreBitCompl PreNot Cast BinOp InstanceOf Cond
              Assign Lambda MethodRef
-
--- | A fold function over a java block.
-{-foldBlock :: BlockAlgebra r -> Block -> r
-foldBlock (fBlockStmt, fLocalVars) = fold where
-    fold s = case s of
-                  BlockStmt b       -> fBlockStmt b
-                  LocalVars ms t vs -> fBlockStmt ms t vs-}
 
 -- | A fold function over a java statement.
 foldStmt :: StmtAlgebra r -> Stmt -> r

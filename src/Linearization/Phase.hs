@@ -4,36 +4,45 @@ module Linearization.Phase(
     , linearizationPhase
 ) where
 
-import Data.Graph.Inductive   
-import Language.Java.Syntax
-import Analysis.Complete
-import Control.Phase
+import qualified Data.Graph.Inductive as G
+import           Language.Java.Syntax
+import           Analysis.Complete
+import           Linearization.Utility
+import           Control.Phase
 
-type ProgramPath = [CFGNodeValue]
+type ProgramPath = [Stmt']
 
 type ProgramPaths = [ProgramPath]
 
-linearizationPhase :: Phase (Node, CFG, Int) ProgramPaths
+linearizationPhase :: Phase (G.Node, CFG, Int) ProgramPaths
 linearizationPhase verbosity (start, cfg, n) = do
     newEitherT $ printHeader "3. LINEARIZATION"
-    newEitherT $ printTitled "Input CFG" (prettify cfg)
-    return $ paths' [[]] (context cfg start) cfg n
+    newEitherT $ printTitled "Input CFG" (G.prettify cfg)
+    return $ map reverse (paths' [[]] cfg (G.context cfg start) n)
 
-paths' :: ProgramPaths -> CFGContext -> CFG -> Int -> ProgramPaths
-paths' acc (_,_,value,[]) cfg n =
-    map (\ a -> value : a) acc
-paths' acc (_,_,value,[((),neighbour)]) cfg n =
-    paths' (map (\ a -> value : a) acc) (context cfg neighbour) cfg n
+paths' :: ProgramPaths -> CFG -> CFGContext -> Int -> ProgramPaths
+paths' acc cfg (_, _, _, neighbour:neighbours) 0
+    = []
 
-    --case value of
-    --    NodeStmt (IfThen' e s)
-    --        -> _
-    --    NodeStmt (IfThenElse' e s1 s2)
-    --        -> assume e       : _
-    --        ++ assume (neg e) : _
+paths' acc cfg (_, _, Stmt' stat, []) n
+    = map (stat:) acc
 
-assume :: Exp -> CFGNodeValue
-assume = NodeStmt . Assume'
+paths' acc cfg (_, _, stat, neighbours) n
+    | IfThenElse' exp _ _ <- stat 
+        = concatMap (\ neighbour -> next acc (Assume' exp Nothing) neighbour cfg n) neighbours
 
-neg :: Exp -> Exp
-neg = PreNot
+    | While' _ exp _ <- stat 
+        = concatMap (\ neighbour -> next acc (Assume' exp Nothing) neighbour cfg n) neighbours
+
+    | Stmt' stat <- stat 
+        = concatMap (\ neighbour -> next acc stat neighbour cfg n) neighbours
+        
+next :: ProgramPaths -> Stmt' -> (CFGEdgeValue, G.Node) -> CFG -> Int -> ProgramPaths
+next acc stat (Edge, neighbour) cfg n 
+    = paths' (map (stat:) acc) cfg (G.context cfg neighbour) (n-1)
+
+next acc (Assume' exp _) (ConditionalEdge True, neighbour) cfg n 
+    = paths' (map (Assume' exp Nothing:) acc) cfg (G.context cfg neighbour) (n-1)
+    
+next acc (Assume' exp _) (ConditionalEdge False, neighbour) cfg n 
+    = paths' (map (Assume' (PreNot exp) Nothing:) acc) cfg (G.context cfg neighbour) (n-1)

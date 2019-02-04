@@ -1,122 +1,53 @@
-data Block'
-    | Block'    blocks :: BlockStmts'
-deriving Block' : Eq, Show
+data CompoundStmt'
+    | Seq'          stat1   :: CompoundStmt'
+                    stat2   :: CompoundStmt'
 
-data BlockStmts'
-    | Seq'      stat1 :: BlockStmt'
-                stat2 :: BlockStmts'
+    | Block'        stat    :: CompoundStmt'
 
-    | Single'   s     :: BlockStmt' 
-deriving BlockStmts' : Eq, Show
+    | IfThenElse'   exp     :: Exp
+                    stat1   :: CompoundStmt'
+                    stat2   :: CompoundStmt'
 
-data BlockStmt'
-    | BlockStmt'    stat :: Stmt'
-
-    -- | LocalClass 
-
-    | LocalVars'    modifiers :: {[Modifier]}
-                    ty        :: {Type}
-                    vars      :: VarDecls'
-deriving BlockStmt' : Eq, Show
-
-type VarDecls' = [VarDecl']
-
-data VarDecl'
-    | VarDecl' name :: {VarDeclId}
-               init :: {(Maybe VarInit')}
-deriving VarDecl' : Eq, Show
-
-type VarInits' = [VarInit']
-
-data VarInit'
-    | InitExp'      exp :: Exp
-
-    | InitArray'    init :: ArrayInit'
-deriving VarInit' : Eq, Show
-
-data ArrayInit'
-    | ArrayInit'    inits :: VarInits'
-deriving ArrayInit' : Eq, Show
+    | While'        ident   :: {Maybe Ident}
+                    exp     :: Exp
+                    body    :: CompoundStmt'
+                    
+    | Stmt'         stat    :: Stmt'
+deriving CompoundStmt' : Eq, Show
 
 data Stmt'
-    | StmtBlock'    block  :: Block' 
-    
-    | IfThen'       exp    :: Exp
-                    stat   :: Stmt'
-
-    | IfThenElse'   exp    :: Exp
-                    stat1  :: Stmt'
-                    stat2  :: Stmt'
-
-    | While'        ident  :: {Maybe Ident}
-                    exp    :: Exp
-                    body   :: Stmt'
-
-    | BasicFor'     ident  :: {Maybe Ident}
-                    init   :: {Maybe ForInit}
-                    guard  :: {Maybe Exp}
-                    update :: {Maybe [Exp]}
-                    body   :: Stmt'
-
-    -- | EnhancedFor
+    | VarDecl'      modifiers :: {[Modifier]}
+                    ty        :: {Type}
+                    vars      :: {[VarDecl]}
 
     | Empty'
 
-    | ExpStmt'      exp    :: Exp
+    | ExpStmt'      exp       :: Exp
 
-    | Assert'       exp    :: Exp
-                    error  :: {Maybe Exp}
+    | Assert'       exp       :: Exp
+                    error     :: {Maybe Exp}
 
-    | Assume'       exp    :: Exp
+    | Assume'       exp       :: Exp
+                    error     :: {Maybe Exp}
 
-    -- | Switch
-    -- | Do
+    | Break'        ident     :: {Maybe Ident}
 
-    | Break'        ident  :: {Maybe Ident}
+    | Continue'     ident     :: {Maybe Ident}
 
-    | Continue'     ident  :: {Maybe Ident}
-
-    | Return'       exp    :: {Maybe Exp}
-    
-    -- | Synchronized
-    -- | Throw
-    -- | Try
-    
+    | Return'       exp       :: {Maybe Exp}
 deriving Stmt' : Eq, Show
 
-{-data Exp'
-    | Lit'          value :: {Literal}
+data Exp'
+    | LitInt'       value   :: {Integer}
+    | LitFloat'     value   :: {Double}
+    | LitDouble'    value   :: {Double}
+    | LitBool'      value   :: {Bool}
+    | LitNull'
 
-    -- | ClassLit
-    -- | This
-    -- | ThisClass
-    -- | InstanceCreation
-    -- | QualInstanceCreation
-    -- | ArrayCreate
-    -- | ArrayCreateInit
-    -- | FieldAcces
-    -- | MethodInv
-    -- | ArrayAccess
+    | PreNot'       exp     :: Exp'
 
-    | ExpName       name :: {Name}
-
-    | PostIncrement exp :: Exp'
-
-    | PostDecrement exp :: Exp'
-
-    | PreIncrement  exp :: Exp'
-
-    | PreDecrement  exp :: Exp'
-
-    -- | PrePlus
-    -- | PreMinus
-    -- | PreBitCompl
-    -- | PreNot
-    -- | Cast
-    | BinOp
-    -- | InstanceOf
-    -- | Cond
-    -- | Assign
-    -- | Lambda
-    -- | MethodRef
--}
+    | BinOp'        exp1    :: Exp'
+                    op      :: {Op}
+                    exp2    :: Exp'
+        
+deriving Exp' : Eq, Show

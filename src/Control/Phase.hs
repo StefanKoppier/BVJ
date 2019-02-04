@@ -17,6 +17,7 @@ type PhaseResult a = EitherT PhaseError IO a
 
 data PhaseError
     = ParseError        String
+    | MethodNotFound    String
     | UnsupportedSyntax String
     deriving (Show, Eq)
 
