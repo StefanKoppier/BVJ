@@ -2,27 +2,17 @@ module Main where
 
 import Control.Phase
 import Control.Verbosity
-import Parsing.Phase
-import Analysis.Phase
-import Linearization.Phase
+import Complete
 
-perform :: Verbosity -> String -> FilePath -> IO ()
-perform verbosity methodName file = do
-    content     <- readFile file
-    parseResult <- runEitherT $ parsingPhase verbosity content
-    case parseResult of 
-        Left  e       -> putStrLn $ "An error occurred: " ++ show e
-        Right program -> do
-            cfg <- runEitherT $ analysisPhase verbosity (methodName, program)
-            case cfg of
-                Left e  -> putStrLn $ "An error occurred: " ++ show e
-                Right r -> do 
-                    let start = 1
-                    let n = 10
-                    pPaths <- runEitherT $ linearizationPhase verbosity (start, r, n)
-                    case pPaths of
-                        Left e  -> putStrLn $ "An error occurred: " ++ show e
-                        Right r -> putStrLn $ "Final result\n" ++ show r
+perform :: Verbosity -> String -> FilePath -> Int -> IO ()
+perform verbosity methodName file n = do
+    content <- readFile file
+    result  <- runEitherT $ allPhases verbosity (methodName, content, n)
+    case result of
+        Left  failure -> putStrLn $ "An error occurred: " ++ show failure
+        Right results -> do
+            putStrLn "Final result: \n"
+            mapM_ print results
 
 main :: IO ()
-main = perform Everything "main" "examples/Test.java"
+main = perform Everything "main" "examples/Test.java" 100

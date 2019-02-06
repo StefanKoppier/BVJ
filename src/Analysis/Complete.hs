@@ -525,121 +525,12 @@ sem_CompoundStmt'_Stmt' stat_ =
               ( _statIbreaks,_statIcfg,_statIcontinues,_statIfinal,_statIinit,_statIlabel,_statIself) =
                   stat_ _statOcfg _statOlabel
           in  ( _lhsObreaks,_lhsOcfg,_lhsOcontinues,_lhsOfinal,_lhsOinit,_lhsOlabel,_lhsOself)))
--- Exp' --------------------------------------------------------
-data Exp' = LitInt' (Integer)
-          | LitFloat' (Double)
-          | LitDouble' (Double)
-          | LitBool' (Bool)
-          | LitNull'
-          | PreNot' (Exp')
-          | BinOp' (Exp') (Op) (Exp')
-          deriving ( Eq,Show)
--- cata
-sem_Exp' :: (Exp') ->
-            (T_Exp')
-sem_Exp' (LitInt' _value) =
-    (sem_Exp'_LitInt' _value)
-sem_Exp' (LitFloat' _value) =
-    (sem_Exp'_LitFloat' _value)
-sem_Exp' (LitDouble' _value) =
-    (sem_Exp'_LitDouble' _value)
-sem_Exp' (LitBool' _value) =
-    (sem_Exp'_LitBool' _value)
-sem_Exp' (LitNull') =
-    (sem_Exp'_LitNull')
-sem_Exp' (PreNot' _exp) =
-    (sem_Exp'_PreNot' (sem_Exp' _exp))
-sem_Exp' (BinOp' _exp1 _op _exp2) =
-    (sem_Exp'_BinOp' (sem_Exp' _exp1) _op (sem_Exp' _exp2))
--- semantic domain
-type T_Exp' = ( Exp')
-data Inh_Exp' = Inh_Exp' {}
-data Syn_Exp' = Syn_Exp' {self_Syn_Exp' :: Exp'}
-wrap_Exp' :: (T_Exp') ->
-             (Inh_Exp') ->
-             (Syn_Exp')
-wrap_Exp' sem (Inh_Exp') =
-    (let ( _lhsOself) = sem
-     in  (Syn_Exp' _lhsOself))
-sem_Exp'_LitInt' :: Integer ->
-                    (T_Exp')
-sem_Exp'_LitInt' value_ =
-    (let _lhsOself :: Exp'
-         _self =
-             LitInt' value_
-         _lhsOself =
-             _self
-     in  ( _lhsOself))
-sem_Exp'_LitFloat' :: Double ->
-                      (T_Exp')
-sem_Exp'_LitFloat' value_ =
-    (let _lhsOself :: Exp'
-         _self =
-             LitFloat' value_
-         _lhsOself =
-             _self
-     in  ( _lhsOself))
-sem_Exp'_LitDouble' :: Double ->
-                       (T_Exp')
-sem_Exp'_LitDouble' value_ =
-    (let _lhsOself :: Exp'
-         _self =
-             LitDouble' value_
-         _lhsOself =
-             _self
-     in  ( _lhsOself))
-sem_Exp'_LitBool' :: Bool ->
-                     (T_Exp')
-sem_Exp'_LitBool' value_ =
-    (let _lhsOself :: Exp'
-         _self =
-             LitBool' value_
-         _lhsOself =
-             _self
-     in  ( _lhsOself))
-sem_Exp'_LitNull' :: (T_Exp')
-sem_Exp'_LitNull' =
-    (let _lhsOself :: Exp'
-         _self =
-             LitNull'
-         _lhsOself =
-             _self
-     in  ( _lhsOself))
-sem_Exp'_PreNot' :: (T_Exp') ->
-                    (T_Exp')
-sem_Exp'_PreNot' exp_ =
-    (let _lhsOself :: Exp'
-         _expIself :: Exp'
-         _self =
-             PreNot' _expIself
-         _lhsOself =
-             _self
-         ( _expIself) =
-             exp_
-     in  ( _lhsOself))
-sem_Exp'_BinOp' :: (T_Exp') ->
-                   Op ->
-                   (T_Exp') ->
-                   (T_Exp')
-sem_Exp'_BinOp' exp1_ op_ exp2_ =
-    (let _lhsOself :: Exp'
-         _exp1Iself :: Exp'
-         _exp2Iself :: Exp'
-         _self =
-             BinOp' _exp1Iself op_ _exp2Iself
-         _lhsOself =
-             _self
-         ( _exp1Iself) =
-             exp1_
-         ( _exp2Iself) =
-             exp2_
-     in  ( _lhsOself))
 -- Stmt' -------------------------------------------------------
 data Stmt' = VarDecl' (([Modifier])) (Type) (([VarDecl]))
            | Empty'
            | ExpStmt' (Exp)
            | Assert' (Exp) ((Maybe Exp))
-           | Assume' (Exp) ((Maybe Exp))
+           | Assume' (Exp)
            | Break' ((Maybe Ident))
            | Continue' ((Maybe Ident))
            | Return' ((Maybe Exp))
@@ -655,8 +546,8 @@ sem_Stmt' (ExpStmt' _exp) =
     (sem_Stmt'_ExpStmt' _exp)
 sem_Stmt' (Assert' _exp _error) =
     (sem_Stmt'_Assert' _exp _error)
-sem_Stmt' (Assume' _exp _error) =
-    (sem_Stmt'_Assume' _exp _error)
+sem_Stmt' (Assume' _exp) =
+    (sem_Stmt'_Assume' _exp)
 sem_Stmt' (Break' _ident) =
     (sem_Stmt'_Break' _ident)
 sem_Stmt' (Continue' _ident) =
@@ -692,32 +583,32 @@ sem_Stmt'_VarDecl' modifiers_ ty_ vars_ =
               _lhsOlabel =
                   ({-# LINE 90 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 696 "Complete.hs" #-}
+                   {-# LINE 587 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 91 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 701 "Complete.hs" #-}
+                   {-# LINE 592 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 92 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 706 "Complete.hs" #-}
+                   {-# LINE 597 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 93 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 711 "Complete.hs" #-}
+                   {-# LINE 602 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 716 "Complete.hs" #-}
+                   {-# LINE 607 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 721 "Complete.hs" #-}
+                   {-# LINE 612 "Complete.hs" #-}
                    )
               _self =
                   VarDecl' modifiers_ ty_ vars_
@@ -738,32 +629,32 @@ sem_Stmt'_Empty' =
               _lhsOlabel =
                   ({-# LINE 95 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 742 "Complete.hs" #-}
+                   {-# LINE 633 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 96 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 747 "Complete.hs" #-}
+                   {-# LINE 638 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 97 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 752 "Complete.hs" #-}
+                   {-# LINE 643 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 98 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 757 "Complete.hs" #-}
+                   {-# LINE 648 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 762 "Complete.hs" #-}
+                   {-# LINE 653 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 767 "Complete.hs" #-}
+                   {-# LINE 658 "Complete.hs" #-}
                    )
               _self =
                   Empty'
@@ -785,32 +676,32 @@ sem_Stmt'_ExpStmt' exp_ =
               _lhsOlabel =
                   ({-# LINE 100 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 789 "Complete.hs" #-}
+                   {-# LINE 680 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 101 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 794 "Complete.hs" #-}
+                   {-# LINE 685 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 102 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 799 "Complete.hs" #-}
+                   {-# LINE 690 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 103 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 804 "Complete.hs" #-}
+                   {-# LINE 695 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 809 "Complete.hs" #-}
+                   {-# LINE 700 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 814 "Complete.hs" #-}
+                   {-# LINE 705 "Complete.hs" #-}
                    )
               _self =
                   ExpStmt' exp_
@@ -833,32 +724,32 @@ sem_Stmt'_Assert' exp_ error_ =
               _lhsOlabel =
                   ({-# LINE 105 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 837 "Complete.hs" #-}
+                   {-# LINE 728 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 106 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 842 "Complete.hs" #-}
+                   {-# LINE 733 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 107 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 847 "Complete.hs" #-}
+                   {-# LINE 738 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 108 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 852 "Complete.hs" #-}
+                   {-# LINE 743 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 857 "Complete.hs" #-}
+                   {-# LINE 748 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 862 "Complete.hs" #-}
+                   {-# LINE 753 "Complete.hs" #-}
                    )
               _self =
                   Assert' exp_ error_
@@ -866,9 +757,8 @@ sem_Stmt'_Assert' exp_ error_ =
                   _self
           in  ( _lhsObreaks,_lhsOcfg,_lhsOcontinues,_lhsOfinal,_lhsOinit,_lhsOlabel,_lhsOself)))
 sem_Stmt'_Assume' :: Exp ->
-                     (Maybe Exp) ->
                      (T_Stmt')
-sem_Stmt'_Assume' exp_ error_ =
+sem_Stmt'_Assume' exp_ =
     (\ _lhsIcfg
        _lhsIlabel ->
          (let _lhsOlabel :: Node
@@ -881,35 +771,35 @@ sem_Stmt'_Assume' exp_ error_ =
               _lhsOlabel =
                   ({-# LINE 110 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 885 "Complete.hs" #-}
+                   {-# LINE 775 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 111 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 890 "Complete.hs" #-}
+                   {-# LINE 780 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 112 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 895 "Complete.hs" #-}
+                   {-# LINE 785 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 113 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 900 "Complete.hs" #-}
+                   {-# LINE 790 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 905 "Complete.hs" #-}
+                   {-# LINE 795 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 910 "Complete.hs" #-}
+                   {-# LINE 800 "Complete.hs" #-}
                    )
               _self =
-                  Assume' exp_ error_
+                  Assume' exp_
               _lhsOself =
                   _self
           in  ( _lhsObreaks,_lhsOcfg,_lhsOcontinues,_lhsOfinal,_lhsOinit,_lhsOlabel,_lhsOself)))
@@ -928,32 +818,32 @@ sem_Stmt'_Break' ident_ =
               _lhsOlabel =
                   ({-# LINE 115 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 932 "Complete.hs" #-}
+                   {-# LINE 822 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 116 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 937 "Complete.hs" #-}
+                   {-# LINE 827 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 117 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 942 "Complete.hs" #-}
+                   {-# LINE 832 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 118 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 947 "Complete.hs" #-}
+                   {-# LINE 837 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 119 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 952 "Complete.hs" #-}
+                   {-# LINE 842 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 957 "Complete.hs" #-}
+                   {-# LINE 847 "Complete.hs" #-}
                    )
               _self =
                   Break' ident_
@@ -975,32 +865,32 @@ sem_Stmt'_Continue' ident_ =
               _lhsOlabel =
                   ({-# LINE 121 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 979 "Complete.hs" #-}
+                   {-# LINE 869 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 122 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 984 "Complete.hs" #-}
+                   {-# LINE 874 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 123 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 989 "Complete.hs" #-}
+                   {-# LINE 879 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 124 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 994 "Complete.hs" #-}
+                   {-# LINE 884 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 125 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 999 "Complete.hs" #-}
+                   {-# LINE 889 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 1004 "Complete.hs" #-}
+                   {-# LINE 894 "Complete.hs" #-}
                    )
               _self =
                   Continue' ident_
@@ -1022,32 +912,32 @@ sem_Stmt'_Return' exp_ =
               _lhsOlabel =
                   ({-# LINE 127 "CFA.ag" #-}
                    new _lhsIlabel
-                   {-# LINE 1026 "Complete.hs" #-}
+                   {-# LINE 916 "Complete.hs" #-}
                    )
               _lhsOinit =
                   ({-# LINE 128 "CFA.ag" #-}
                    node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 1031 "Complete.hs" #-}
+                   {-# LINE 921 "Complete.hs" #-}
                    )
               _lhsOfinal =
                   ({-# LINE 129 "CFA.ag" #-}
                    S.singleton $ node (new _lhsIlabel) (Stmt' _self)
-                   {-# LINE 1036 "Complete.hs" #-}
+                   {-# LINE 926 "Complete.hs" #-}
                    )
               _lhsOcfg =
                   ({-# LINE 130 "CFA.ag" #-}
                    insNode (node (new _lhsIlabel) (Stmt' _self)) _lhsIcfg
-                   {-# LINE 1041 "Complete.hs" #-}
+                   {-# LINE 931 "Complete.hs" #-}
                    )
               _lhsObreaks =
                   ({-# LINE 30 "CFA.ag" #-}
                    mempty
-                   {-# LINE 1046 "Complete.hs" #-}
+                   {-# LINE 936 "Complete.hs" #-}
                    )
               _lhsOcontinues =
                   ({-# LINE 31 "CFA.ag" #-}
                    mempty
-                   {-# LINE 1051 "Complete.hs" #-}
+                   {-# LINE 941 "Complete.hs" #-}
                    )
               _self =
                   Return' exp_

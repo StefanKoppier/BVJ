@@ -19,6 +19,7 @@ data PhaseError
     = ParseError        String
     | MethodNotFound    String
     | UnsupportedSyntax String
+    | ResultParseError  String
     deriving (Show, Eq)
 
 type Phase a b = Verbosity -> a -> PhaseResult b

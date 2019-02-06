@@ -42,10 +42,12 @@ getMainMethod (CompilationUnit _ _
 syntaxTransformationSubphase :: Subphase Block CompoundStmt'
 syntaxTransformationSubphase verbosity block = do
     newEitherT $ printHeader "2.a syntax transformation"
-    transformBlock block
+    program <- transformBlock block
+    return $ Seq' program (Stmt' Empty')
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block [])     = return $ Stmt' Empty'
+transformBlock (Block [s])    = transformBlockStmt s
 transformBlock (Block (s:ss)) = Seq' <$> transformBlockStmt s <*> transformBlock (Block ss)
 
 transformBlockStmt :: BlockStmt -> PhaseResult CompoundStmt'
@@ -93,13 +95,20 @@ transformStmt = foldStmt alg
               , \ g s       -> IfThenElse' <$> transformExp g <*> s <*> compound Empty'
               , \ g s1 s2   -> IfThenElse' <$> transformExp g <*> s1 <*> s2
               , \ g s       -> While' Nothing <$> transformExp g <*> s
-              , \ i g u s   -> do
+              , \ i g u s   -> do 
+                let i' = maybe empty (\ (ForLocalVars ms ty ds) -> Stmt' $ VarDecl' ms ty ds) i
+                g' <- maybe (return $ LitBool' True) transformExp g
+                s' <- s
+                u' <- foldr (Seq' . Stmt' . ExpStmt') empty <$> maybe (return []) (mapM transformExp) u
+                return $ While' Nothing g' (Seq' s' u')
+                                  
+              {-\ i g u s   -> do
                     s' <- s
                     g' <- maybe (return $ LitBool' True) transformExp g
                     let i' = maybe empty (\ (ForLocalVars ms ty ds) -> Stmt' $ VarDecl' ms ty ds) i
                     let u' = maybe empty (foldr (\ e -> Seq' (Stmt' $ ExpStmt' e)) empty) u
                     while <- While' Nothing <$> transformExp g' <*> return (Seq' s' u')
-                    return $ Block' $ Seq' i' while
+                    return $ Block' $ Seq' i' while-}
               , \ m t i g s     -> unsupported "for (iterator)"
               ,                    compound Empty'
               , \ e             -> Stmt' . ExpStmt' <$> transformExp e
@@ -118,43 +127,20 @@ transformStmt = foldStmt alg
               , \ l s           -> labelize (Just l) <$> s
               )
 
-        labelize l (While' _ g s) = While' l g s 
+        labelize l (While' _ g s) = While' l g s
+
 
 transformExp :: Exp -> PhaseResult Exp'
-transformExp = _ --foldExp alg
+transformExp = foldExp alg
     where
-        alg = ( \ case
-                    Int     v -> return $ LitInt' v
-                    Float   v -> return $ LitFloat' v
-                    Double  v -> return $ LitDouble' v
-                    Boolean v -> return $ LitBool' v
-                    Null      -> return LitNull'
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined)
+        alg :: ExpAlgebra (PhaseResult Exp')
+        alg = defExpAlgebra {
+            lit = \case Int     v -> return $ LitInt' v
+                        Float   v -> return $ LitFloat' v
+                        Double  v -> return $ LitDouble' v
+                        Boolean v -> return $ LitBool' v
+                        Null      -> return LitNull'
+        }
 -}
 empty :: CompoundStmt'
 empty = Stmt' Empty'
@@ -162,7 +148,7 @@ empty = Stmt' Empty'
 compound :: Stmt' -> PhaseResult CompoundStmt'
 compound = return . Stmt'
 
-unsupported :: String -> PhaseResult CompoundStmt'
+unsupported :: String -> PhaseResult a
 unsupported = left . UnsupportedSyntax
 
 --------------------------------------------------------------------------------

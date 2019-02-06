@@ -1,18 +1,13 @@
 module Linearization.Phase(
-      ProgramPath
-    , ProgramPaths
-    , linearizationPhase
+    linearizationPhase
 ) where
 
 import qualified Data.Graph.Inductive as G
 import           Language.Java.Syntax
 import           Analysis.Complete
+import           Linearization.Path
 import           Linearization.Utility
 import           Control.Phase
-
-type ProgramPath = [Stmt']
-
-type ProgramPaths = [ProgramPath]
 
 linearizationPhase :: Phase (G.Node, CFG, Int) ProgramPaths
 linearizationPhase verbosity (start, cfg, n) = do
@@ -29,10 +24,10 @@ paths' acc cfg (_, _, Stmt' stat, []) n
 
 paths' acc cfg (_, _, stat, neighbours) n
     | IfThenElse' exp _ _ <- stat 
-        = concatMap (\ neighbour -> next acc (Assume' exp Nothing) neighbour cfg n) neighbours
+        = concatMap (\ neighbour -> next acc (Assume' exp) neighbour cfg n) neighbours
 
     | While' _ exp _ <- stat 
-        = concatMap (\ neighbour -> next acc (Assume' exp Nothing) neighbour cfg n) neighbours
+        = concatMap (\ neighbour -> next acc (Assume' exp) neighbour cfg n) neighbours
 
     | Stmt' stat <- stat 
         = concatMap (\ neighbour -> next acc stat neighbour cfg n) neighbours
@@ -41,8 +36,8 @@ next :: ProgramPaths -> Stmt' -> (CFGEdgeValue, G.Node) -> CFG -> Int -> Program
 next acc stat (Edge, neighbour) cfg n 
     = paths' (map (stat:) acc) cfg (G.context cfg neighbour) (n-1)
 
-next acc (Assume' exp _) (ConditionalEdge True, neighbour) cfg n 
-    = paths' (map (Assume' exp Nothing:) acc) cfg (G.context cfg neighbour) (n-1)
+next acc (Assume' exp) (ConditionalEdge True, neighbour) cfg n 
+    = paths' (map (Assume' exp:) acc) cfg (G.context cfg neighbour) (n-1)
     
-next acc (Assume' exp _) (ConditionalEdge False, neighbour) cfg n 
-    = paths' (map (Assume' (PreNot exp) Nothing:) acc) cfg (G.context cfg neighbour) (n-1)
+next acc (Assume' exp) (ConditionalEdge False, neighbour) cfg n 
+    = paths' (map (Assume' (PreNot exp):) acc) cfg (G.context cfg neighbour) (n-1)

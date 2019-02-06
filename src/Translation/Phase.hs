@@ -1,104 +1,117 @@
 module Translation.Phase(
-    translationPhase
+      translationPhase
+    , Program
+    , Programs
 ) where
 
 import Language.Java.Syntax
-import Fold
+--import Language.C.Syntax.AST
 import Control.Phase
 import Linearization.Phase
+import Linearization.Path
 import Analysis.Complete
+import Fold
 
-translationPhase :: Phase ProgramPaths [String]
+type Program = String
+
+type Programs = [Program]
+
+translationPhase :: Phase ProgramPaths Programs
 translationPhase verbosity paths = do
     newEitherT $ printHeader "4. TRANSLATION"
-    return [] -- $ map translate paths
-{-
-translate :: ProgramPath -> String
-translate = concatMap translateStmt
+    return $ map translate paths
 
-translateStmt :: Stmt' -> PhaseResult String
---translateStmt (VarDecl' _ ty vs) = ""
---translateStmt Empty'             = ""
-translateStmt (Assert' exp _) = do
-    exp' <- translateExp exp
-    return $ "__CPROVER_assert(" ++ exp' ++ "\"\");"
+translate :: ProgramPath -> Program
+translate path = "void main(int argc, char **argv) {\n" 
+               ++ concatMap buildStmt path 
+               ++ "\n}"
 
-translateStmt (Assume' exp _) = do
-    exp' <- translateExp exp
-    return $ "__CPROVER_assume(" ++ exp' ++ "\"\");"
+buildStmt :: Stmt' -> String
+buildStmt (VarDecl' _ ty vs) = buildType ty ++ " " ++ buildVarDecls vs ++ ";\n" --CCompound [] [CBlockDecl (CDecl [buildType ty]) ()] ()
+buildStmt Empty'             = ""
+buildStmt (ExpStmt' e)       = buildExp e ++ ";\n"
+buildStmt (Assert' e error)  = "__CPROVER_assert(" ++ buildExp e ++ ", " ++ buildMaybeExp error ++ ");\n"
+buildStmt (Assume' e)        = "__CPROVER_assume(" ++ buildExp e ++ ");\n"
+buildStmt (Break' label)     = ""
+buildStmt (Continue' label)  = ""
+buildStmt (Return' (Just e)) = "return " ++ buildExp e ++ ";\n"
+buildStmt (Return' Nothing)  = "return;\n"
 
-translateExp :: Exp' -> PhaseResult String
-translateExp 
-    = undefined {-foldExp alg
+buildType :: Type -> String
+buildType (PrimType BooleanT) = "_Bool"
+buildType (PrimType ByteT)    = "__int8"
+buildType (PrimType ShortT)   = "__int16"
+buildType (PrimType IntT)     = "__int32"
+buildType (PrimType LongT)    = "__int64"
+buildType (PrimType FloatT)   = "float"
+buildType (PrimType DoubleT)  = "double"
+
+buildVarDecls :: [VarDecl] -> String
+buildVarDecls [VarDecl (VarId (Ident name)) Nothing]            = name 
+buildVarDecls [VarDecl (VarId (Ident name)) (Just (InitExp e))] = name ++ " = " ++ buildExp e
+
+buildMaybeExp :: Maybe Exp -> String
+buildMaybeExp (Just e) = buildExp e
+buildMaybeExp Nothing  = "\"\""
+
+buildExp :: Exp -> String
+buildExp = foldExp alg
     where
-        alg :: ExpAlgebra (PhaseResult String)
-        alg = ( \ l -> unsupported "literal"
-              , \ c -> unsupported "class literal"
-              ,        unsupported "this"
-              , \ n -> unsupported "this class"
-              , undefined
+        alg = defExpAlgebra {
+             lit = \case Int x         -> show x
+                         Float x       -> show x
+                         Double x      -> show x
+                         Boolean True  -> "1"
+                         Boolean False -> "0"
+                         String x      -> show x
+                         Null          -> "NULL"
+            , expName       = \ (Name [Ident x]) -> x
+            , postIncrement = \ e -> e ++ "++"
+            , postDecrement = \ e -> e ++ "--"
+            , preIncrement  = \ e -> "++" ++ e
+            , preDecrement  = \ e -> "--" ++ e
+            , prePlus       = \ e -> "+" ++ e
+            , preMinus      = \ e -> "-" ++ e
+            , preBitCompl   = \ e -> "~" ++ e
+            , preNot        = \ e -> "!" ++ e
+            , binOp         = \ e1 op e2 -> e1 ++ buildOp op ++ e2
+            , assign        = \ lhs op e -> buildLhs lhs ++ buildAssignOp op ++ e
+         }
 
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
+buildOp :: Op -> String
+buildOp Mult    = "*" 
+buildOp Div     = "/" 
+buildOp Rem     = "%" 
+buildOp Add     = "+"
+buildOp Sub     = "-"
+buildOp LShift  = "<<"
+buildOp RShift  = ">>"
+buildOp RRShift = error "TODO"
+buildOp LThan   = "<"
+buildOp GThan   = ">"
+buildOp LThanE  = ">="
+buildOp GThanE  = "<="
+buildOp Equal   = "=="
+buildOp NotEq   = "!="
+buildOp And     = "&&"
+buildOp Or      = "||"
+buildOp Xor     = "^"
+buildOp CAnd    = "&"
+buildOp COr     = "|"
 
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
+buildLhs :: Lhs -> String
+buildLhs (NameLhs (Name [Ident var])) = var
 
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-              , undefined
-
-              , undefined
-              , undefined)
-
-unsupported :: String -> PhaseResult String
-unsupported left . UnsupportedSyntax-}
-
-      {-  alg = lit :: Literal -> r
-        , classLit :: Maybe Type -> r
-        , this :: r
-        , thisClass :: Name -> r
-        , instanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> r
-       
-        , qualInstanceCreation :: r -> [TypeArgument] -> Ident -> [Argument] -> Maybe ClassBody -> r
-        , arrayCreate :: Type -> [r] -> Int -> r
-        , arrayCreateInit :: Type -> Int -> ArrayInit -> r
-        , fieldAccess :: FieldAccess -> r
-        , methodInv :: MethodInvocation -> r
-        
-        , arrayAccess :: ArrayIndex -> r
-        , expName :: Name -> r
-        , postIncrement :: r -> r
-        , postDecrement :: r -> r
-        , preIncrement :: r -> r
-        
-        , preDecrement :: r -> r
-        , prePlus :: r -> r
-        , preMinus :: r -> r
-        , preBitCompl :: r -> r
-        , preNot :: r -> r
-        
-        , cast :: Type -> r -> r
-        , binOp :: r -> Op -> r -> r
-        , instanceOf :: r -> RefType -> r
-        , cond :: r -> r -> r -> r
-        , assign :: Lhs -> AssignOp -> r -> r
-        
-        , lambda :: LambdaParams -> LambdaExpression -> r
-        , methodRef :: Name -> Ident -> r-}
-
--}
+buildAssignOp :: AssignOp -> String
+buildAssignOp EqualA   = "="
+buildAssignOp MultA    = "*="
+buildAssignOp DivA     = "/="
+buildAssignOp RemA     = "%="
+buildAssignOp AddA     = "+="
+buildAssignOp SubA     = "-="
+buildAssignOp LShiftA  = "<<="
+buildAssignOp RShiftA  = ">>="
+buildAssignOp RRShiftA = error "TODO"
+buildAssignOp AndA     = "&="
+buildAssignOp XorA     = "^="
+buildAssignOp OrA      = "|="
