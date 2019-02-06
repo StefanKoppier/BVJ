@@ -2,6 +2,7 @@ module Verification.Phase(
     verificationPhase
 ) where
     
+import Control.Concurrent.Async
 import System.Directory
 import System.IO
 import System.Process (readProcessWithExitCode)
@@ -14,14 +15,21 @@ verificationPhase :: Phase Programs VerificationResults
 verificationPhase verbosity programs = do
     newEitherT $ printHeader "3. VERIFICATION"
     newEitherT $ printTitled "Input Programs" $ intercalate "\n" programs
-    results <- mapM (newEitherT . verify) programs
+    results <- newEitherT $ runAsync programs
+    --processes <- mapM (newEitherT . async . verify) programs 
+    --results <- mapM wait processes
     newEitherT removeWorkingDir
     return results
+
+runAsync :: Programs -> IO (Either PhaseError VerificationResults)
+runAsync programs = do
+    processes <- mapM (async . verify) programs
+    results <- mapM wait processes
+    return $ sequence results
 
 verify :: Program -> IO (Either PhaseError VerificationResult)
 verify program = do
     createDirectoryIfMissing False workingDir
-    putStrLn $ "\n\n" ++ program ++ "\n\n"
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
     hPutStr handle program
     hClose handle

@@ -15,4 +15,4 @@ perform verbosity methodName file n = do
             mapM_ print results
 
 main :: IO ()
-main = perform Everything "main" "examples/Test.java" 100
+main = perform Everything "main" "examples/Test.java" 500
