@@ -16,8 +16,6 @@ verificationPhase verbosity programs = do
     newEitherT $ printHeader "3. VERIFICATION"
     newEitherT $ printTitled "Input Programs" $ intercalate "\n" programs
     results <- newEitherT $ runAsync programs
-    --processes <- mapM (newEitherT . async . verify) programs 
-    --results <- mapM wait processes
     newEitherT removeWorkingDir
     return results
 
