@@ -50,14 +50,14 @@ library
                      , containers
                      , directory
                      , async
-  hs-source-dirs:      src
+  hs-source-dirs:      src dist/build/autogen/uuagc
   default-language:    Haskell2010
   ghc-options:         -Wall
-                       -XLambdaCase
   extensions:          TupleSections
                      , TypeSynonymInstances
                      , FlexibleInstances
                      , OverloadedStrings 
+                     , LambdaCase
 executable app
     hs-source-dirs:    app
     main-is:           Main.hs

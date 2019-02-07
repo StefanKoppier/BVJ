@@ -1,17 +1,14 @@
-default: all
-
-clean: 								
-	rm -f 							\
-		src/Analysis/Complete.hs
-
-all:						\
-	src/Analysis/Complete.hs	
-
-app: 				\
-	clean			\
-	all				
+repl: \
+	dist/build/autogen/uuagc/Analysis/Complete.hs
 	cabal repl app
-	
+
+clean:
+	cabal clean
+
+AG		  = uuagc
+AG_OPTS	  = -Hdcfws --self
+AG_OUT_DIR= dist/build/autogen/uuagc
+
 # uuagc:
 #  -H              --haskellsyntax                 Use Haskell like syntax (equivalent to --lckeywords and --doublecolons --genlinepragmas)
 #  -d              --data                          generate data type definition
@@ -20,7 +17,6 @@ app: 				\
 #  -w              --wrappers                      generate wappers for semantic domains
 #  -s              --signatures                    generate signatures for semantic functions
 
-src/Analysis/Complete.hs:
-	cd src/Analysis && uuagc -Hdcfws --self Complete.ag
-
-.PHONY: default all clean
+dist/build/autogen/uuagc/Analysis/Complete.hs:	
+	mkdir -p `dirname $@`					
+	$(AG) $(AG_OPTS) src/Analysis/Complete.ag --output=$@
