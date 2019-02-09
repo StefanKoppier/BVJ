@@ -1,13 +1,10 @@
-repl: \
-	dist/build/autogen/uuagc/Analysis/Complete.hs
+repl:											\
+	dist/build/autogen/uuagc/Analysis/Syntax.hs	\
+	dist/build/autogen/uuagc/Analysis/CFA.hs
 	cabal repl app
 
 clean:
 	cabal clean
-
-AG		  = uuagc
-AG_OPTS	  = -Hdcfws --self
-AG_OUT_DIR= dist/build/autogen/uuagc
 
 # uuagc:
 #  -H              --haskellsyntax                 Use Haskell like syntax (equivalent to --lckeywords and --doublecolons --genlinepragmas)
@@ -17,6 +14,10 @@ AG_OUT_DIR= dist/build/autogen/uuagc
 #  -w              --wrappers                      generate wappers for semantic domains
 #  -s              --signatures                    generate signatures for semantic functions
 
-dist/build/autogen/uuagc/Analysis/Complete.hs:	
+dist/build/autogen/uuagc/Analysis/CFA.hs:
 	mkdir -p `dirname $@`					
-	$(AG) $(AG_OPTS) src/Analysis/Complete.ag --output=$@
+	uuagc -Hcfws --self --module=Analysis.CFA src/Analysis/CFA.ag --output=$@
+	
+dist/build/autogen/uuagc/Analysis/Syntax.hs:	
+	mkdir -p `dirname $@`					
+	uuagc -Hd --module=Analysis.Syntax src/Analysis/Syntax.ag --output=$@

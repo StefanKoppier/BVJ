@@ -1,9 +1,11 @@
 module Control.Phase(
       module Control.Monad.Trans.Either
-    , PhaseResult(..)
+    , module Arguments
+    , module Control.Verbosity
+    , PhaseResult
     , PhaseError(..)
-    , Phase(..)
-    , Subphase(..)
+    , Phase
+    , Subphase
     , printHeader
     , printTitled
     , printText
@@ -11,6 +13,7 @@ module Control.Phase(
 
 import Text.PrettyPrint
 import Control.Verbosity
+import Arguments
 import Control.Monad.Trans.Either
 
 type PhaseResult a = EitherT PhaseError IO a
@@ -22,7 +25,7 @@ data PhaseError
     | ResultParseError  String
     deriving (Show, Eq)
 
-type Phase a b = Verbosity -> a -> PhaseResult b
+type Phase a b = Arguments -> a -> PhaseResult b
 
 type Subphase a b = Phase a b
 

@@ -1,54 +1,89 @@
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+
+data Type'
+    | PrimType'     ty :: PrimType'
+deriving Type' : Eq, Show
+
+data PrimType'
+    | BooleanT'
+    | ByteT'
+    | ShortT'
+    | IntT'
+    | LongT'
+    | CharT'
+    | FloatT'
+    | DoubleT'
+deriving PrimType' : Eq, Show
+
+--------------------------------------------------------------------------------
+-- Statements
+--------------------------------------------------------------------------------
+
 data CompoundStmt'
     | Seq'          stat1   :: CompoundStmt'
                     stat2   :: CompoundStmt'
 
     | Block'        stat    :: CompoundStmt'
 
-    | IfThenElse'   exp     :: {Exp}
+    | IfThenElse'   exp     :: Exp'
                     stat1   :: CompoundStmt'
                     stat2   :: CompoundStmt'
 
-    | While'        ident   :: {Maybe Ident}
-                    exp     :: {Exp}
+    | While'        ident   :: {Maybe String}
+                    exp     :: Exp'
                     body    :: CompoundStmt'
                     
     | Stmt'         stat    :: Stmt'
 deriving CompoundStmt' : Eq, Show
 
 data Stmt'
-    | VarDecl'  modifiers :: {[Modifier]}
-                ty        :: {Type}
-                vars      :: {[VarDecl]}
+    | Decl'     modifiers   :: {[Modifier']}
+                ty          :: Type'
+                vars        :: {[VarDecl']}
 
     | Empty'
 
-    | ExpStmt'  exp       :: {Exp}
+    | ExpStmt'      exp         :: Exp'
 
-    | Assert'   exp       :: {Exp}
-                error     :: {Maybe Exp}
+    | Assert'       exp         :: Exp'
+                    error       :: {Maybe Exp'}
 
-    | Assume'   exp       :: {Exp}
+    | Assume'       exp         :: Exp'
 
-    | Break'    ident     :: {Maybe Ident}
+    | Break'        ident       :: {Maybe String}
 
-    | Continue' ident     :: {Maybe Ident}
+    | Continue'     ident       :: {Maybe String}
 
-    | Return'   exp       :: {Maybe Exp}
+    | Return'       exp         :: {Maybe Exp'}
 deriving Stmt' : Eq, Show
 
-{-
+--------------------------------------------------------------------------------
+-- Variables
+--------------------------------------------------------------------------------
+
+data VarDecl'
+    | VarDecl'  id   :: VarDeclId'
+                init :: VarInit'
+deriving VarDecl' : Eq, Show
+
+data VarDeclId'
+    | VarId'    id  :: String
+deriving VarDeclId' : Eq, Show
+
+data VarInit'
+    | InitExp'  exp :: Exp'
+deriving VarInit' : Eq, Show
+
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
 data Exp'
-    | LitInt'           value   :: {Integer}
+    | Lit'              value   :: Literal'
 
-    | LitFloat'         value   :: {Double}
-
-    | LitDouble'        value   :: {Double}
-
-    | LitBool'          value   :: {Bool}
-
-    | LitNull'
-
-    | ExpName'          name    :: {Name}
+    | ExpName'          name    :: Name'
 
     | PostIncrement'    exp     :: Exp'
 
@@ -67,15 +102,80 @@ data Exp'
     | PreNot'           exp     :: Exp'
 
     | BinOp'            exp1    :: Exp'
-                        op      :: {Op}
+                        op      :: Op'
                         exp2    :: Exp'
 
     | Cond'             guard   :: Exp'
                         e1      :: Exp'
                         e2      :: Exp'
 
-    | Assign'           lhs     :: {Lhs}
-                        op      :: {AssignOp}
+    | Assign'           target  :: Lhs'
+                        op      :: AssignOp'
                         exp     :: Exp'
 deriving Exp' : Eq, Show
--}
+
+data Literal'
+    | Int'      value :: {Integer}
+    | Float'    value :: {Float}
+    | Double'   value :: {Float}
+    | Boolean'  value :: {Bool}
+    | Char'     value :: {Char}
+    | String'   value :: {String}
+    | Null'
+deriving Literal' : Eq, Show
+
+data Op'
+    | Mult'
+    | Div'
+    | Rem'
+    | Add'
+    | Sub'
+    | LShift'
+    | RShift'
+    | RRShift'
+    | LThan'
+    | GThan'
+    | LThanE'
+    | GThanE'
+    | Equal'
+    | NotEq'
+    | And'
+    | Or'
+    | Xor'
+    | CAnd'
+    | COr'
+deriving Op' : Eq, Show
+
+data AssignOp'
+    | EqualA'
+    | MultA'
+    | DivA'
+    | RemA'
+    | AddA'
+    | SubA'
+    | LShiftA'
+    | RShiftA'
+    | RRShiftA'
+    | AndA'
+    | XorA'
+    | OrA'
+deriving AssignOp' : Eq, Show
+
+data Lhs'
+    | Name'  name :: Name'
+deriving Lhs' : Eq, Show
+
+data MethodInvocation'
+    | MethodCall'   name :: Name'
+                    args :: {[Exp']}
+deriving Lhs' : Eq, Show
+
+--------------------------------------------------------------------------------
+-- Miscellaneous
+--------------------------------------------------------------------------------
+
+data Modifier'
+    | Static'
+deriving Modifier' : Eq, Show
+
+type Name' = [String]

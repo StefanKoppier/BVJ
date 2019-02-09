@@ -7,7 +7,7 @@ import Control.Phase
 import Control.Verbosity
 
 parsingPhase :: Phase String CompilationUnit
-parsingPhase verbosity content = do
+parsingPhase _ content = do
     newEitherT $ printHeader "1. PARSING"
     newEitherT $ printTitled "Input program" content
     case parser compilationUnit content of 

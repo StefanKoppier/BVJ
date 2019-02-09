@@ -1,18 +1,23 @@
 module Main where
 
 import Control.Phase
-import Control.Verbosity
 import Complete
 
-perform :: Verbosity -> String -> FilePath -> Int -> IO ()
-perform verbosity methodName file n = do
+perform :: Arguments -> FilePath -> IO ()
+perform args file = do
     content <- readFile file
-    result  <- runEitherT $ allPhases verbosity (methodName, content, n)
+    result  <- runEitherT $ allPhases args content
     case result of
         Left  failure -> putStrLn $ "An error occurred: " ++ show failure
         Right results -> do
             putStrLn "Final result: \n"
             mapM_ print results
 
+arguments :: Arguments
+arguments = defaultArgs {
+      method       = "main"
+    , maximumDepth = 50
+    }
+
 main :: IO ()
-main = perform Everything "main" "examples/Test.java" 500
+main = perform arguments "examples/Test.java"

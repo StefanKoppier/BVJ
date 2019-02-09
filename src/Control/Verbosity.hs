@@ -1,20 +1,15 @@
 module Control.Verbosity(
       Verbosity(..)
-    , whenFR
-    , whenP
-    , whenS
-    , whenE
 ) where
     
-import Control.Monad
-
 data Verbosity
-    = FinalResult
+    = Quiet
     | Phases
     | Subphases
     | Everything
     deriving (Eq, Ord)
 
+{-
 whenFR :: Verbosity -> IO () -> IO ()
 whenFR = whenVerbosity FinalResult
 
@@ -29,3 +24,4 @@ whenE = whenVerbosity Everything
 
 whenVerbosity :: Verbosity -> Verbosity -> IO () -> IO ()
 whenVerbosity verbosity actual = when (verbosity <= actual)
+-}

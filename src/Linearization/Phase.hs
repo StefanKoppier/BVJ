@@ -3,17 +3,18 @@ module Linearization.Phase(
 ) where
 
 import qualified Data.Graph.Inductive as G
-import           Language.Java.Syntax
-import           Analysis.Complete
+import           Analysis.CFA
+import           Analysis.CFG
+import           Analysis.Syntax
 import           Linearization.Path
 import           Linearization.Utility
 import           Control.Phase
 
-linearizationPhase :: Phase (G.Node, CFG, Int) ProgramPaths
-linearizationPhase verbosity (start, cfg, n) = do
+linearizationPhase :: Phase (G.Node, CFG) ProgramPaths
+linearizationPhase Arguments{maximumDepth} (start, cfg) = do
     newEitherT $ printHeader "3. LINEARIZATION"
     newEitherT $ printTitled "Input CFG" (G.prettify cfg)
-    return $ map reverse (paths' [[]] cfg (G.context cfg start) n)
+    return $ map (reverse . clean) (paths' [[]] cfg (G.context cfg start) maximumDepth)
 
 paths' :: ProgramPaths -> CFG -> CFGContext -> Int -> ProgramPaths
 paths' acc cfg (_, _, _, neighbour:neighbours) 0
@@ -40,4 +41,11 @@ next acc (Assume' exp) (ConditionalEdge True, neighbour) cfg n
     = paths' (map (Assume' exp:) acc) cfg (G.context cfg neighbour) (n-1)
     
 next acc (Assume' exp) (ConditionalEdge False, neighbour) cfg n 
-    = paths' (map (Assume' (PreNot exp):) acc) cfg (G.context cfg neighbour) (n-1)
+    = paths' (map (Assume' (PreNot' exp):) acc) cfg (G.context cfg neighbour) (n-1)
+
+clean :: ProgramPath -> ProgramPath
+clean (Empty'     :ss) = clean ss
+clean (Break'    _:ss) = clean ss
+clean (Continue' _:ss) = clean ss
+clean (s:ss)           = s : clean ss
+clean []               = []

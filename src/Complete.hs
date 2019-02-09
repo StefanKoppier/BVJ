@@ -8,10 +8,10 @@ import Translation.Phase
 import Verification.Phase
 import Verification.Result
 
-allPhases :: Phase (String, String, Int) VerificationResults
-allPhases verbosity (methodName, file, n) = do
-    ast      <- parsingPhase verbosity file
-    cfg      <- analysisPhase verbosity (methodName, ast)
-    paths    <- linearizationPhase verbosity (1, cfg, n)
-    programs <- translationPhase verbosity paths
-    verificationPhase verbosity programs
+allPhases :: Phase String VerificationResults
+allPhases args file = do
+    ast      <- parsingPhase args file
+    cfg      <- analysisPhase args ast
+    paths    <- linearizationPhase args (1, cfg)
+    programs <- translationPhase args paths
+    verificationPhase args programs

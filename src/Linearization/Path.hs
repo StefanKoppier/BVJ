@@ -1,6 +1,6 @@
 module Linearization.Path where
     
-import Analysis.Complete
+import Analysis.Syntax
 
 type ProgramPath = [Stmt']
 

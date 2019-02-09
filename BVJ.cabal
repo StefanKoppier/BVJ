@@ -14,28 +14,29 @@ category:            Verification
 build-type:          Simple
 extra-source-files:  src/Analysis/CFA.ag
                    , src/Analysis/Syntax.ag
-                   , src/Analysis/Complete.ag
                    , Makefile
                    , README.md
 cabal-version:       >=1.10
 
 library
   exposed-modules:     Parsing.Phase
-                       Parsing.Utility
-                       Parsing.Pretty
                        Analysis.Phase
-                       Analysis.Complete
-                       Analysis.Reachability
+                       Analysis.Syntax
+                       Analysis.CFG
                        Linearization.Phase
                        Linearization.Path
-                       Linearization.Utility
                        Translation.Phase
                        Verification.Phase
                        Verification.Result
-                       Complete
                        Control.Phase
                        Control.Verbosity
-  other-modules:       Fold
+                       Complete
+                       Arguments
+  other-modules:       Parsing.Fold
+                       Parsing.Utility
+                       Analysis.CFA
+                       Analysis.Reachability
+                       Linearization.Utility
   -- other-extensions:    
   build-tools:         
   build-depends:       base                >= 4.10 && < 4.11
@@ -58,6 +59,7 @@ library
                      , FlexibleInstances
                      , OverloadedStrings 
                      , LambdaCase
+                     , NamedFieldPuns
 executable app
     hs-source-dirs:    app
     main-is:           Main.hs
