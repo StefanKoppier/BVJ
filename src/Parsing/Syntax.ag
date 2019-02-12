@@ -81,37 +81,39 @@ deriving VarInit' : Eq, Show
 --------------------------------------------------------------------------------
 
 data Exp'
-    | Lit'              value   :: Literal'
+    | Lit'              value       :: Literal'
 
-    | ExpName'          name    :: Name'
+    | MethodInv'        invocation  :: MethodInvocation'
 
-    | PostIncrement'    exp     :: Exp'
+    | ExpName'          name        :: Name'
 
-    | PostDecrement'    exp     :: Exp'
+    | PostIncrement'    exp         :: Exp'
 
-    | PreIncrement'     exp     :: Exp'
+    | PostDecrement'    exp         :: Exp'
 
-    | PreDecrement'     exp     :: Exp'
+    | PreIncrement'     exp         :: Exp'
 
-    | PrePlus'          exp     :: Exp'
+    | PreDecrement'     exp         :: Exp'
 
-    | PreMinus'         exp     :: Exp'
+    | PrePlus'          exp         :: Exp'
 
-    | PreBitCompl'      exp     :: Exp'
+    | PreMinus'         exp         :: Exp'
 
-    | PreNot'           exp     :: Exp'
+    | PreBitCompl'      exp         :: Exp'
 
-    | BinOp'            exp1    :: Exp'
-                        op      :: Op'
-                        exp2    :: Exp'
+    | PreNot'           exp         :: Exp'
 
-    | Cond'             guard   :: Exp'
-                        e1      :: Exp'
-                        e2      :: Exp'
+    | BinOp'            exp1        :: Exp'
+                        op          :: Op'
+                        exp2        :: Exp'
 
-    | Assign'           target  :: Lhs'
-                        op      :: AssignOp'
-                        exp     :: Exp'
+    | Cond'             guard       :: Exp'
+                        e1          :: Exp'
+                        e2          :: Exp'
+
+    | Assign'           target      :: Lhs'
+                        op          :: AssignOp'
+                        exp         :: Exp'
 deriving Exp' : Eq, Show
 
 data Literal'
@@ -168,7 +170,7 @@ deriving Lhs' : Eq, Show
 data MethodInvocation'
     | MethodCall'   name :: Name'
                     args :: {[Exp']}
-deriving Lhs' : Eq, Show
+deriving MethodInvocation' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Miscellaneous

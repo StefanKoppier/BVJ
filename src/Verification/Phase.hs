@@ -2,22 +2,23 @@ module Verification.Phase(
     verificationPhase
 ) where
     
-import Language.C.Pretty
+import System.Process (readProcessWithExitCode)
+import Auxiliary.Pretty
 import Control.Concurrent.Async
 import System.Directory
 import System.IO
-import System.Process (readProcessWithExitCode)
-import Data.List
-import Control.Phase
+import Auxiliary.Phase
 import Translation.Phase
 import Verification.Result
 
 verificationPhase :: Phase Programs VerificationResults
-verificationPhase args programs = do
+verificationPhase args@Arguments{keepOutputFiles} programs = do
     newEitherT $ printHeader "3. VERIFICATION"
-    newEitherT $ printTitled "Input Programs" $ intercalate "\n" (map (show . pretty) programs)
+    newEitherT $ printPretty programs
     results <- newEitherT $ runAsync args programs
-    newEitherT removeWorkingDir
+    if keepOutputFiles
+        then return ()
+        else newEitherT removeWorkingDir
     return results
 
 runAsync :: Arguments -> Programs -> IO (Either PhaseError VerificationResults)
@@ -30,7 +31,7 @@ verify :: Arguments -> Program -> IO (Either PhaseError VerificationResult)
 verify args program = do
     createDirectoryIfMissing False workingDir
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
-    hPutStr handle (show $ pretty program)
+    hPutStr handle (toString program)
     hClose handle
     (_,result,_) <- readProcessWithExitCode "cbmc" (cbmcArgs path args) ""
     runEitherT $ parseOutput result

@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Phase
+import Auxiliary.Phase
 import Complete
 
 perform :: Arguments -> FilePath -> IO ()
@@ -9,14 +9,13 @@ perform args file = do
     result  <- runEitherT $ allPhases args content
     case result of
         Left  failure -> putStrLn $ "An error occurred: " ++ show failure
-        Right results -> do
-            putStrLn "Final result: \n"
-            mapM_ print results
+        Right _       -> return ()
 
 arguments :: Arguments
 arguments = defaultArgs {
-      method       = "main"
-    , maximumDepth = 50
+      method          = "main"
+    , maximumDepth    = 50
+    , keepOutputFiles = False
     }
 
 main :: IO ()

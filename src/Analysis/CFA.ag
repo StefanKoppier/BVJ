@@ -2,10 +2,14 @@ imports {
 import qualified Data.Set                          as S
 import           Analysis.CFG
 import           Data.Graph.Inductive.Graph    
-import           Analysis.Syntax
+import           Parsing.Syntax
 }
 
-include "Syntax.ag"
+include "../Parsing/Syntax.ag"
+
+--------------------------------------------------------------------------------
+-- Statements
+--------------------------------------------------------------------------------
 
 attr CompoundStmt' Stmt'
     syn init                              :: {CFGNode}
@@ -98,7 +102,7 @@ sem Stmt'
     | Break'    lhs .label  = new @lhs.label
                     .init   = node (new @lhs.label) (Stmt' @self)
                     .final  = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg    = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
                     .breaks = S.singleton $ node (new @lhs.label) (Stmt' @self)
 
     | Continue' lhs .label     = new @lhs.label
@@ -111,6 +115,26 @@ sem Stmt'
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
                     .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
+{-
+attr Exp'
+    invocations :: {[MethodInvocation']}
+        
+sem Exp'
+    | MethodInv'    lhs.invocations = [@invocation.self]
+
+    | BinOp'        lhs.invocations = @exp1.invocations ++ @exp2.invocations
+
+    | Cond' 
+-}
+
+--------------------------------------------------------------------------------
+-- Auxiliary functions
+--------------------------------------------------------------------------------
 
 {
 new :: Node -> Node

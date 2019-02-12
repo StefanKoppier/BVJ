@@ -1,33 +1,25 @@
-module Control.Phase(
-      module Control.Monad.Trans.Either
-    , module Arguments
-    , module Control.Verbosity
-    , PhaseResult
-    , PhaseError(..)
-    , Phase
-    , Subphase
+module Auxiliary.Pretty(
+      Pretty(..)
+    , spaces
     , printHeader
+    , printPretty
     , printTitled
     , printText
 ) where
 
 import Text.PrettyPrint
-import Control.Verbosity
-import Arguments
-import Control.Monad.Trans.Either
+import Auxiliary.Phase
 
-type PhaseResult a = EitherT PhaseError IO a
+class Pretty a where
+    pretty      :: a -> Doc
+    toString    :: a -> String
+    toString = render . pretty
+    
+spaces :: Int -> Doc
+spaces n = text $ replicate n ' '
 
-data PhaseError
-    = ParseError        String
-    | MethodNotFound    String
-    | UnsupportedSyntax String
-    | ResultParseError  String
-    deriving (Show, Eq)
-
-type Phase a b = Arguments -> a -> PhaseResult b
-
-type Subphase a b = Phase a b
+stars :: Int -> Doc
+stars n = text $ replicate n '*'
 
 printHeader :: String -> IO (Either PhaseError ())
 printHeader header = do
@@ -37,6 +29,11 @@ printHeader header = do
                 $+$ text "** " <> text header <> spaces filling <> text  " **"
                 $+$ stars width $+$ space
     print doc
+    return $ Right ()
+
+printPretty :: Pretty a => a -> IO (Either PhaseError ())
+printPretty x = do
+    putStrLn $ toString x ++ "\n"
     return $ Right ()
 
 printTitled :: String -> String -> IO (Either PhaseError ())
@@ -49,9 +46,3 @@ printText :: String -> IO (Either PhaseError ())
 printText content = do
     putStrLn $ content ++ "\n"
     return $ Right ()
-
-spaces :: Int -> Doc
-spaces n = text $ replicate n ' '
-
-stars :: Int -> Doc
-stars n = text $ replicate n '*'

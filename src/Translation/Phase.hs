@@ -9,18 +9,17 @@ import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 import Language.C.Data.Node
 import Language.C.Data.Ident
-import Control.Phase
-import Linearization.Phase
+import Auxiliary.Phase
+import Auxiliary.Pretty
 import Linearization.Path
-import Analysis.Syntax
-
-type Program = CTranslUnit
-
-type Programs = [Program]
+import Translation.Program
+import Translation.Pretty
+import Parsing.Syntax
 
 translationPhase :: Phase ProgramPaths Programs
 translationPhase _ paths = do
     newEitherT $ printHeader "4. TRANSLATION"
+    newEitherT $ printPretty paths
     return $ map translate paths
 
 translate :: ProgramPath -> Program
@@ -38,10 +37,10 @@ translateStmt (Decl' _ ty [VarDecl' (VarId' name) init])
 translateStmt (ExpStmt' exp)
     = CBlockStmt (CExpr (Just $ translateExp exp) noNodeInfo)
 
-translateStmt (Assert' exp error)
-    = let error'  = maybe (CConst $ CStrConst (cString "") noNodeInfo) translateExp error
+translateStmt (Assert' exp err)
+    = let err'  = maybe (CConst $ CStrConst (cString "") noNodeInfo) translateExp err
           exp'    = translateExp exp
-          assert' = CExpr (Just (CCall (CVar (ident "__CPROVER_assert") noNodeInfo) [exp', error'] noNodeInfo)) noNodeInfo
+          assert' = CExpr (Just (CCall (CVar (ident "__CPROVER_assert") noNodeInfo) [exp', err'] noNodeInfo)) noNodeInfo
        in CBlockStmt assert'
 
 translateStmt (Assume' exp)

@@ -5,15 +5,17 @@ module Linearization.Phase(
 import qualified Data.Graph.Inductive as G
 import           Analysis.CFA
 import           Analysis.CFG
-import           Analysis.Syntax
+import           Analysis.Pretty
+import           Parsing.Syntax
 import           Linearization.Path
 import           Linearization.Utility
-import           Control.Phase
+import           Auxiliary.Phase
+import           Auxiliary.Pretty
 
 linearizationPhase :: Phase (G.Node, CFG) ProgramPaths
 linearizationPhase Arguments{maximumDepth} (start, cfg) = do
     newEitherT $ printHeader "3. LINEARIZATION"
-    newEitherT $ printTitled "Input CFG" (G.prettify cfg)
+    newEitherT $ printPretty cfg
     return $ map (reverse . clean) (paths' [[]] cfg (G.context cfg start) maximumDepth)
 
 paths' :: ProgramPaths -> CFG -> CFGContext -> Int -> ProgramPaths

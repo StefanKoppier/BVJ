@@ -1,12 +1,14 @@
 module Complete where
 
-import Control.Phase
+import Auxiliary.Phase
+import Auxiliary.Pretty
 import Parsing.Phase
 import Analysis.Phase
 import Linearization.Phase
 import Translation.Phase
 import Verification.Phase
 import Verification.Result
+import Verification.Pretty
 
 allPhases :: Phase String VerificationResults
 allPhases args file = do
@@ -14,4 +16,7 @@ allPhases args file = do
     cfg      <- analysisPhase args ast
     paths    <- linearizationPhase args (1, cfg)
     programs <- translationPhase args paths
-    verificationPhase args programs
+    results  <- verificationPhase args programs
+    newEitherT $ printHeader "FINAL RESULT"
+    newEitherT $ printPretty results
+    right results

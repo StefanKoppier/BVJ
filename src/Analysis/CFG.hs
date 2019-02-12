@@ -1,7 +1,7 @@
 module Analysis.CFG where
 
 import qualified Data.Set                          as S
-import           Analysis.Syntax
+import           Parsing.Syntax
 import           Data.Graph.Inductive.Graph    
 import           Data.Graph.Inductive.PatriciaTree    
 

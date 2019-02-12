@@ -1,10 +1,11 @@
-module Arguments where
+module Auxiliary.Arguments where
     
-import Control.Verbosity
+import Auxiliary.Verbosity
 
 data Arguments = Arguments {
       method                   :: String
     , verbosity                :: Verbosity
+    , keepOutputFiles          :: Bool
     , maximumDepth             :: Int
     , enableAssertions         :: Bool
     , enableArrayBoundsCheck   :: Bool
@@ -20,6 +21,7 @@ defaultArgs :: Arguments
 defaultArgs = Arguments {
       method = "main"
     , verbosity = Everything
+    , keepOutputFiles = False
     , maximumDepth = 100
     , enableAssertions = True
     , enableArrayBoundsCheck = True

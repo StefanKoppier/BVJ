@@ -1,5 +1,5 @@
-module Control.Verbosity(
-      Verbosity(..)
+module Auxiliary.Verbosity(
+        Verbosity(..)
 ) where
     
 data Verbosity

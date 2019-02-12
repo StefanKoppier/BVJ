@@ -1,0 +1,60 @@
+\chapter{On the semantical differences between Java and C}
+
+\section{Types}
+
+\subsection{Primitive data types}
+Java defines eight primitive data types: \javainline{boolean}, 
+\javainline{char}, \javainline{byte}, \javainline{short}, \javainline{int},
+\javainline{long}, \javainline{float}, \javainline{double}. All integral values 
+are signed.
+
+C defines one boolean type: \cinline{\_Bool}, five standard signed integer types: 
+\cinline{signed char}, \cinline{short int}, \cinline{int}, \cinline{long int},
+\cinline{long long int}, and three standard floating point types: \cinline{float},
+\cinline{double}, and \cinline{long double} \cite[p.~40]{iso_c_standard}. The 
+downside of the integral primitives is that their size is not exactly specified, 
+and is thus implementation specific. For example, the \cinline{int} primtive can
+be 32- or 64-bit, depending on the implementation. Luckily, CBMC defines four
+exact size integral values: \cinline{\_\_int8}, \cinline{\_\_int16}, 
+\cinline{\_\_int32}, and \cinline{\_\_int64} \cite[p.~39]{cprover_manual}.
+
+We can define an exact mapping of the primitve data types of Java, to those of
+C and CBMC. This mapping can be found in \ref{table:primitve_data_type_conversions}.
+
+\begin{table}[H]
+    \centering
+    \caption{Mapping of the primitive data types.}
+    \label{table:primitve_data_type_conversions}
+    \begin{tabular}{lll}
+    \hline
+    \textbf{Type}        & \textbf{Description}                 & \textbf{C equivalent} \\ \hline
+    \javainline{boolean} & true or false                        & \cinline{\_Bool}      \\
+    \javainline{char}    & 16-bit Unicode value                 &                       \\
+    \javainline{byte}    & 8-bit signed integral value          & \cinline{\_\_int8}    \\
+    \javainline{short}   & 16-bit signed integral value         & \cinline{\_\_int16}   \\
+    \javainline{int}     & 32-bit signed integral value         & \cinline{\_\_int32}   \\
+    \javainline{long}    & 64-bit signed integral value         & \cinline{\_\_int64}   \\
+    \javainline{float}   & IEEE 754 32-bit floating point value & \cinline{float}       \\
+    \javainline{double}  & IEEE 754 64-bit floating point value & \cinline{double}      \\ \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Arrays}
+
+\subsection{Strings}
+
+\subsection{Classes}
+
+\subsection{Interfaces}
+
+\subsection{Enum}
+
+\section{Expressions}
+
+\subsection{Literals}
+
+\subsection{Operators}
+
+\subsection{Assignment}
+
+\section{Namespaces}

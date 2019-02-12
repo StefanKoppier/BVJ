@@ -20,27 +20,32 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Parsing.Phase
+                       Parsing.Syntax
+                       Parsing.Pretty
                        Analysis.Phase
-                       Analysis.Syntax
                        Analysis.CFG
+                       Analysis.Pretty
                        Linearization.Phase
                        Linearization.Path
                        Translation.Phase
+                       Translation.Program
+                       Translation.Pretty
                        Verification.Phase
                        Verification.Result
-                       Control.Phase
-                       Control.Verbosity
+                       Verification.Pretty
+                       Auxiliary.Phase
+                       Auxiliary.Pretty
+                       Auxiliary.Verbosity
+                       Auxiliary.Arguments
                        Complete
-                       Arguments
   other-modules:       Parsing.Fold
                        Parsing.Utility
                        Analysis.CFA
-                       Analysis.Reachability
                        Linearization.Utility
   -- other-extensions:    
   build-tools:         
-  build-depends:       base                >= 4.10 && < 4.11
-                     , fgl                 >= 5.6  && < 5.7
+  build-depends:       base                >= 4.10  && < 4.11
+                     , fgl                 >= 5.6   && < 5.7
                      , process             >= 1.6.1 && < 1.6.2 
                      , pretty
                      , xeno

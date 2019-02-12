@@ -1,11 +1,12 @@
 module Verification.Result(
       VerificationResult(..)
+    , VerificationFailure(..)
     , VerificationResults
     , parseOutput
 ) where
     
 import Data.Maybe
-import Control.Phase
+import Auxiliary.Phase
 import Data.List
 import Data.ByteString.UTF8
 import Xeno.DOM
@@ -38,7 +39,7 @@ parseOutput output = do
 parseRoot :: ByteString -> PhaseResult Node
 parseRoot output =
     case parse output of
-        Left  e -> failure "parseRoot"
+        Left  _ -> failure "parseRoot"
         Right r -> right r
 
 getStatus :: Node -> PhaseResult ByteString
