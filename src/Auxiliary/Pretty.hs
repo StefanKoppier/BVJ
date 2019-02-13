@@ -2,6 +2,8 @@ module Auxiliary.Pretty(
       Pretty(..)
     , spaces
     , newline
+    , newlines
+    , dot
     , printHeader
     , printPretty
     , printTitled
@@ -15,12 +17,21 @@ class Pretty a where
     pretty      :: a -> Doc
     toString    :: a -> String
     toString = render . pretty
+
+instance Pretty String where
+    pretty = text
     
 spaces :: Int -> Doc
 spaces n = text $ replicate n ' '
 
 newline :: Doc
 newline = char '\n'
+
+newlines :: Doc -> Doc
+newlines d = newline <> d <> newline
+
+dot :: Doc
+dot = char '.'
 
 stars :: Int -> Doc
 stars n = text $ replicate n '*'

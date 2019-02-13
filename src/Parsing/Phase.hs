@@ -12,28 +12,80 @@ import Auxiliary.Pretty
 -- Parsing phase
 --------------------------------------------------------------------------------
 
-parsingPhase :: Phase String CompoundStmt'
-parsingPhase args@Arguments{method} content = do
+parsingPhase :: Phase String CompilationUnit'
+parsingPhase args content = do
     newEitherT $ printHeader "1. PARSING"
     newEitherT $ printTitled "Input program" content
     case parser compilationUnit content of 
         Left  e       -> left $ ParseError (show e)
-        Right program -> 
-            case findMethodBody method program of
-                Just method -> syntaxTransformationSubphase args method
-                Nothing     -> left (MethodNotFound method)
+        Right program -> syntaxTransformationSubphase args program
 
 --------------------------------------------------------------------------------
 -- Syntax transformation subphase
 --------------------------------------------------------------------------------
 
-syntaxTransformationSubphase :: Subphase Block CompoundStmt'
-syntaxTransformationSubphase _ block = do
-    program <- transformBlock block
-    return $ Seq' program (Stmt' Empty')
+syntaxTransformationSubphase :: Subphase CompilationUnit CompilationUnit'
+syntaxTransformationSubphase _ = transformCompilationUnit
+
+transformCompilationUnit :: CompilationUnit -> PhaseResult CompilationUnit'
+transformCompilationUnit (CompilationUnit p _ dls) 
+    = CompilationUnit' <$> transformPackageDecl p <*> mapM transformTypeDecl dls
+
+transformPackageDecl :: Maybe PackageDecl -> PhaseResult (Maybe Name')
+transformPackageDecl Nothing                = return Nothing
+transformPackageDecl (Just (PackageDecl n)) = Just <$> transformName n
+
+transformTypeDecl :: TypeDecl -> PhaseResult TypeDecl'
+transformTypeDecl (ClassTypeDecl cls)   = ClassTypeDecl' <$> transformClassDecl cls
+transformTypeDecl (InterfaceTypeDecl _) = unsupported "interface declaration"
+    
+transformClassDecl :: ClassDecl -> PhaseResult ClassDecl'
+transformClassDecl (ClassDecl ms (Ident n) [] Nothing [] (ClassBody ds)) 
+    = ClassDecl' <$> transformModifiers ms <*> return n <*> mapM transformDecl ds
+transformClassDecl ClassDecl{}                              
+    = unsupported "inheritance or generics"
+transformClassDecl EnumDecl{}
+    = unsupported "enum declaration"
+
+transformDecl :: Decl -> PhaseResult Decl'
+transformDecl (MemberDecl m) = MemberDecl' <$> transformMemberDecl m
+transformDecl (InitDecl _ _) = unsupported "initializer declarations"
+
+transformMemberDecl :: MemberDecl -> PhaseResult MemberDecl'
+transformMemberDecl (FieldDecl ms ty vs) 
+    = FieldDecl' <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty vs
+transformMemberDecl (MethodDecl ms [] ty (Ident n) ps [] _ b)
+    = MethodDecl' <$> transformModifiers ms <*> transformMaybeType ty <*> return n <*> transformParams ps <*> transformMethodBody b
+transformMemberDecl MethodDecl{}
+    = unsupported "generics or exception"
+transformMemberDecl (ConstructorDecl ms [] (Ident n) ps [] b)
+    = ConstructorDecl' <$> transformModifiers ms <*> return n <*> transformParams ps <*> transformConstructorBody b
+transformMemberDecl ConstructorDecl{}
+    = unsupported "generics or exception"
+transformMemberDecl (MemberClassDecl _)
+    = unsupported "nested class declaration"
+transformMemberDecl (MemberInterfaceDecl _)
+    = unsupported "nested interface declaration"
+
+transformParams :: [FormalParam] -> PhaseResult [FormalParam']
+transformParams = mapM transformParam
+
+transformParam :: FormalParam -> PhaseResult FormalParam'
+transformParam (FormalParam ms ty False id) 
+    = FormalParam' <$> transformModifiers ms <*> transformType ty <*> transformVarDeclId id
+transformParam (FormalParam _ _ True _)
+    = unsupported "variable arity parameter"
+
+transformConstructorBody :: ConstructorBody -> PhaseResult ConstructorBody'
+transformConstructorBody (ConstructorBody Nothing ss) = ConstructorBody' . (`Seq'` emptyStmt) <$> transformBlock (Block ss)
+transformConstructorBody (ConstructorBody (Just _) _) = unsupported "base class constructor call"
+
+transformMethodBody :: MethodBody -> PhaseResult CompoundStmt'
+transformMethodBody (MethodBody (Just b)) = (`Seq'` emptyStmt) <$> transformBlock b
+transformMethodBody (MethodBody Nothing)  = unsupported "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
-transformBlock (Block [])     = return $ Stmt' Empty'
+transformBlock (Block [])     = return emptyStmt
 transformBlock (Block [s])    = transformBlockStmt s
 transformBlock (Block (s:ss)) = Seq' <$> transformBlockStmt s <*> transformBlock (Block ss)
 
@@ -46,7 +98,24 @@ transformBlockStmt (LocalVars ms ty ds) = (\ ms' ty' -> Stmt' . Decl' ms' ty')
     <*> transformVarDecls ty ds
 
 transformModifiers :: [Modifier] -> PhaseResult [Modifier']
-transformModifiers ms = mapM (return . const Static') [m | m@Static <- ms]
+transformModifiers = mapM transformModifier
+
+transformModifier :: Modifier -> PhaseResult Modifier'
+transformModifier Public        = return Public'
+transformModifier Private       = return Private'
+transformModifier Protected     = return Protected'
+transformModifier Abstract      = unsupported "abstract modifier"
+transformModifier Final         = return Final'
+transformModifier Static        = return Static'
+transformModifier StrictFP      = unsupported "strictfp modifier"
+transformModifier Transient     = unsupported "transient modifier"
+transformModifier Volatile      = unsupported "volatile modifier"
+transformModifier Annotation{}  = unsupported "annotation"
+transformModifier Synchronized_ = unsupported "synchronized modifier"
+
+transformMaybeType :: Maybe Type -> PhaseResult (Maybe Type')
+transformMaybeType (Just ty) = Just <$> transformType ty
+transformMaybeType Nothing   = return Nothing
 
 transformType :: Type -> PhaseResult Type'
 transformType (PrimType BooleanT) = return $ PrimType' BooleanT'
@@ -133,6 +202,9 @@ transformMaybeExp :: Maybe Exp -> PhaseResult (Maybe Exp')
 transformMaybeExp (Just e) = Just <$> transformExp e
 transformMaybeExp Nothing  = return Nothing
 
+transformExps :: [Exp] -> PhaseResult [Exp']
+transformExps = mapM transformExp
+
 transformExp :: Exp -> PhaseResult Exp'
 transformExp = foldExp alg
     where 
@@ -152,8 +224,9 @@ transformExp = foldExp alg
             -> unsupported "array creation"
         , fieldAccess = \ _
             -> unsupported "field access"
-        , methodInv = \ _
-            -> unsupported "method invocation"
+        , methodInv = \case
+            (MethodCall n as) -> (\ n' -> MethodInv' . MethodCall' n') <$> transformName n <*> transformExps as
+            _                 -> unsupported "method invocation"
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
             -> ArrayAccess' n <$> mapM transformExp es
         , expName = fmap ExpName' . transformName

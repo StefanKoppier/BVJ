@@ -23,7 +23,7 @@ sem CompoundStmt'
     | Seq'          lhs     .label = @stat2.label
                             .init  = @stat1.init
                             .final = @stat2.final
-                            .cfg   = @stat2.cfg
+                            .cfg   = setInitialNode (fst @stat1.init) @stat2.cfg
                     stat1   .label = @lhs.label
                             .cfg   = @lhs.cfg
                     stat2   .label = @stat1.label
@@ -36,21 +36,23 @@ sem CompoundStmt'
                                             -> let conditional = @stat1.init
                                                    normal      = @stat1.final S.\\ S.singleton conditional in
                                                     -- Edge from condition to init of next.
-                                                    insEdge (newCondEdge conditional @stat2.init False) $
+                                                    insertEdge (newCondEdge conditional @stat2.init False) $
                                                     -- Edge from break(s) to init of next.
-                                                    insEdges (newEdges normal @stat2.init) @stat1.cfg
-                                        _   -> insEdges (newEdges @stat1.final @stat2.init) @stat1.cfg
+                                                    insertEdges (newEdges normal @stat2.init) @stat1.cfg
+                                        _   -> insertEdges (newEdges @stat1.final @stat2.init) @stat1.cfg
                     
     | IfThenElse'   lhs     .label = @stat2.label
                             .init  = node (new @lhs.label) @self
                             .final = @stat1.final `S.union` @stat2.final
                             .cfg   = let self = node (new @lhs.label) @self in
+                                        -- Set the initial node.
+                                        setInitialNode (new @lhs.label)                  $
                                         -- Edge from condition to init of true branch.
-                                        insEdge (newCondEdge self @stat1.init True)  $
+                                        insertEdge (newCondEdge self @stat1.init True)  $
                                         -- Edge from condition to init of false branch.
-                                        insEdge (newCondEdge self @stat2.init False) $
+                                        insertEdge (newCondEdge self @stat2.init False) $
                                         -- The node itself.
-                                        insNode self @stat2.cfg
+                                        insertNode self @stat2.cfg
                     stat1   .label = new @lhs.label
                             .cfg   = @lhs.cfg
                     stat2   .label = @stat1.label
@@ -60,14 +62,16 @@ sem CompoundStmt'
                             .init      = node (new @lhs.label) @self
                             .final     = S.insert (node (new @lhs.label) @self) (S.filter (isLabelOfThisLoop @ident) @body.breaks)
                             .cfg       = let self = node (new @lhs.label) @self in
+                                            -- Set the initial node.
+                                            setInitialNode (new @lhs.label)                                                   $   
                                             -- Edge from condition to the init of body.
-                                            insEdge (newCondEdge self @body.init True)                                              $
+                                            insertEdge (newCondEdge self @body.init True)                                     $
                                             -- Edge(s) from finals of body to the condition.
-                                            insEdges (newEdges @body.final self)                                           $
+                                            insertEdges (newEdges @body.final self)                                           $
                                             -- Edge(s) from continues of this loop to the condition.
-                                            insEdges (newEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) self) $
+                                            insertEdges (newEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) self) $
                                             -- The node itself.
-                                            insNode self @body.cfg
+                                            insertNode self @body.cfg
                             .breaks    = S.filter (not . isLabelOfThisLoop @ident) @body.breaks
                             .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
                     body    .label     = new @lhs.label
@@ -77,60 +81,56 @@ sem Stmt'
     | Decl'     lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
     | Empty'    lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
     | ExpStmt'  lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
     | Assert'   lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
     | Assume'   lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
     | Break'    lhs .label  = new @lhs.label
                     .init   = node (new @lhs.label) (Stmt' @self)
                     .final  = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg    = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg    = setInitialNode (new @lhs.label)                           $
+                              insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
                     .breaks = S.singleton $ node (new @lhs.label) (Stmt' @self)
 
     | Continue' lhs .label     = new @lhs.label
                     .init      = node (new @lhs.label) (Stmt' @self)
                     .final     = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg       = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg       = setInitialNode (new @lhs.label)                           $
+                                 insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
                     .continues = S.singleton $ node (new @lhs.label) (Stmt' @self)
 
     | Return'   lhs .label = new @lhs.label
                     .init  = node (new @lhs.label) (Stmt' @self)
                     .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = insNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .cfg   = setInitialNode (new @lhs.label)                           $
+                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
 
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
-
-{-
-attr Exp'
-    invocations :: {[MethodInvocation']}
-        
-sem Exp'
-    | MethodInv'    lhs.invocations = [@invocation.self]
-
-    | BinOp'        lhs.invocations = @exp1.invocations ++ @exp2.invocations
-
-    | Cond' 
--}
 
 --------------------------------------------------------------------------------
 -- Auxiliary functions
@@ -167,6 +167,19 @@ isLabelOfThisLoop (Just l) (_, Stmt' (Break' (Just l')))    = l == l'
 isLabelOfThisLoop (Just l) (_, Stmt' (Continue' (Just l'))) = l == l'
 isLabelOfThisLoop _        _                                   = error "Not a break or continue statement."
 
+insertEdge :: CFGEdge -> CFG -> CFG
+insertEdge edge (CFG cfg initial) = CFG (insEdge edge cfg) initial
+
+insertEdges :: [CFGEdge] -> CFG -> CFG
+insertEdges edges (CFG cfg initial) = CFG (insEdges edges cfg) initial
+
+insertNode :: CFGNode -> CFG -> CFG
+insertNode node (CFG cfg initial) = CFG (insNode node cfg) initial
+
+setInitialNode :: Node -> CFG -> CFG
+setInitialNode initial (CFG cfg _) = CFG cfg initial
+
+{-
 finalOfStmt :: CompoundStmt' -> CFGNodes
 finalOfStmt stat
     = final_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
@@ -187,4 +200,5 @@ cfgOfStmt stat
     where
         initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
                                     , cfg_Inh_CompoundStmt'   = empty }
+-}
 }

@@ -1,9 +1,9 @@
 class Main {
-    public static void main(String[] args) {
-        int[] x = { 1, 2, 3 };
+    public static void main() {
+        int y = square(3);
+    }
 
-        for (int i = 0; i < 3; i++) {
-            assert x[i] == i - 1 : "x[i] == i - 1";
-        }
+    public static int square(int x) {
+        return x * x;
     }
 }

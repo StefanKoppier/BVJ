@@ -1,4 +1,62 @@
 --------------------------------------------------------------------------------
+-- Files
+--------------------------------------------------------------------------------
+
+data CompilationUnit'
+    | CompilationUnit'  package :: {Maybe Name'}
+                        decls   :: TypeDecls'
+deriving CompilationUnit' : Eq, Show
+
+--------------------------------------------------------------------------------
+-- Declarations
+--------------------------------------------------------------------------------
+
+type TypeDecls' = [TypeDecl']
+
+data TypeDecl'
+    | ClassTypeDecl'    decl  :: ClassDecl'
+deriving TypeDecl' : Eq, Show
+
+data ClassDecl'
+    | ClassDecl'    modifiers :: {[Modifier']}
+                    name      :: {String}
+                    body      :: Decls'
+deriving ClassDecl' : Eq, Show
+
+type Decls' = [Decl']
+
+data Decl'
+    | MemberDecl'   decl    :: MemberDecl'
+deriving Decl' : Eq, Show
+
+data MemberDecl'
+    | FieldDecl'        modifiers :: {[Modifier']}
+                        ty        :: Type'
+                        var       :: {[VarDecl']}
+
+    | MethodDecl'       modifiers :: {[Modifier']}
+                        ty        :: {Maybe Type'}
+                        name      :: {String}
+                        params    :: {[FormalParam']}
+                        body      :: CompoundStmt'
+
+    | ConstructorDecl'  modifiers :: {[Modifier']}
+                        name      :: {String}
+                        params    :: {[FormalParam']}
+                        body      :: ConstructorBody'
+deriving MemberDecl' : Eq, Show
+
+data ConstructorBody'
+    | ConstructorBody'  stat    :: CompoundStmt'
+deriving ConstructorBody' : Eq, Show
+
+data FormalParam'
+    | FormalParam'  modifiers :: {[Modifier']}
+                    ty        :: Type'
+                    id        :: VarDeclId'
+deriving FormalParam' : Eq, Show
+
+--------------------------------------------------------------------------------
 -- Types
 --------------------------------------------------------------------------------
 
@@ -86,6 +144,8 @@ deriving VarInit' : Eq, Show
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
+
+type Exps' = [Exp']
 
 data Exp'
     | Lit'              value       :: Literal'
@@ -183,7 +243,7 @@ deriving Lhs' : Eq, Show
 
 data MethodInvocation'
     | MethodCall'   name :: Name'
-                    args :: {[Exp']}
+                    args :: Exps'
 deriving MethodInvocation' : Eq, Show
 
 --------------------------------------------------------------------------------
@@ -191,6 +251,10 @@ deriving MethodInvocation' : Eq, Show
 --------------------------------------------------------------------------------
 
 data Modifier'
+    | Public'
+    | Private'
+    | Protected'
+    | Final'
     | Static'
 deriving Modifier' : Eq, Show
 

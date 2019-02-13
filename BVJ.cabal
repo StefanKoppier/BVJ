@@ -13,7 +13,8 @@ maintainer:          s.koppier@students.uu.nl
 category:            Verification
 build-type:          Simple
 extra-source-files:  src/Analysis/CFA.ag
-                   , src/Analysis/Syntax.ag
+                   , src/Analysis/ECFA.ag
+                   , src/Parsing/Syntax.ag
                    , Makefile
                    , README.md
 cabal-version:       >=1.10
@@ -41,6 +42,7 @@ library
   other-modules:       Parsing.Fold
                        Parsing.Utility
                        Analysis.CFA
+                       Analysis.ECFA
                        Linearization.Utility
   -- other-extensions:    
   build-tools:         

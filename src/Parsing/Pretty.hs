@@ -5,6 +5,69 @@ import Auxiliary.Phase
 import Auxiliary.Pretty
 import Parsing.Syntax
 
+--------------------------------------------------------------------------------
+-- Files
+--------------------------------------------------------------------------------
+
+instance Pretty CompilationUnit' where
+    pretty (CompilationUnit' package decls)
+        = package' $+$ pretty decls
+        where
+            package' = maybe empty (\ name -> text "package" <+> dots name <> semi) package
+
+--------------------------------------------------------------------------------
+-- Declarations
+--------------------------------------------------------------------------------
+
+instance Pretty TypeDecls' where
+    pretty = foldr (($+$) . pretty) empty
+
+instance Pretty TypeDecl' where
+    pretty (ClassTypeDecl' decl) = pretty decl
+
+instance Pretty ClassDecl' where
+    pretty (ClassDecl' ms n body) = header' $+$ body'
+        where
+            header' = pretty ms <+> text "class" <+> text n
+            body'   = braces (pretty body)
+
+instance Pretty Decls' where
+    pretty = foldr (($+$) . pretty) empty
+
+instance Pretty Decl' where
+    pretty (MemberDecl' decl) = pretty decl
+
+instance Pretty MemberDecl' where
+    pretty (FieldDecl' ms ty var) = pretty ms <+> pretty ty <+> pretty var
+
+    pretty (MethodDecl' ms ty n ps b)   
+        = header' $+$ body'
+        where
+            header' = pretty ms <+> pretty ty <+> pretty n <> parens (pretty ps)
+            body'   = braces (pretty b)
+
+    pretty (ConstructorDecl' ms n ps b) 
+        = header' $+$ (braces . newlines . pretty) b
+        where
+            header' = pretty ms <+> pretty n <> parens (pretty ps)
+
+instance Pretty ConstructorBody' where
+    pretty (ConstructorBody' stat) = pretty stat
+
+instance Pretty [FormalParam'] where
+    pretty = commas
+
+instance Pretty FormalParam' where
+    pretty (FormalParam' ms ty id) = pretty ms <+> pretty ty <+> pretty id
+
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+
+instance Pretty (Maybe Type') where
+    pretty (Just ty) = pretty ty
+    pretty Nothing   = text "void"
+
 instance Pretty Type' where
     pretty (PrimType' ty) = pretty ty
     pretty (RefType' ty)  = pretty ty
@@ -21,6 +84,10 @@ instance Pretty PrimType' where
 
 instance Pretty RefType' where
     pretty (ArrayType' ty) = pretty ty <> brackets empty
+
+--------------------------------------------------------------------------------
+-- Statements
+--------------------------------------------------------------------------------
 
 instance Pretty CompoundStmt' where
     pretty (Seq' s1 s2)              = pretty s1 $+$ pretty s2
@@ -44,6 +111,10 @@ instance Pretty Stmt' where
     pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
     pretty (Return' Nothing)        = text "return" <> semi
 
+--------------------------------------------------------------------------------
+-- Variables
+--------------------------------------------------------------------------------
+
 instance Pretty [VarDecl'] where
     pretty = hcat . punctuate (comma <> space) . map pretty
 
@@ -56,14 +127,19 @@ instance Pretty VarDeclId' where
 
 instance Pretty VarInit' where
     pretty (InitExp' exp)         = pretty exp
-    pretty (InitArray' (Just es)) = braces $ (hcat . punctuate comma . map pretty) es
+    pretty (InitArray' (Just es)) = braces $ commas es
     pretty (InitArray' Nothing)   = empty
-    
+
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
 instance Pretty Exp' where
     pretty (Lit' x)               = pretty x
     pretty (ArrayCreate' ty ss n) = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
+    pretty (MethodInv' inv)       = pretty inv
     pretty (ArrayAccess' n es)    = text n <> (hcat . map (brackets . pretty)) es
-    pretty (ExpName' n)           = pretty n
+    pretty (ExpName' n)           = (hcat . punctuate dot . map text) n
     pretty (PostIncrement' e)     = pretty e <> text "++"
     pretty (PostDecrement' e)     = pretty e <> text "--"
     pretty (PreIncrement' e)      = text "++" <> pretty e
@@ -122,13 +198,34 @@ instance Pretty AssignOp' where
     pretty OrA'      = text "|="
 
 instance Pretty Lhs' where
-    pretty (Name' name) = pretty name
+    pretty (Name' name) = dots name
+
+instance Pretty MethodInvocation' where
+    pretty (MethodCall' name args) = name' <> parens args'
+        where
+            name' = dots name
+            args' = commas args
+
+--------------------------------------------------------------------------------
+-- Miscellaneous
+--------------------------------------------------------------------------------
 
 instance Pretty [Modifier'] where
     pretty = hcat . punctuate space . map pretty
 
 instance Pretty Modifier' where
-    pretty Static' = text "static"
+    pretty Public'    = text "public"
+    pretty Private'   = text "private"
+    pretty Protected' = text "protected"
+    pretty Final'     = text "final"
+    pretty Static'    = text "static"
 
-instance Pretty Name' where
-    pretty = hcat . punctuate (comma <> space) . map text
+--------------------------------------------------------------------------------
+-- Auxiliary functions
+--------------------------------------------------------------------------------
+
+commas :: Pretty a => [a] -> Doc
+commas = hcat . punctuate comma . map pretty
+
+dots :: Pretty a => [a] -> Doc
+dots = hcat . punctuate dot . map pretty
