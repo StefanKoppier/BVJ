@@ -7,6 +7,7 @@ import Parsing.Syntax
 
 instance Pretty Type' where
     pretty (PrimType' ty) = pretty ty
+    pretty (RefType' ty)  = pretty ty
 
 instance Pretty PrimType' where
     pretty BooleanT' = text "bool"
@@ -17,6 +18,9 @@ instance Pretty PrimType' where
     pretty CharT'    = text "char"
     pretty FloatT'   = text "float"
     pretty DoubleT'  = text "double"
+
+instance Pretty RefType' where
+    pretty (ArrayType' ty) = pretty ty <> brackets empty
 
 instance Pretty CompoundStmt' where
     pretty (Seq' s1 s2)              = pretty s1 $+$ pretty s2
@@ -44,29 +48,33 @@ instance Pretty [VarDecl'] where
     pretty = hcat . punctuate (comma <> space) . map pretty
 
 instance Pretty VarDecl' where
-    pretty (VarDecl' id init) = pretty id <+> equals <+> pretty init
+    pretty (VarDecl' id (InitArray' Nothing)) = pretty id
+    pretty (VarDecl' id init)                 = pretty id <> equals <> pretty init
     
 instance Pretty VarDeclId' where
     pretty (VarId' id) = text id
 
 instance Pretty VarInit' where
-    pretty (InitExp' exp) = pretty exp
+    pretty (InitExp' exp)         = pretty exp
+    pretty (InitArray' (Just es)) = braces $ (hcat . punctuate comma . map pretty) es
+    pretty (InitArray' Nothing)   = empty
     
 instance Pretty Exp' where
-    pretty (Lit' x) = pretty x
-    pretty (MethodInv' i) = error "TODO"
-    pretty (ExpName' n)   = pretty n
-    pretty (PostIncrement' e) = pretty e <> text "++"
-    pretty (PostDecrement' e) = pretty e <> text "--"
-    pretty (PreIncrement' e) = text "++" <> pretty e
-    pretty (PreDecrement' e) = text "--" <> pretty e
-    pretty (PrePlus' e) = char '+' <> pretty e
-    pretty (PreMinus' e) = char '-' <> pretty e
-    pretty (PreBitCompl' e) = char '~' <> pretty e
-    pretty (PreNot' e) = char '!' <> pretty e
-    pretty (BinOp' e1 op e2) = pretty e1 <> pretty op <> pretty e2
-    pretty (Cond' g e1 e2) = pretty g <> char '?' <> pretty e1 <> char ':' <> pretty e2
-    pretty (Assign' t op e)   = pretty t <> pretty op <> pretty e
+    pretty (Lit' x)               = pretty x
+    pretty (ArrayCreate' ty ss n) = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
+    pretty (ArrayAccess' n es)    = text n <> (hcat . map (brackets . pretty)) es
+    pretty (ExpName' n)           = pretty n
+    pretty (PostIncrement' e)     = pretty e <> text "++"
+    pretty (PostDecrement' e)     = pretty e <> text "--"
+    pretty (PreIncrement' e)      = text "++" <> pretty e
+    pretty (PreDecrement' e)      = text "--" <> pretty e
+    pretty (PrePlus' e)           = char '+' <> pretty e
+    pretty (PreMinus' e)          = char '-' <> pretty e
+    pretty (PreBitCompl' e)       = char '~' <> pretty e
+    pretty (PreNot' e)            = char '!' <> pretty e
+    pretty (BinOp' e1 op e2)      = pretty e1 <> pretty op <> pretty e2
+    pretty (Cond' g e1 e2)        = pretty g <> char '?' <> pretty e1 <> char ':' <> pretty e2
+    pretty (Assign' t op e)       = pretty t <> pretty op <> pretty e
 
 instance Pretty Literal' where
     pretty (Int' x)         = text $ show x
@@ -100,7 +108,7 @@ instance Pretty Op' where
     pretty COr'     = text "||"
 
 instance Pretty AssignOp' where
-    pretty EqualA'   = char '='
+    pretty EqualA'   = equals
     pretty MultA'    = text "*="
     pretty DivA'     = text "/="
     pretty RemA'     = text "%="

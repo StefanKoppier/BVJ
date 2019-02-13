@@ -1,9 +1,9 @@
 class Main {
     public static void main(String[] args) {
-        int x;
+        int[] x = { 1, 2, 3 };
 
-        if (true) {
-            x = x / 0;
-        } else ;
+        for (int i = 0; i < 3; i++) {
+            assert x[i] == i - 1 : "x[i] == i - 1";
+        }
     }
 }

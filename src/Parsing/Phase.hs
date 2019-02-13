@@ -57,7 +57,11 @@ transformType (PrimType LongT)    = return $ PrimType' LongT'
 transformType (PrimType CharT)    = return $ PrimType' CharT'
 transformType (PrimType FloatT)   = return $ PrimType' FloatT'
 transformType (PrimType DoubleT)  = return $ PrimType' DoubleT'
-transformType _                   = unsupported "ref type"
+transformType (RefType ty)        = RefType' <$> transformRefType ty
+
+transformRefType :: RefType -> PhaseResult RefType'
+transformRefType (ArrayType ty)   = ArrayType' <$> transformType ty
+transformRefType (ClassRefType _) = unsupported "class ref type"
 
 transformVarDecls :: Type -> [VarDecl] -> PhaseResult [VarDecl']
 transformVarDecls ty = mapM (transformVarDecl ty)
@@ -71,8 +75,8 @@ transformVarDeclId (VarId (Ident n)) = return $ VarId' n
 transformVarDeclId (VarDeclArray _)  = unsupported "array typed declaration"
 
 transformVarInit :: VarInit -> PhaseResult VarInit'
-transformVarInit (InitExp e)   = InitExp' <$> transformExp e
-transformVarInit (InitArray _) = unsupported "array initializer"
+transformVarInit (InitExp e)                = InitExp' <$> transformExp e
+transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just <$> mapM transformVarInit is
 
 defaultInit :: Type -> PhaseResult VarInit'
 defaultInit (PrimType BooleanT) = (return . InitExp' . Lit' . Boolean') False
@@ -83,7 +87,11 @@ defaultInit (PrimType LongT)    = (return . InitExp' . Lit' . Int') 0
 defaultInit (PrimType CharT)    = (return . InitExp' . Lit' . Char') '\0'
 defaultInit (PrimType FloatT)   = (return . InitExp' . Lit' . Float') 0.0
 defaultInit (PrimType DoubleT)  = (return . InitExp' . Lit' . Double') 0.0
-defaultInit _                   = unsupported "default init generation"
+defaultInit (RefType ty)        = defaultRefInit ty
+
+defaultRefInit :: RefType -> PhaseResult VarInit'
+defaultRefInit (ArrayType    _) = (return . InitArray') Nothing
+defaultRefInit (ClassRefType _) = unsupported "default class type init"
 
 transformMaybeIdent :: Maybe Ident -> Maybe String
 transformMaybeIdent (Just (Ident x)) = Just x
@@ -138,16 +146,16 @@ transformExp = foldExp alg
             -> unsupported "instance creation"
         , qualInstanceCreation = \ _ _ _ _ _ 
             -> unsupported "qual instance creation"
-        , arrayCreate = \ _ _ _
-            -> unsupported "array creation"
+        , arrayCreate = \ ty es 0
+            -> ArrayCreate' <$> transformType ty <*> sequence es <*> return 0
         , arrayCreateInit = \ _ _ _
             -> unsupported "array creation"
         , fieldAccess = \ _
             -> unsupported "field access"
         , methodInv = \ _
             -> unsupported "method invocation"
-        , arrayAccess = \ _
-            -> unsupported "Array access"
+        , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
+            -> ArrayAccess' n <$> mapM transformExp es
         , expName = fmap ExpName' . transformName
         , postIncrement = \ e
             -> PostIncrement' <$> e

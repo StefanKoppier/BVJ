@@ -4,6 +4,7 @@
 
 data Type'
     | PrimType'     ty :: PrimType'
+    | RefType'      ty :: RefType'
 deriving Type' : Eq, Show
 
 data PrimType'
@@ -16,6 +17,10 @@ data PrimType'
     | FloatT'
     | DoubleT'
 deriving PrimType' : Eq, Show
+
+data RefType'
+    | ArrayType' ty :: Type'
+deriving RefType' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -73,7 +78,9 @@ data VarDeclId'
 deriving VarDeclId' : Eq, Show
 
 data VarInit'
-    | InitExp'  exp :: Exp'
+    | InitExp'   exp    :: Exp'
+
+    | InitArray' inits  :: {Maybe [VarInit']}
 deriving VarInit' : Eq, Show
 
 --------------------------------------------------------------------------------
@@ -83,7 +90,14 @@ deriving VarInit' : Eq, Show
 data Exp'
     | Lit'              value       :: Literal'
 
+    | ArrayCreate'      ty          :: Type'
+                        sizes       :: {[Exp']}
+                        unspecified :: {Int}
+
     | MethodInv'        invocation  :: MethodInvocation'
+
+    | ArrayAccess'      ident       :: {String}
+                        index       :: {[Exp']}
 
     | ExpName'          name        :: Name'
 

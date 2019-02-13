@@ -4,6 +4,7 @@ module Translation.Phase(
     , Programs
 ) where
 
+import Data.Maybe (fromJust)
 import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -30,10 +31,21 @@ translatePath :: ProgramPath -> CStat
 translatePath path = CCompound [] (map translateStmt path) noNodeInfo
 
 translateStmt :: Stmt' -> CBlockItem
-translateStmt (Decl' _ ty [VarDecl' (VarId' name) init])
-    = let init' = Just $ translateVarInit init
-       in CBlockDecl (CDecl [translateType ty] [(Just (CDeclr (Just (ident name)) [] Nothing [] noNodeInfo), init', Nothing)] noNodeInfo)
+translateStmt (Decl' _ (RefType' (ArrayType' ty)) [VarDecl' (VarId' name) init])
+    = let init' = translateVarInit init
+          ty'   = [translateType ty]
+          name' = Just $ ident name
+          size' = [CArrDeclr [] (CNoArrSize False) noNodeInfo]
+          declr = [(Just (CDeclr name' size' Nothing [] noNodeInfo), init', Nothing)]
+       in CBlockDecl (CDecl ty' declr noNodeInfo)
 
+translateStmt (Decl' _ ty [VarDecl' (VarId' name) init])
+    = let init' = translateVarInit init
+          ty'   = [translateType ty]
+          name' = Just $ ident name
+          declr = [(Just (CDeclr name' [] Nothing [] noNodeInfo), init', Nothing)]
+       in CBlockDecl (CDecl ty' declr noNodeInfo)
+   
 translateStmt (ExpStmt' exp)
     = CBlockStmt (CExpr (Just $ translateExp exp) noNodeInfo)
 
@@ -48,8 +60,10 @@ translateStmt (Assume' exp)
           assume' = CExpr (Just (CCall (CVar (ident "__CPROVER_assume") noNodeInfo) exp' noNodeInfo)) noNodeInfo
        in CBlockStmt assume'
 
-translateVarInit :: VarInit' -> CInit
-translateVarInit (InitExp' e) = CInitExpr (translateExp e) noNodeInfo
+translateVarInit :: VarInit' -> Maybe CInit
+translateVarInit (InitExp' e)           = Just $ CInitExpr (translateExp e) noNodeInfo
+translateVarInit (InitArray' (Just es)) = Just $ CInitList (map (([],) . fromJust . translateVarInit) es) noNodeInfo
+translateVarInit (InitArray' Nothing)   = Nothing
 
 translateType :: Type' -> CDeclarationSpecifier NodeInfo
 translateType (PrimType' BooleanT') = CTypeSpec (CTypeDef (ident "__Bool") noNodeInfo)
@@ -60,22 +74,31 @@ translateType (PrimType' LongT')    = CTypeSpec (CTypeDef (ident "__int64") noNo
 translateType (PrimType' CharT')    = CTypeSpec (CCharType noNodeInfo)
 translateType (PrimType' FloatT')   = CTypeSpec (CFloatType noNodeInfo)
 translateType (PrimType' DoubleT')  = CTypeSpec (CDoubleType noNodeInfo)
+translateType (RefType' ty)         = translateRefType ty
+
+translateRefType :: RefType' -> CDeclarationSpecifier NodeInfo
+translateRefType (ArrayType' ty) = translateType ty
 
 translateExp :: Exp' -> CExpr
-translateExp (Lit' Null')       = CVar (ident "NULL") noNodeInfo
-translateExp (Lit' l)           = CConst $ translateLiteral l
-translateExp (ExpName' [name])  = CVar (ident name) noNodeInfo
-translateExp (PostIncrement' e) = CUnary CPostIncOp (translateExp e) noNodeInfo
-translateExp (PostDecrement' e) = CUnary CPostDecOp (translateExp e) noNodeInfo
-translateExp (PreIncrement' e)  = CUnary CPreIncOp (translateExp e) noNodeInfo
-translateExp (PreDecrement' e)  = CUnary CPreDecOp (translateExp e) noNodeInfo
-translateExp (PrePlus' e)       = CUnary CPlusOp (translateExp e) noNodeInfo
-translateExp (PreMinus' e)      = CUnary CMinOp (translateExp e) noNodeInfo
-translateExp (PreBitCompl' e)   = CUnary CCompOp (translateExp e) noNodeInfo
-translateExp (PreNot' e)        = CUnary CNegOp (translateExp e) noNodeInfo
-translateExp (BinOp' e1 op e2)  = CBinary (translateOp op) (translateExp e1) (translateExp e2) noNodeInfo
-translateExp (Cond' g e1 e2)    = CCond (translateExp g) (Just $ translateExp e1) (translateExp e2) noNodeInfo
-translateExp (Assign' lhs op e) = CAssign (translateAssignOp op) (translateLhs lhs) (translateExp e) noNodeInfo
+translateExp (Lit' Null')        = CVar (ident "NULL") noNodeInfo
+translateExp (Lit' l)            = CConst $ translateLiteral l
+translateExp (ArrayAccess' n es) = translateArrayIndex n (reverse es)
+translateExp (ExpName' [name])   = CVar (ident name) noNodeInfo
+translateExp (PostIncrement' e)  = CUnary CPostIncOp (translateExp e) noNodeInfo
+translateExp (PostDecrement' e)  = CUnary CPostDecOp (translateExp e) noNodeInfo
+translateExp (PreIncrement' e)   = CUnary CPreIncOp (translateExp e) noNodeInfo
+translateExp (PreDecrement' e)   = CUnary CPreDecOp (translateExp e) noNodeInfo
+translateExp (PrePlus' e)        = CUnary CPlusOp (translateExp e) noNodeInfo
+translateExp (PreMinus' e)       = CUnary CMinOp (translateExp e) noNodeInfo
+translateExp (PreBitCompl' e)    = CUnary CCompOp (translateExp e) noNodeInfo
+translateExp (PreNot' e)         = CUnary CNegOp (translateExp e) noNodeInfo
+translateExp (BinOp' e1 op e2)   = CBinary (translateOp op) (translateExp e1) (translateExp e2) noNodeInfo
+translateExp (Cond' g e1 e2)     = CCond (translateExp g) (Just $ translateExp e1) (translateExp e2) noNodeInfo
+translateExp (Assign' lhs op e)  = CAssign (translateAssignOp op) (translateLhs lhs) (translateExp e) noNodeInfo
+
+translateArrayIndex :: String -> [Exp'] -> CExpr
+translateArrayIndex n [e]    = CIndex (CVar (ident n) noNodeInfo) (translateExp e) noNodeInfo
+translateArrayIndex n (e:es) = CIndex (translateArrayIndex n es) (translateExp e) noNodeInfo
 
 translateLhs :: Lhs' -> CExpr
 translateLhs (Name' [name]) = CVar (ident name) noNodeInfo
