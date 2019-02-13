@@ -1,6 +1,7 @@
 module Auxiliary.Pretty(
       Pretty(..)
     , spaces
+    , newline
     , printHeader
     , printPretty
     , printTitled
@@ -17,6 +18,9 @@ class Pretty a where
     
 spaces :: Int -> Doc
 spaces n = text $ replicate n ' '
+
+newline :: Doc
+newline = char '\n'
 
 stars :: Int -> Doc
 stars n = text $ replicate n '*'

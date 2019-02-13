@@ -13,4 +13,4 @@ instance Pretty ProgramPath where
     pretty = hsep . map pretty
 
 instance Pretty ProgramPaths where
-    pretty = foldr (($+$) . (brackets . pretty)) empty
+    pretty = foldr ($+$) empty . punctuate newline . map (brackets . pretty)
