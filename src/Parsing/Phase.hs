@@ -76,8 +76,8 @@ transformParam (FormalParam ms ty False id)
 transformParam (FormalParam _ _ True _)
     = unsupported "variable arity parameter"
 
-transformConstructorBody :: ConstructorBody -> PhaseResult ConstructorBody'
-transformConstructorBody (ConstructorBody Nothing ss) = ConstructorBody' . (`Seq'` emptyStmt) <$> transformBlock (Block ss)
+transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmt'
+transformConstructorBody (ConstructorBody Nothing ss) = (`Seq'` emptyStmt) <$> transformBlock (Block ss)
 transformConstructorBody (ConstructorBody (Just _) _) = unsupported "base class constructor call"
 
 transformMethodBody :: MethodBody -> PhaseResult CompoundStmt'

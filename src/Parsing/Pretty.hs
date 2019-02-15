@@ -51,9 +51,6 @@ instance Pretty MemberDecl' where
         where
             header' = pretty ms <+> pretty n <> parens (pretty ps)
 
-instance Pretty ConstructorBody' where
-    pretty (ConstructorBody' stat) = pretty stat
-
 instance Pretty [FormalParam'] where
     pretty = commas
 
@@ -219,13 +216,3 @@ instance Pretty Modifier' where
     pretty Protected' = text "protected"
     pretty Final'     = text "final"
     pretty Static'    = text "static"
-
---------------------------------------------------------------------------------
--- Auxiliary functions
---------------------------------------------------------------------------------
-
-commas :: Pretty a => [a] -> Doc
-commas = hcat . punctuate comma . map pretty
-
-dots :: Pretty a => [a] -> Doc
-dots = hcat . punctuate dot . map pretty

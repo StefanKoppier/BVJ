@@ -13,16 +13,17 @@ import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
 linearizationPhase :: Phase CFG ProgramPaths
-linearizationPhase Arguments{maximumDepth} cfg@(CFG graph start) = do
+linearizationPhase Arguments{maximumDepth} graph@CFG{cfg} = do
     newEitherT $ printHeader "3. LINEARIZATION"
-    newEitherT $ printPretty cfg
-    return $ map (reverse . clean) (paths' [[]] cfg (G.context graph start) maximumDepth)
-
+    newEitherT $ printPretty graph
+    return []
+    --return $ map (reverse . clean) (paths' [[]] graph (G.context cfg entry) maximumDepth)
+{-
 paths' :: ProgramPaths -> CFG -> CFGContext -> Int -> ProgramPaths
 paths' acc _ (_, _, _, neighbour:neighbours) 0
     = []
 
-paths' acc (CFG cfg _) (_, _, Stmt' stat, []) n
+paths' acc _ (_, _, Stmt' stat, []) n
     = map (stat:) acc
 
 paths' acc cfg (_, _, stat, neighbours) n
@@ -36,14 +37,14 @@ paths' acc cfg (_, _, stat, neighbours) n
         = concatMap (\ neighbour -> next acc stat neighbour cfg n) neighbours
         
 next :: ProgramPaths -> Stmt' -> (CFGEdgeValue, G.Node) -> CFG -> Int -> ProgramPaths
-next acc stat (Edge, neighbour) cfg@(CFG graph _) n 
-    = paths' (map (stat:) acc) cfg (G.context graph neighbour) (n-1)
+next acc stat (IntraEdge, neighbour) graph@CFG{cfg} n 
+    = paths' (map (stat:) acc) graph (G.context cfg neighbour) (n-1)
 
-next acc (Assume' exp) (ConditionalEdge True, neighbour) cfg@(CFG graph _) n 
-    = paths' (map (Assume' exp:) acc) cfg (G.context graph neighbour) (n-1)
+next acc (Assume' exp) (ConditionalEdge True, neighbour) graph@CFG{cfg} n 
+    = paths' (map (Assume' exp:) acc) graph (G.context cfg neighbour) (n-1)
     
-next acc (Assume' exp) (ConditionalEdge False, neighbour) cfg@(CFG graph _) n 
-    = paths' (map (Assume' (PreNot' exp):) acc) cfg (G.context graph neighbour) (n-1)
+next acc (Assume' exp) (ConditionalEdge False, neighbour) graph@CFG{cfg} n 
+    = paths' (map (Assume' (PreNot' exp):) acc) graph (G.context cfg neighbour) (n-1)
 
 clean :: ProgramPath -> ProgramPath
 clean (Empty'     :ss) = clean ss
@@ -51,3 +52,4 @@ clean (Break'    _:ss) = clean ss
 clean (Continue' _:ss) = clean ss
 clean (s:ss)           = s : clean ss
 clean []               = []
+-}

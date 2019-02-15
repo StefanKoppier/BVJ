@@ -1,9 +1,10 @@
 module Auxiliary.Arguments where
     
 import Auxiliary.Verbosity
+import Parsing.Syntax
 
 data Arguments = Arguments {
-      method                   :: String
+      method                   :: Name'
     , verbosity                :: Verbosity
     , keepOutputFiles          :: Bool
     , maximumDepth             :: Int
@@ -19,7 +20,7 @@ data Arguments = Arguments {
 
 defaultArgs :: Arguments
 defaultArgs = Arguments {
-      method = "main"
+      method = ["main"]
     , verbosity = Everything
     , keepOutputFiles = False
     , maximumDepth = 100

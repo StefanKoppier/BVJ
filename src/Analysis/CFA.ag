@@ -1,5 +1,5 @@
 imports {
-import qualified Data.Set                          as S
+import qualified Data.Map                          as M
 import           Analysis.CFG
 import           Data.Graph.Inductive.Graph    
 import           Parsing.Syntax
@@ -7,198 +7,281 @@ import           Parsing.Syntax
 
 include "../Parsing/Syntax.ag"
 
+attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'
+    syn nodes use {++} {[]} :: {CFGNodes}
+    syn edges use {++} {[]} :: {CFGEdges}
+    chn label               :: {Node}
+
+--------------------------------------------------------------------------------
+-- Files
+--------------------------------------------------------------------------------
+
+attr CompilationUnit'
+    syn cfg :: {CFG}
+
+sem CompilationUnit'
+    | CompilationUnit' lhs.cfg = constructCFG @decls.nodes @decls.edges
+
+--------------------------------------------------------------------------------
+-- Methods
+--------------------------------------------------------------------------------
+
+attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
+    syn methods use {M.union} {M.empty} :: {Methods} 
+
+sem MemberDecl'
+    | MethodDecl'       lhs .label   = new @body.label
+                            .methods = M.singleton [@name] (new @lhs.label, new @body.label)
+                            .nodes   = -- Entry node of the method.
+                                       entry (new @lhs.label) [@name]
+                                       : -- Exit node of the method.
+                                       exit (new @body.label) [@name]
+                                       : -- Nodes of the body.
+                                       @body.nodes
+                            .edges   = let entry' = entry (new @lhs.label) [@name]
+                                           exit'  = exit (new @body.label) [@name] in
+                                           -- Edge from entry of method to body.
+                                           newIntraEdge entry' @body.init
+                                           : -- Edge(s) from final of body to exit of method.
+                                           newIntraEdges @body.final exit'
+                                           ++ -- Edge(s) from returns to exit of method.
+                                           newIntraEdges @body.returns exit'
+                                           ++ -- Edges of the body.
+                                           @body.edges
+                        body.label   = new @lhs.label
+
+    | ConstructorDecl'  lhs .label   = new @body.label
+                            .methods = M.singleton [@name] (new @lhs.label, new @body.label)
+                            .nodes   = -- Entry node of the method.
+                                       entry (new @lhs.label) [@name]
+                                       : -- Exit node of the method.
+                                       exit (new @body.label) [@name]
+                                       : -- Nodes of the body.
+                                       @body.nodes
+                            .edges   = let entry' = entry (new @lhs.label) [@name]
+                                           exit'  = exit (new @body.label) [@name] in
+                                           -- Edge from entry of method to body.
+                                           newIntraEdge entry' @body.init
+                                           : -- Edge(s) from final of body to exit of method.
+                                           newIntraEdges @body.final exit'
+                                           ++ -- Edge(s) from returns to exit of method.
+                                           newIntraEdges @body.returns exit'
+                                           ++ -- Edges of the body.
+                                           @body.edges
+                        body.label   = new @lhs.label
+
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'
+    inh methods :: {Methods}
+
+sem CompilationUnit'
+    | CompilationUnit' decls.methods = @decls.methods
+
 --------------------------------------------------------------------------------
 -- Statements
 --------------------------------------------------------------------------------
 
 attr CompoundStmt' Stmt'
-    syn init                              :: {CFGNode}
-    syn final                             :: {CFGNodes}
-    syn breaks    use {S.union} {S.empty} :: {CFGNodes}
-    syn continues use {S.union} {S.empty} :: {CFGNodes}
-    chn cfg                               :: {CFG}
-    chn label                             :: {Node}
+    syn init                    :: {CFGNode}
+    syn final                   :: {CFGNodes}
+    syn breaks    use {++} {[]} :: {CFGNodes}
+    syn continues use {++} {[]} :: {CFGNodes}
+    syn returns   use {++} {[]} :: {CFGNodes}
 
 sem CompoundStmt'
-    | Seq'          lhs     .label = @stat2.label
-                            .init  = @stat1.init
-                            .final = @stat2.final
-                            .cfg   = setInitialNode (fst @stat1.init) @stat2.cfg
-                    stat1   .label = @lhs.label
-                            .cfg   = @lhs.cfg
-                    stat2   .label = @stat1.label
-                            .cfg   = case @stat1.self of
-                                        Stmt' (Break' _)
-                                            -> @stat1.cfg
-                                        Stmt' (Continue' _)
-                                            -> @stat1.cfg
-                                        While' _ _ _
-                                            -> let conditional = @stat1.init
-                                                   normal      = @stat1.final S.\\ S.singleton conditional in
-                                                    -- Edge from condition to init of next.
-                                                    insertEdge (newCondEdge conditional @stat2.init False) $
-                                                    -- Edge from break(s) to init of next.
-                                                    insertEdges (newEdges normal @stat2.init) @stat1.cfg
-                                        _   -> insertEdges (newEdges @stat1.final @stat2.init) @stat1.cfg
-                    
-    | IfThenElse'   lhs     .label = @stat2.label
-                            .init  = node (new @lhs.label) @self
-                            .final = @stat1.final `S.union` @stat2.final
-                            .cfg   = let self = node (new @lhs.label) @self in
-                                        -- Set the initial node.
-                                        setInitialNode (new @lhs.label)                  $
-                                        -- Edge from condition to init of true branch.
-                                        insertEdge (newCondEdge self @stat1.init True)  $
-                                        -- Edge from condition to init of false branch.
-                                        insertEdge (newCondEdge self @stat2.init False) $
-                                        -- The node itself.
-                                        insertNode self @stat2.cfg
-                    stat1   .label = new @lhs.label
-                            .cfg   = @lhs.cfg
-                    stat2   .label = @stat1.label
-                            .cfg   = @stat1.cfg
+    | Seq'          lhs  .label = @stat2.label
+                         .init  = @stat1.init
+                         .final = @stat2.final
+                         .edges = case @stat1.self of
+                                    While' _ _ _
+                                       -> let conditional = @stat1.init
+                                              normal      = filter (conditional /=) @stat1.final in -- @stat1.final S.\\ S.singleton conditional in
+                                              newCondEdge conditional @stat2.init False
+                                              :
+                                              newIntraEdges normal @stat2.init
+                                              ++
+                                              @stat1.edges ++ @stat2.edges
+                                    Stmt' (Break' _)
+                                       -> @stat1.edges
+                                    Stmt' (Continue' _)
+                                       -> @stat1.edges
+                                    Stmt' (Return' _)
+                                       -> @stat1.edges
+                                    _  -> newIntraEdges @stat1.final @stat2.init
+                                          ++ 
+                                          @stat1.edges ++ @stat2.edges
+                    stat1.label = @lhs.label
+                    stat2.label = @stat1.label
+                         
+    | IfThenElse'   lhs  .label = @stat2.label
+                         .init  = block (new @lhs.label) @self
+                         .final = @stat1.final ++ @stat2.final
+                         .nodes = block (new @lhs.label) @self : @stat1.nodes ++ @stat2.nodes
+                         .edges = let self = block (new @lhs.label) @self in       
+                                      -- Edge from condition to init of true branch.
+                                      newCondEdge self @stat1.init True
+                                      : -- Edge from condition to init of false branch.
+                                      newCondEdge self @stat2.init False
+                                      : -- Intra edge(s) from condition to entries and back.
+                                      createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                                      ++ -- Edge(s) of the branches.
+                                      @stat1.edges ++ @stat2.edges
+                    stat1.label = new @lhs.label
+                    stat2.label = @stat1.label
 
     | While'        lhs     .label     = @body.label
-                            .init      = node (new @lhs.label) @self
-                            .final     = S.insert (node (new @lhs.label) @self) (S.filter (isLabelOfThisLoop @ident) @body.breaks)
-                            .cfg       = let self = node (new @lhs.label) @self in
-                                            -- Set the initial node.
-                                            setInitialNode (new @lhs.label)                                                   $   
-                                            -- Edge from condition to the init of body.
-                                            insertEdge (newCondEdge self @body.init True)                                     $
-                                            -- Edge(s) from finals of body to the condition.
-                                            insertEdges (newEdges @body.final self)                                           $
-                                            -- Edge(s) from continues of this loop to the condition.
-                                            insertEdges (newEdges (S.filter (isLabelOfThisLoop @ident) @body.continues) self) $
-                                            -- The node itself.
-                                            insertNode self @body.cfg
-                            .breaks    = S.filter (not . isLabelOfThisLoop @ident) @body.breaks
-                            .continues = S.filter (not . isLabelOfThisLoop @ident) @body.continues
+                            .init      = block (new @lhs.label) @self
+                            .final     = block (new @lhs.label) @self : filter (isLabelOfThisLoop @ident) @body.breaks
+                            .nodes     = block (new @lhs.label) @self : @body.nodes
+                            .edges     = let self = block (new @lhs.label) @self in
+                                             -- Edge from condition to the init body.
+                                             newCondEdge self @body.init True
+                                             : -- Edge(s) from finals of body to the condition.
+                                             newIntraEdges @body.final self
+                                             ++ -- Edge(s) from continues of this loop to the condition.
+                                             newIntraEdges (filter (isLabelOfThisLoop @ident) @body.continues) self
+                                             ++ -- Intra edge(s) from condition to entries and back.
+                                             createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                                             ++ -- Edge(s) of the body
+                                             @body.edges
+                            .breaks    = filter (not . isLabelOfThisLoop @ident) @body.breaks
+                            .continues = filter (not . isLabelOfThisLoop @ident) @body.continues
                     body    .label     = new @lhs.label
-                            .cfg       = @lhs.cfg
 
 sem Stmt'
     | Decl'     lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
+                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @vars.invocations
 
     | Empty'    lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
 
     | ExpStmt'  lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
+                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
 
     | Assert'   lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
+                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                             ++
+                             createIntraEdges (new @lhs.label) @lhs.methods (invocations @error)
 
     | Assume'   lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
+                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
 
     | Break'    lhs .label  = new @lhs.label
-                    .init   = node (new @lhs.label) (Stmt' @self)
-                    .final  = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg    = setInitialNode (new @lhs.label)                           $
-                              insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
-                    .breaks = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .init   = block (new @lhs.label) (Stmt' @self)
+                    .final  = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes  = [block (new @lhs.label) (Stmt' @self)]
+                    .breaks = [block (new @lhs.label) (Stmt' @self)]
 
     | Continue' lhs .label     = new @lhs.label
-                    .init      = node (new @lhs.label) (Stmt' @self)
-                    .final     = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg       = setInitialNode (new @lhs.label)                           $
-                                 insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
-                    .continues = S.singleton $ node (new @lhs.label) (Stmt' @self)
+                    .init      = block (new @lhs.label) (Stmt' @self)
+                    .final     = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes     = [block (new @lhs.label) (Stmt' @self)]
+                    .continues = [block (new @lhs.label) (Stmt' @self)]
 
-    | Return'   lhs .label = new @lhs.label
-                    .init  = node (new @lhs.label) (Stmt' @self)
-                    .final = S.singleton $ node (new @lhs.label) (Stmt' @self)
-                    .cfg   = setInitialNode (new @lhs.label)                           $
-                             insertNode (node (new @lhs.label) (Stmt' @self)) @lhs.cfg
+    | Return'   lhs .label   = new @lhs.label
+                    .init    = block (new @lhs.label) (Stmt' @self)
+                    .final   = [block (new @lhs.label) (Stmt' @self)]
+                    .nodes   = [block (new @lhs.label) (Stmt' @self)]
+                    .edges   = createIntraEdges (new @lhs.label) @lhs.methods (invocations @exp)
+                    .returns = [block (new @lhs.label) (Stmt' @self)]
 
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
+
+attr Exps' Exp' MethodInvocation' VarDecls' VarDecl' VarInit'
+    syn invocations use {++} {[]} :: {[Name']}
+                
+sem MethodInvocation'
+    | MethodCall' lhs.invocations = [@name] ++ @args.invocations
+                
+{
+invocations :: Maybe Exp' -> [Name']
+invocations (Just e) = invocations_Syn_Exp' $ wrap_Exp' (sem_Exp' e) Inh_Exp'{}
+invocations Nothing  = []
+}
 
 --------------------------------------------------------------------------------
 -- Auxiliary functions
 --------------------------------------------------------------------------------
 
 {
+type Methods = M.Map Name' (Node, Node)
+
 new :: Node -> Node
 new = (1+)
 
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
 
-node :: Node -> CompoundStmt' -> CFGNode
-node l s = (l, s)
+block :: Node -> CompoundStmt' -> CFGNode
+block n s = (n, Block s)
 
-newEdge :: CFGNode -> CFGNode -> CFGEdge
-newEdge (x,_) (y,_) = (x, y, Edge)
+entry :: Node -> Name' -> CFGNode
+entry n name = (n, Entry name)
 
-newEdges :: CFGNodes -> CFGNode -> CFGEdges
-newEdges xs y = S.toList $ S.map ((flip newEdge) y) xs
+exit :: Node -> Name' -> CFGNode
+exit n name =  (n, Exit name)
+
+newIntraEdge :: CFGNode -> CFGNode -> CFGEdge
+newIntraEdge (x,_) (y,_) = (x, y, IntraEdge)
+
+newIntraEdges :: CFGNodes -> CFGNode -> CFGEdges
+newIntraEdges xs y = map (`newIntraEdge` y) xs
+
+createIntraEdges :: Node -> Methods -> [Name'] -> CFGEdges
+createIntraEdges label methods invocations =
+    newInterEdges label entries ++ map (`newInterEdge` label) exits
+    where
+        entries = map (fst . (methods M.!)) invocations
+        exits   = map (snd . (methods M.!)) invocations
 
 newCondEdge :: CFGNode -> CFGNode -> Bool -> CFGEdge
 newCondEdge (x,_) (y,_) b = (x, y, ConditionalEdge b)
 
 newCondEdges :: CFGNodes -> CFGNode -> Bool -> CFGEdges
-newCondEdges xs y b = S.toList $ S.map (\ x -> newCondEdge x y b) xs
+newCondEdges xs y b = map (\ x -> newCondEdge x y b) xs
 
-isLabelOfThisLoop :: Maybe String -> CFGNode -> Bool
-isLabelOfThisLoop _        (_, Stmt' (Break' Nothing))      = True
-isLabelOfThisLoop _        (_, Stmt' (Continue' Nothing))   = True
-isLabelOfThisLoop Nothing  (_, Stmt' (Break' (Just _)))     = False
-isLabelOfThisLoop Nothing  (_, Stmt' (Continue' (Just _)))  = False
-isLabelOfThisLoop (Just l) (_, Stmt' (Break' (Just l')))    = l == l'
-isLabelOfThisLoop (Just l) (_, Stmt' (Continue' (Just l'))) = l == l'
-isLabelOfThisLoop _        _                                   = error "Not a break or continue statement."
+newInterEdge :: Node -> Node -> CFGEdge
+newInterEdge x y = (x, y, InterEdge)
+
+newInterEdges :: Node -> [Node] -> CFGEdges
+newInterEdges x = map (newInterEdge x)
 
 insertEdge :: CFGEdge -> CFG -> CFG
-insertEdge edge (CFG cfg initial) = CFG (insEdge edge cfg) initial
+insertEdge edge graph = graph{cfg=insEdge edge (cfg graph)}
 
 insertEdges :: [CFGEdge] -> CFG -> CFG
-insertEdges edges (CFG cfg initial) = CFG (insEdges edges cfg) initial
+insertEdges edges graph = graph{cfg=insEdges edges (cfg graph)}
 
 insertNode :: CFGNode -> CFG -> CFG
-insertNode node (CFG cfg initial) = CFG (insNode node cfg) initial
+insertNode node graph = graph{cfg=insNode node (cfg graph)}
+    
+isLabelOfThisLoop :: Maybe String -> CFGNode -> Bool
+isLabelOfThisLoop _        (_, Block (Stmt' (Break' Nothing)))      = True
+isLabelOfThisLoop _        (_, Block (Stmt' (Continue' Nothing)))   = True
+isLabelOfThisLoop Nothing  (_, Block (Stmt' (Break' (Just _))))     = False
+isLabelOfThisLoop Nothing  (_, Block (Stmt' (Continue' (Just _))))  = False
+isLabelOfThisLoop (Just l) (_, Block (Stmt' (Break' (Just l'))))    = l == l'
+isLabelOfThisLoop (Just l) (_, Block (Stmt' (Continue' (Just l')))) = l == l'
+isLabelOfThisLoop _        _                                        = error "Not a break or continue statement."
 
-setInitialNode :: Node -> CFG -> CFG
-setInitialNode initial (CFG cfg _) = CFG cfg initial
-
-{-
-finalOfStmt :: CompoundStmt' -> CFGNodes
-finalOfStmt stat
-    = final_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
+cfgOfCompilationUnit :: CompilationUnit' -> CFG
+cfgOfCompilationUnit unit
+    = cfg_Syn_CompilationUnit' $ wrap_CompilationUnit' (sem_CompilationUnit' unit) initial
     where
-        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
-                                    , cfg_Inh_CompoundStmt'   = empty }
-
-initOfStmt :: CompoundStmt' -> CFGNode
-initOfStmt stat
-    = init_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
-    where
-        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
-                                    , cfg_Inh_CompoundStmt'   = empty }
-
-cfgOfStmt :: CompoundStmt' -> CFG
-cfgOfStmt stat
-    = cfg_Syn_CompoundStmt' $ wrap_CompoundStmt' (sem_CompoundStmt' stat) initial
-    where
-        initial = Inh_CompoundStmt' { label_Inh_CompoundStmt' = 0
-                                    , cfg_Inh_CompoundStmt'   = empty }
--}
+        initial = Inh_CompilationUnit' { label_Inh_CompilationUnit' = 0 }
 }

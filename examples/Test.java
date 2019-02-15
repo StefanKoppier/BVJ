@@ -1,6 +1,6 @@
 class Main {
     public static void main() {
-        int y = square(3);
+        int x = square(square(1));
     }
 
     public static int square(int x) {

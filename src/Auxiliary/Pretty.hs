@@ -4,6 +4,8 @@ module Auxiliary.Pretty(
     , newline
     , newlines
     , dot
+    , commas
+    , dots
     , printHeader
     , printPretty
     , printTitled
@@ -20,6 +22,9 @@ class Pretty a where
 
 instance Pretty String where
     pretty = text
+
+instance Pretty Int where
+    pretty = int
     
 spaces :: Int -> Doc
 spaces n = text $ replicate n ' '
@@ -32,6 +37,12 @@ newlines d = newline <> d <> newline
 
 dot :: Doc
 dot = char '.'
+
+commas :: Pretty a => [a] -> Doc
+commas = hcat . punctuate comma . map pretty
+
+dots :: Pretty a => [a] -> Doc
+dots = hcat . punctuate dot . map pretty
 
 stars :: Int -> Doc
 stars n = text $ replicate n '*'

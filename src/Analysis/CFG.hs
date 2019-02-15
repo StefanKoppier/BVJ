@@ -1,6 +1,7 @@
 module Analysis.CFG where
 
-import qualified Data.Set                          as S
+import qualified Data.Map                          as M
+import           Data.Maybe
 import           Parsing.Syntax
 import           Data.Graph.Inductive.Graph    
 import           Data.Graph.Inductive.PatriciaTree    
@@ -15,15 +16,20 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 -- Control Flow Graph
 --------------------------------------------------------------------------------
 
-type CFGNodeValue = CompoundStmt'
+data CFGNodeValue 
+    = Block CompoundStmt'
+    | Entry Name'
+    | Exit  Name'
+    deriving (Show, Eq)
     
 type CFGNode = LNode CFGNodeValue
 
-type CFGNodes = S.Set CFGNode
+type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
-    = Edge
+    = InterEdge
     | ConditionalEdge Bool
+    | IntraEdge
     deriving (Show, Eq, Ord)
 
 type CFGEdge = LEdge CFGEdgeValue
@@ -34,26 +40,15 @@ type CFGAdj = Adj CFGEdgeValue
 
 type CFGContext = (CFGAdj, Node, CFGNodeValue, CFGAdj)
 
-data CFG = CFG (Gr CFGNodeValue CFGEdgeValue) Node
+data CFG = CFG { cfg :: Gr CFGNodeValue CFGEdgeValue }
 
---------------------------------------------------------------------------------
--- Extended Control Flow Graph
---------------------------------------------------------------------------------
+constructCFG :: CFGNodes -> CFGEdges -> CFG
+constructCFG nodes edges = (CFG . insEdges edges . insNodes nodes) empty
 
-type ECFGNodeValue = (Name', CFG)
-
-type ECFGNode = LNode ECFGNodeValue
-
-type ECFGNodes = S.Set ECFGNode
-
-type ECFGEdgeValue = Stmt'
-
-type ECFGEdge = LEdge ECFGEdgeValue
-
-type ECFGEdges = [ECFGEdge]
-
-type ECFGAdj = Adj ECFGEdgeValue
-
-type ECFGContext = (ECFGAdj, Node, ECFGNodeValue, ECFGAdj)
-
-type ECFG = Gr ECFGNodeValue ECFGEdgeValue
+entryOfMethod :: Name' -> CFG -> Maybe CFGNode
+entryOfMethod name CFG{cfg} 
+    | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
+    | otherwise         = Nothing
+    where
+        entry = nodes $ labfilter (\case (Entry n) -> n == name
+                                         _         -> False) cfg

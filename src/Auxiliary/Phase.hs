@@ -9,6 +9,7 @@ module Auxiliary.Phase(
 ) where
 
 import Control.Monad.Trans.Either
+import Parsing.Syntax
 import Auxiliary.Verbosity
 import Auxiliary.Arguments
 
@@ -20,7 +21,7 @@ type PhaseResult a = EitherT PhaseError IO a
 
 data PhaseError
     = ParseError        String
-    | MethodNotFound    String
+    | MethodNotFound    Name'
     | UnsupportedSyntax String
     | ResultParseError  String
     deriving (Show, Eq)

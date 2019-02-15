@@ -43,12 +43,8 @@ data MemberDecl'
     | ConstructorDecl'  modifiers :: {[Modifier']}
                         name      :: {String}
                         params    :: {[FormalParam']}
-                        body      :: ConstructorBody'
+                        body      :: CompoundStmt'
 deriving MemberDecl' : Eq, Show
-
-data ConstructorBody'
-    | ConstructorBody'  stat    :: CompoundStmt'
-deriving ConstructorBody' : Eq, Show
 
 data FormalParam'
     | FormalParam'  modifiers :: {[Modifier']}
@@ -104,7 +100,7 @@ deriving CompoundStmt' : Eq, Show
 data Stmt'
     | Decl'     modifiers   :: {[Modifier']}
                 ty          :: Type'
-                vars        :: {[VarDecl']}
+                vars        :: VarDecls'
 
     | Empty'
 
@@ -125,6 +121,8 @@ deriving Stmt' : Eq, Show
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
+
+type VarDecls' = [VarDecl']
 
 data VarDecl'
     | VarDecl'  id   :: VarDeclId'
