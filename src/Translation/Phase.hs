@@ -4,10 +4,11 @@ module Translation.Phase(
     , Programs
 ) where
 
-import Data.Maybe (fromJust)
+import Data.Maybe                  (fromJust)
+import Data.List                   (groupBy)
 import Language.C.Data.Position
 import Language.C.Syntax.AST
-import Language.C.Syntax.Constants
+import Language.C.Syntax.Constants 
 import Language.C.Data.Node
 import Language.C.Data.Ident
 import Auxiliary.Phase
@@ -16,24 +17,48 @@ import Linearization.Path
 import Translation.Program
 import Translation.Pretty
 import Parsing.Syntax
+import Parsing.Utility
 
-translationPhase :: Phase ProgramPaths Programs
-translationPhase _ paths = do
+translationPhase :: Phase (CompilationUnit', ProgramPaths) Programs
+translationPhase _ (unit, paths) = do
     newEitherT $ printHeader "4. TRANSLATION"
     newEitherT $ printPretty paths
-    return $ map translate paths
+    return $ map (translate unit) paths
 
-translate :: ProgramPath -> Program
-translate path = CTranslUnit [
-    CFDefExt (CFunDef [CTypeSpec (CVoidType noNodeInfo)] (CDeclr (Just (ident "main")) [CFunDeclr (Right ([], False)) [] noNodeInfo] Nothing [] noNodeInfo) [] (translatePath path) noNodeInfo)] noNodeInfo
+translate :: CompilationUnit' -> ProgramPath -> Program
+translate unit path = CTranslUnit calls noNodeInfo
+    where
+        calls = (map (translateCall unit) . groupBy (\ x y -> fst x == fst y)) path
+
+translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
+translateCall unit path 
+    = CFDefExt $ CFunDef [returnType] (CDeclr name [params] Nothing [] noNodeInfo) [] body noNodeInfo
+    where
+        methodName = (head . fst . head) path
+        name       = Just (ident methodName)
+        body       = translatePath path
+        method     = (fromJust . findMethod methodName . fromJust . findClass "Main") unit
+        returnType = (CTypeSpec . translateMaybeType . fromJust . getReturnTypeOfMethod) method
+        params     = (translateParams . fromJust . getParamsOfMethod) method
+
+translateParams :: [FormalParam'] -> CDerivedDeclr
+translateParams ps = CFunDeclr (Right (map translateParam ps, False)) [] noNodeInfo
+
+translateParam :: FormalParam' -> CDeclaration NodeInfo
+translateParam (FormalParam' _ ty (VarId' name)) 
+    = CDecl [ty'] [(name', Nothing, Nothing)] noNodeInfo
+    where
+        ty'   = CTypeSpec $ translateType ty
+        name' :: Maybe (CDeclarator NodeInfo)
+        name' = Just $ CDeclr (Just $ ident name) [] Nothing [] noNodeInfo
 
 translatePath :: ProgramPath -> CStat
-translatePath path = CCompound [] (map translateStmt path) noNodeInfo
+translatePath path = CCompound [] (map (translateStmt . snd) path) noNodeInfo
 
 translateStmt :: Stmt' -> CBlockItem
 translateStmt (Decl' _ (RefType' (ArrayType' ty)) [VarDecl' (VarId' name) init])
     = let init' = translateVarInit init
-          ty'   = [translateType ty]
+          ty'   = [CTypeSpec $ translateType ty]
           name' = Just $ ident name
           size' = [CArrDeclr [] (CNoArrSize False) noNodeInfo]
           declr = [(Just (CDeclr name' size' Nothing [] noNodeInfo), init', Nothing)]
@@ -41,7 +66,7 @@ translateStmt (Decl' _ (RefType' (ArrayType' ty)) [VarDecl' (VarId' name) init])
 
 translateStmt (Decl' _ ty [VarDecl' (VarId' name) init])
     = let init' = translateVarInit init
-          ty'   = [translateType ty]
+          ty'   = [CTypeSpec $ translateType ty]
           name' = Just $ ident name
           declr = [(Just (CDeclr name' [] Nothing [] noNodeInfo), init', Nothing)]
        in CBlockDecl (CDecl ty' declr noNodeInfo)
@@ -50,7 +75,7 @@ translateStmt (ExpStmt' exp)
     = CBlockStmt (CExpr (Just $ translateExp exp) noNodeInfo)
 
 translateStmt (Assert' exp err)
-    = let err'  = maybe (CConst $ CStrConst (cString "") noNodeInfo) translateExp err
+    = let err'    = maybe (CConst $ CStrConst (cString "") noNodeInfo) translateExp err
           exp'    = translateExp exp
           assert' = CExpr (Just (CCall (CVar (ident "__CPROVER_assert") noNodeInfo) [exp', err'] noNodeInfo)) noNodeInfo
        in CBlockStmt assert'
@@ -59,25 +84,38 @@ translateStmt (Assume' exp)
     = let exp'    = [translateExp exp]
           assume' = CExpr (Just (CCall (CVar (ident "__CPROVER_assume") noNodeInfo) exp' noNodeInfo)) noNodeInfo
        in CBlockStmt assume'
+       
+translateStmt (Return' exp)
+    = let exp'    = translateMaybeExp exp
+       in CBlockStmt (CReturn exp' noNodeInfo)
 
 translateVarInit :: VarInit' -> Maybe CInit
 translateVarInit (InitExp' e)           = Just $ CInitExpr (translateExp e) noNodeInfo
 translateVarInit (InitArray' (Just es)) = Just $ CInitList (map (([],) . fromJust . translateVarInit) es) noNodeInfo
 translateVarInit (InitArray' Nothing)   = Nothing
 
-translateType :: Type' -> CDeclarationSpecifier NodeInfo
-translateType (PrimType' BooleanT') = CTypeSpec (CTypeDef (ident "__Bool") noNodeInfo)
-translateType (PrimType' ByteT')    = CTypeSpec (CTypeDef (ident "__int8") noNodeInfo)
-translateType (PrimType' ShortT')   = CTypeSpec (CTypeDef (ident "__int16") noNodeInfo)
-translateType (PrimType' IntT')     = CTypeSpec (CTypeDef (ident "__int32") noNodeInfo)
-translateType (PrimType' LongT')    = CTypeSpec (CTypeDef (ident "__int64") noNodeInfo)
-translateType (PrimType' CharT')    = CTypeSpec (CCharType noNodeInfo)
-translateType (PrimType' FloatT')   = CTypeSpec (CFloatType noNodeInfo)
-translateType (PrimType' DoubleT')  = CTypeSpec (CDoubleType noNodeInfo)
+translateMaybeType :: Maybe Type' -> CTypeSpec
+translateMaybeType (Just ty) = translateType ty
+translateMaybeType Nothing   = CVoidType noNodeInfo
+
+--translateType :: Type' -> CDeclarationSpecifier NodeInfo
+translateType :: Type' -> CTypeSpec
+translateType (PrimType' BooleanT') = CTypeDef (ident "__Bool") noNodeInfo
+translateType (PrimType' ByteT')    = CTypeDef (ident "__int8") noNodeInfo
+translateType (PrimType' ShortT')   = CTypeDef (ident "__int16") noNodeInfo
+translateType (PrimType' IntT')     = CTypeDef (ident "__int32") noNodeInfo
+translateType (PrimType' LongT')    = CTypeDef (ident "__int64") noNodeInfo
+translateType (PrimType' CharT')    = CCharType noNodeInfo
+translateType (PrimType' FloatT')   = CFloatType noNodeInfo
+translateType (PrimType' DoubleT')  = CDoubleType noNodeInfo
 translateType (RefType' ty)         = translateRefType ty
 
-translateRefType :: RefType' -> CDeclarationSpecifier NodeInfo
+translateRefType :: RefType' -> CTypeSpec
 translateRefType (ArrayType' ty) = translateType ty
+
+translateMaybeExp :: Maybe Exp' -> Maybe CExpr
+translateMaybeExp (Just e) = Just (translateExp e)
+translateMaybeExp Nothing  = Nothing
 
 translateExp :: Exp' -> CExpr
 translateExp (Lit' Null')        = CVar (ident "NULL") noNodeInfo
@@ -95,6 +133,8 @@ translateExp (PreNot' e)         = CUnary CNegOp (translateExp e) noNodeInfo
 translateExp (BinOp' e1 op e2)   = CBinary (translateOp op) (translateExp e1) (translateExp e2) noNodeInfo
 translateExp (Cond' g e1 e2)     = CCond (translateExp g) (Just $ translateExp e1) (translateExp e2) noNodeInfo
 translateExp (Assign' lhs op e)  = CAssign (translateAssignOp op) (translateLhs lhs) (translateExp e) noNodeInfo
+translateExp (MethodInv' (MethodCall' name args))      
+    = CCall (CVar ((ident . head) name) noNodeInfo) (map translateExp args) noNodeInfo
 
 translateArrayIndex :: String -> [Exp'] -> CExpr
 translateArrayIndex n [e]    = CIndex (CVar (ident n) noNodeInfo) (translateExp e) noNodeInfo

@@ -14,7 +14,7 @@ perform args file = do
 arguments :: Arguments
 arguments = defaultArgs {
       method          = ["main"]
-    , maximumDepth    = 50
+    , maximumDepth    = 10
     , keepOutputFiles = False
     }
 

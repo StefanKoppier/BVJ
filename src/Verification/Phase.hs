@@ -15,6 +15,7 @@ verificationPhase :: Phase Programs VerificationResults
 verificationPhase args@Arguments{keepOutputFiles} programs = do
     newEitherT $ printHeader "3. VERIFICATION"
     newEitherT $ printPretty programs
+    newEitherT createWorkingDir
     results <- newEitherT $ runAsync args programs
     if keepOutputFiles
         then return ()
@@ -29,12 +30,16 @@ runAsync args programs = do
 
 verify :: Arguments -> Program -> IO (Either PhaseError VerificationResult)
 verify args program = do
-    createDirectoryIfMissing False workingDir
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
     hPutStr handle (toString program)
     hClose handle
     (_,result,_) <- readProcessWithExitCode "cbmc" (cbmcArgs path args) ""
     runEitherT $ parseOutput result
+
+createWorkingDir :: IO (Either PhaseError ())
+createWorkingDir = do 
+    createDirectoryIfMissing False workingDir
+    return $ Right ()
 
 removeWorkingDir :: IO (Either PhaseError ())
 removeWorkingDir = do 

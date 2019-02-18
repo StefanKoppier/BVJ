@@ -1,11 +1,11 @@
 module Analysis.Pretty where
 
-import qualified Data.Map as M
-import Data.Graph.Inductive.Graph (Node, context, nodes)
-import Text.PrettyPrint
-import Analysis.CFG
-import Parsing.Pretty
-import Auxiliary.Pretty
+import qualified Data.Map                                          as M
+import           Data.Graph.Inductive.Graph (Node, context, nodes)
+import           Text.PrettyPrint
+import           Analysis.CFG
+import           Parsing.Pretty
+import           Auxiliary.Pretty
 
 instance Pretty CFG where
     pretty CFG{cfg} = foldr (($+$) . pretty) empty contexts
@@ -21,4 +21,8 @@ instance Pretty CFGNodeValue where
     pretty (Exit n)  = "exit of" <+> quotes (dots n)
 
 instance Pretty CFGAdj where
-    pretty = brackets . commas . map snd
+    pretty = brackets . commas
+
+instance Pretty (CFGEdgeValue, Node) where
+    pretty (InterEdge,n) = char '_' <> pretty n
+    pretty (_,n)         = pretty n

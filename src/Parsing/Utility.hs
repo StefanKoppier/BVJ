@@ -2,47 +2,40 @@ module Parsing.Utility where
 
 import Data.List
 import Data.Maybe
-import Language.Java.Syntax
+import Parsing.Syntax
 
-findMethodBody :: String -> CompilationUnit -> Maybe Block
-findMethodBody name program = do
-    method <- findMethod name program
-    getMethodBlock method
+findClass :: String -> CompilationUnit' -> Maybe ClassDecl'
+findClass name (CompilationUnit' _ decls) 
+    | [c] <- filter (hasClassName name) classes 
+        = Just c
+    | otherwise
+        = Nothing
+    where
+        classes = getClasses decls
 
-findMethod :: String -> CompilationUnit -> Maybe MemberDecl
-findMethod name program = do
-    let ident   = Ident name
-    let classes = getClasses program
-    let bodies  = mapMaybe getClassBody classes
-    let members = concatMap getClassBodyMembers bodies
-    find (isMethodDeclWithIdent ident) members
+getClasses :: TypeDecls' -> [ClassDecl']
+getClasses ds = [c | (ClassTypeDecl' c) <- ds]
 
-isMethodDeclWithIdent :: Ident -> MemberDecl -> Bool
-isMethodDeclWithIdent ident (MethodDecl _ _ _ name _ _ _ _)
-    = ident == name
-isMethodDeclWithIdent _ _
-    = False
+hasClassName :: String -> ClassDecl' -> Bool
+hasClassName name (ClassDecl' _ name' _) = name == name'
 
-getClasses :: CompilationUnit -> [ClassDecl]
-getClasses (CompilationUnit _ _ decls)
-    = (map (\ (ClassTypeDecl c) -> c) . filter isClass) decls
+findMethod :: String -> ClassDecl' -> Maybe MemberDecl'
+findMethod name (ClassDecl' _ _ body)
+    | [m] <- filter (hasMethodName name) methods 
+        = Just m
+    | otherwise
+        = Nothing
+    where
+        methods = getMethods body
 
-getClassBody :: ClassDecl -> Maybe ClassBody
-getClassBody (ClassDecl _ _ _ _ _ body) = Just body
-getClassBody _                          = Nothing
+getMethods :: Decls' -> [MemberDecl']
+getMethods ds = [m | (MemberDecl' m@MethodDecl'{}) <- ds]
 
-getClassBodyMembers :: ClassBody -> [MemberDecl]
-getClassBodyMembers (ClassBody decls) 
-    =  (map (\ (MemberDecl d) -> d) . filter isMemberDecl) decls
+getReturnTypeOfMethod :: MemberDecl' -> Maybe (Maybe Type')
+getReturnTypeOfMethod (MethodDecl' _ ty _ _ _) = Just ty
 
-getMethodBlock :: MemberDecl -> Maybe Block
-getMethodBlock (MethodDecl _ _ _ _ _ _ _ (MethodBody body)) = body
-getMethodBlock _                                            = Nothing
+getParamsOfMethod :: MemberDecl' -> Maybe [FormalParam']
+getParamsOfMethod (MethodDecl' _ _ _ ps _) = Just ps
 
-isMemberDecl :: Decl -> Bool
-isMemberDecl (MemberDecl _) = True
-isMemberDecl _              = False
-
-isClass :: TypeDecl -> Bool
-isClass (ClassTypeDecl _) = True
-isClass _                 = False
+hasMethodName :: String -> MemberDecl' -> Bool
+hasMethodName name (MethodDecl' _ _ name' _ _) = name == name'

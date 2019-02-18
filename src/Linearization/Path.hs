@@ -5,9 +5,14 @@ import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
 
-type ProgramPath = [Stmt']
+type ScopedStmt = (Name', Stmt')
+
+type ProgramPath = [ScopedStmt]
 
 type ProgramPaths = [ProgramPath]
+
+instance Pretty ScopedStmt where
+    pretty (scope, stmt) = parens (dots scope <> comma <> pretty stmt)
 
 instance Pretty ProgramPath where
     pretty = hsep . map pretty

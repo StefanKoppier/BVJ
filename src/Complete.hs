@@ -13,11 +13,10 @@ import Verification.Pretty
 allPhases :: Phase String VerificationResults
 allPhases args file = do
     ast      <- parsingPhase args file
-    ecfg     <- analysisPhase args ast
-    --paths    <- linearizationPhase args (1, cfg)
-    --programs <- translationPhase args paths
-    --results  <- verificationPhase args programs
+    cfg      <- analysisPhase args ast
+    paths    <- linearizationPhase args (ast, cfg)
+    programs <- translationPhase args (ast, paths)
+    results  <- verificationPhase args programs
     newEitherT $ printHeader "FINAL RESULT"
-    --newEitherT $ printPretty results
-    newEitherT $ printPretty ecfg
-    right []
+    newEitherT $ printPretty results
+    return results

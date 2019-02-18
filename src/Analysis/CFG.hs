@@ -52,3 +52,9 @@ entryOfMethod name CFG{cfg}
     where
         entry = nodes $ labfilter (\case (Entry n) -> n == name
                                          _         -> False) cfg
+
+isIntraEdge, isInterEdge :: CFGEdgeValue -> Bool
+isIntraEdge (ConditionalEdge _) = True
+isIntraEdge IntraEdge           = True
+isIntraEdge InterEdge           = False
+isInterEdge = not . isIntraEdge

@@ -3,6 +3,8 @@ module Linearization.Phase(
 ) where
 
 import qualified Data.Graph.Inductive as G
+import qualified Data.Map             as M
+import           Data.List
 import           Analysis.CFA
 import           Analysis.CFG
 import           Analysis.Pretty
@@ -12,44 +14,68 @@ import           Linearization.Utility
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-linearizationPhase :: Phase CFG ProgramPaths
-linearizationPhase Arguments{maximumDepth} graph@CFG{cfg} = do
+import Debug.Trace
+
+linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
+linearizationPhase Arguments{maximumDepth,method} (unit, graph@CFG{cfg}) = do
     newEitherT $ printHeader "3. LINEARIZATION"
     newEitherT $ printPretty graph
-    return []
-    --return $ map (reverse . clean) (paths' [[]] graph (G.context cfg entry) maximumDepth)
-{-
-paths' :: ProgramPaths -> CFG -> CFGContext -> Int -> ProgramPaths
-paths' acc _ (_, _, _, neighbour:neighbours) 0
+    case entryOfMethod method graph of
+        Just (entry,_) -> 
+            return $ map (reverse . clean) (paths [[]] method graph (G.context cfg entry) maximumDepth)
+        Nothing        -> 
+            left $ MethodNotFound method
+
+paths :: ProgramPaths -> Name' -> CFG -> CFGContext -> Int -> ProgramPaths
+-- Case: the end is not reached and the maximum path length is reached.
+paths _ _ _ (_,_,_,neighbour:neighbours) 0
     = []
 
-paths' acc _ (_, _, Stmt' stat, []) n
-    = map (stat:) acc
+-- Case: the entry of an method.
+paths acc _ graph@CFG{cfg} (_,_,Entry scope,[(_,neighbour)]) n
+    = paths acc scope graph (G.context cfg neighbour) n
 
-paths' acc cfg (_, _, stat, neighbours) n
-    | IfThenElse' exp _ _ <- stat 
-        = concatMap (\ neighbour -> next acc (Assume' exp) neighbour cfg n) neighbours
+-- Case: the exit of an method.
+paths acc _ _ (_,_,Exit _,neighbours) n
+    = acc
 
-    | While' _ exp _ <- stat 
-        = concatMap (\ neighbour -> next acc (Assume' exp) neighbour cfg n) neighbours
+-- Case: a statement.
+paths acc scope graph@CFG{cfg} (_,_,Block s,neighbours) n
+    = let intras' = intras neighbours
+          inters' = inters neighbours
+          acc'    = merge acc (map (\ (_ ,neighbour) -> paths [[]] noScope graph (G.context cfg neighbour) n) inters')
+          stat    = statement scope s in
+            concatMap (\case 
+                (ConditionalEdge False,neighbour)
+                    -> paths (map (negateStmt stat:) acc') scope graph (G.context cfg neighbour) (n-1)
+                (_,neighbour) 
+                    -> paths (map (stat:) acc') scope graph (G.context cfg neighbour) (n-1)) intras'
+         
+statement :: Name' -> CompoundStmt' -> ScopedStmt
+statement scope (IfThenElse' e _ _) = (scope, Assume' e)
+statement scope (While' _ e _)      = (scope, Assume' e)
+statement scope (Stmt' s)           = (scope, s)
 
-    | Stmt' stat <- stat 
-        = concatMap (\ neighbour -> next acc stat neighbour cfg n) neighbours
-        
-next :: ProgramPaths -> Stmt' -> (CFGEdgeValue, G.Node) -> CFG -> Int -> ProgramPaths
-next acc stat (IntraEdge, neighbour) graph@CFG{cfg} n 
-    = paths' (map (stat:) acc) graph (G.context cfg neighbour) (n-1)
+negateStmt :: ScopedStmt -> ScopedStmt
+negateStmt (scope, Assume' e) = (scope, Assume' (PreNot' e))
 
-next acc (Assume' exp) (ConditionalEdge True, neighbour) graph@CFG{cfg} n 
-    = paths' (map (Assume' exp:) acc) graph (G.context cfg neighbour) (n-1)
-    
-next acc (Assume' exp) (ConditionalEdge False, neighbour) graph@CFG{cfg} n 
-    = paths' (map (Assume' (PreNot' exp):) acc) graph (G.context cfg neighbour) (n-1)
+merge :: ProgramPaths -> [ProgramPaths] -> ProgramPaths
+merge = foldl (\ acc call -> concatMap (\ a -> map (a++) call) acc)
+
+-- | Retrieve all inter flow edges from the list.
+inters :: CFGAdj -> CFGAdj
+inters = filter (isInterEdge . fst)             
+
+-- | Retrieve all intra and conditional flow edges from the list.
+intras :: CFGAdj -> CFGAdj
+intras = filter (isIntraEdge . fst)
 
 clean :: ProgramPath -> ProgramPath
-clean (Empty'     :ss) = clean ss
-clean (Break'    _:ss) = clean ss
-clean (Continue' _:ss) = clean ss
-clean (s:ss)           = s : clean ss
-clean []               = []
--}
+clean ((_,Empty'     ):ss) = clean ss
+clean ((_,Break'    _):ss) = clean ss
+clean ((_,Continue' _):ss) = clean ss
+clean (s:ss)               = s : clean ss
+clean []                   = []
+
+noScope :: Name'
+noScope = ["NOSCOPE"]

@@ -181,19 +181,19 @@ sem Stmt'
 
     | Break'    lhs .label  = new @lhs.label
                     .init   = block (new @lhs.label) (Stmt' @self)
-                    .final  = [block (new @lhs.label) (Stmt' @self)]
+                    .final  = []
                     .nodes  = [block (new @lhs.label) (Stmt' @self)]
                     .breaks = [block (new @lhs.label) (Stmt' @self)]
 
     | Continue' lhs .label     = new @lhs.label
                     .init      = block (new @lhs.label) (Stmt' @self)
-                    .final     = [block (new @lhs.label) (Stmt' @self)]
+                    .final     = []
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
                     .continues = [block (new @lhs.label) (Stmt' @self)]
 
     | Return'   lhs .label   = new @lhs.label
                     .init    = block (new @lhs.label) (Stmt' @self)
-                    .final   = [block (new @lhs.label) (Stmt' @self)]
+                    .final   = []
                     .nodes   = [block (new @lhs.label) (Stmt' @self)]
                     .edges   = createIntraEdges (new @lhs.label) @lhs.methods (invocations @exp)
                     .returns = [block (new @lhs.label) (Stmt' @self)]
