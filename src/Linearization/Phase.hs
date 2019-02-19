@@ -44,20 +44,14 @@ paths acc scope graph@CFG{cfg} (_,_,Block s,neighbours) n
     = let intras' = intras neighbours
           inters' = inters neighbours
           acc'    = merge acc (map (\ (_ ,neighbour) -> paths [[]] noScope graph (G.context cfg neighbour) n) inters')
-          stat    = statement scope s in
-            concatMap (\case 
-                (ConditionalEdge False,neighbour)
-                    -> paths (map (negateStmt stat:) acc') scope graph (G.context cfg neighbour) (n-1)
-                (_,neighbour) 
-                    -> paths (map (stat:) acc') scope graph (G.context cfg neighbour) (n-1)) intras'
-         
-statement :: Name' -> CompoundStmt' -> ScopedStmt
-statement scope (IfThenElse' e _ _) = (scope, Assume' e)
-statement scope (While' _ e _)      = (scope, Assume' e)
-statement scope (Stmt' s)           = (scope, s)
+       in concatMap (next acc' scope s graph n) intras'
 
-negateStmt :: ScopedStmt -> ScopedStmt
-negateStmt (scope, Assume' e) = (scope, Assume' (PreNot' e))
+next :: ProgramPaths -> Name' -> CompoundStmt' -> CFG -> Int -> (CFGEdgeValue, G.Node) -> ProgramPaths
+next acc scope s graph@CFG{cfg} n (edge,neighbour)
+    = paths (map (stat:) acc) scope graph (G.context cfg neighbour) (n-1)
+    where
+        stat | ConditionalEdge e <- edge = (scope, Assume' e)
+             | (Stmt' s')        <- s    = (scope, s')
 
 merge :: ProgramPaths -> [ProgramPaths] -> ProgramPaths
 merge = foldl (\ acc call -> concatMap (\ a -> map (a++) call) acc)

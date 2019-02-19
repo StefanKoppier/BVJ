@@ -77,12 +77,16 @@ transformParam (FormalParam _ _ True _)
     = unsupported "variable arity parameter"
 
 transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmt'
-transformConstructorBody (ConstructorBody Nothing ss) = (`Seq'` emptyStmt) <$> transformBlock (Block ss)
-transformConstructorBody (ConstructorBody (Just _) _) = unsupported "base class constructor call"
+transformConstructorBody (ConstructorBody Nothing ss)
+    = let b' = Block (ss ++ [BlockStmt Empty]) in transformBlock b'
+transformConstructorBody (ConstructorBody (Just _) _) 
+    = unsupported "base class constructor call"
 
 transformMethodBody :: MethodBody -> PhaseResult CompoundStmt'
-transformMethodBody (MethodBody (Just b)) = (`Seq'` emptyStmt) <$> transformBlock b
-transformMethodBody (MethodBody Nothing)  = unsupported "method without implementation"
+transformMethodBody (MethodBody (Just (Block b))) 
+    = let b' = Block (b ++ [BlockStmt Empty]) in transformBlock b'
+transformMethodBody (MethodBody Nothing)  
+    = unsupported "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block [])     = return emptyStmt
@@ -180,7 +184,7 @@ transformStmt = foldStmt alg
                     u' <- maybe (return emptyStmt) (fmap (foldr (\ e -> Seq' (Stmt' $ ExpStmt' e)) emptyStmt) . mapM transformExp) u
                     g' <- maybe ((return . Lit' . Boolean') True) transformExp g
                     let while = While' Nothing g' (Seq' s' u')
-                    return $ Block' $ Seq' i' while
+                    return $ Block' $ Seq' i' (Seq' while emptyStmt)
               , \ m t i g s -> unsupported "for (iterator)"
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp

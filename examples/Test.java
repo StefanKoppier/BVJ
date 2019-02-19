@@ -1,14 +1,9 @@
 class Main {
     public static void main() {
-        int x = square(2) + id(1);
-        assert x == 5 : "x == 4";
+        assert (square(2) + square(2)) == 8 : "2^2 + 2^2 != 8";
     }
 
-    public static int square(int x) {
+    public int square(int x) {
         return x * x;
-    }
-
-    public static int id(int x) {
-        return x;
     }
 }

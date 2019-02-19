@@ -28,9 +28,9 @@ type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
     = InterEdge
-    | ConditionalEdge Bool
+    | ConditionalEdge Exp'
     | IntraEdge
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq)
 
 type CFGEdge = LEdge CFGEdgeValue
 
