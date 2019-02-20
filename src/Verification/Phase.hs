@@ -13,7 +13,7 @@ import Verification.Result
 
 verificationPhase :: Phase Programs VerificationResults
 verificationPhase args@Arguments{keepOutputFiles} programs = do
-    newEitherT $ printHeader "3. VERIFICATION"
+    newEitherT $ printHeader "5. VERIFICATION"
     newEitherT $ printPretty programs
     newEitherT createWorkingDir
     results <- newEitherT $ runAsync args programs

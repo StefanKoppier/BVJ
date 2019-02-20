@@ -14,44 +14,64 @@ import           Linearization.Utility
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-import Debug.Trace
-
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
 linearizationPhase Arguments{maximumDepth,method} (unit, graph@CFG{cfg}) = do
     newEitherT $ printHeader "3. LINEARIZATION"
     newEitherT $ printPretty graph
     case entryOfMethod method graph of
-        Just (entry,_) -> 
-            return $ map (reverse . clean) (paths [[]] method graph (G.context cfg entry) maximumDepth)
+        Just (entry,_) -> do
+            let initial = M.fromList [(n,(0,0)) | (_,Entry n) <- G.labNodes cfg]
+            return $ map (reverse . clean) (snd $ paths [[]] initial method graph (G.context cfg entry) maximumDepth)
         Nothing        -> 
             left $ MethodNotFound method
 
-paths :: ProgramPaths -> Name' -> CFG -> CFGContext -> Int -> ProgramPaths
+--------------------------------------------------------------------------------
+-- Program path generation
+--------------------------------------------------------------------------------
+
+-- Call history, the first value represents the scope renaming, the second
+-- one represents the call renaming.
+type CallHistory = M.Map Name' (Int, Int)
+
+paths :: ProgramPaths -> CallHistory -> Name' -> CFG -> CFGContext -> Int -> (CallHistory, ProgramPaths)
 -- Case: the end is not reached and the maximum path length is reached.
-paths _ _ _ (_,_,_,neighbour:neighbours) 0
-    = []
+paths _ calls _ _ (_,_,_,neighbour:neighbours) 0
+    = (calls, [])
 
 -- Case: the entry of an method.
-paths acc _ graph@CFG{cfg} (_,_,Entry scope,[(_,neighbour)]) n
-    = paths acc scope graph (G.context cfg neighbour) n
+paths acc calls scope graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)]) n
+    = paths acc calls scope graph (G.context cfg neighbour) n
 
 -- Case: the exit of an method.
-paths acc _ _ (_,_,Exit _,neighbours) n
-    = acc
+paths acc calls _ _ (_,_,Exit _,neighbours) n
+    = (calls, acc)
 
 -- Case: a statement.
-paths acc scope graph@CFG{cfg} (_,_,Block s,neighbours) n
-    = let intras' = intras neighbours
-          inters' = inters neighbours
-          acc'    = merge acc (map (\ (_ ,neighbour) -> paths [[]] noScope graph (G.context cfg neighbour) n) inters')
-       in concatMap (next acc' scope s graph n) intras'
+paths acc calls scope graph@CFG{cfg} (_,_,Block s,neighbours) n
+    = let intras'        = intras neighbours
+          inters'        = inters neighbours
+          (calls1,acc')  = interPaths acc calls graph inters' n
+          (calls2,paths) = mapAccumR (next acc' scope s graph n) calls1 intras'
+       in (calls2, concat paths)
 
-next :: ProgramPaths -> Name' -> CompoundStmt' -> CFG -> Int -> (CFGEdgeValue, G.Node) -> ProgramPaths
-next acc scope s graph@CFG{cfg} n (edge,neighbour)
-    = paths (map (stat:) acc) scope graph (G.context cfg neighbour) (n-1)
+next :: ProgramPaths -> Name' -> CompoundStmt' -> CFG -> Int -> CallHistory -> (CFGEdgeValue, G.Node) -> (CallHistory, ProgramPaths)
+next acc scope s graph@CFG{cfg} n calls (edge,neighbour)
+    = paths (map ((scope,stat):) acc) calls' scope graph (G.context cfg neighbour) (n-1)
     where
-        stat | ConditionalEdge e <- edge = (scope, Assume' e)
-             | (Stmt' s')        <- s    = (scope, s')
+        (calls',stat) | ConditionalEdge e <- edge = renameStmt calls (Assume' e)
+                      | (Stmt' s')        <- s    = renameStmt calls s'
+
+interPaths :: ProgramPaths -> CallHistory -> CFG -> CFGAdj -> Int -> (CallHistory, ProgramPaths)
+interPaths acc calls graph neighbours n
+    = let (calls', paths) = mapAccumR (interPath graph n) calls neighbours
+       in (calls', merge acc paths)
+
+interPath :: CFG -> Int -> CallHistory -> (CFGEdgeValue, G.Node) -> (CallHistory, ProgramPaths)
+interPath graph@CFG{cfg} n calls (InterEdge method, neighbour) 
+    = let (callNumber,x) = calls M.! method
+          newName        = [head method ++ "$" ++ show callNumber]
+          calls1         = M.insert method (callNumber + 1,x) calls
+       in paths [[]] calls1 newName graph (G.context cfg neighbour) n
 
 merge :: ProgramPaths -> [ProgramPaths] -> ProgramPaths
 merge = foldl (\ acc call -> concatMap (\ a -> map (a++) call) acc)
@@ -71,5 +91,65 @@ clean ((_,Continue' _):ss) = clean ss
 clean (s:ss)               = s : clean ss
 clean []                   = []
 
-noScope :: Name'
-noScope = ["NOSCOPE"]
+--------------------------------------------------------------------------------
+-- Renaming of method calls
+--------------------------------------------------------------------------------
+
+renameStmt :: CallHistory -> Stmt' -> (CallHistory, Stmt')
+renameStmt history (Assert' e err) = 
+    let (history', e')    = renameExp history e
+        (history'', err') = renameMaybeExp history' err
+     in (history'', Assert' e' err')
+renameStmt history (Assume' e) = 
+    let (history', e') = renameExp history e
+     in (history', Assume' e')
+renameStmt history (Return' e) = 
+    let (history', e') = renameMaybeExp history e
+     in (history', Return' e')
+renameStmt history s = (history, s)
+
+renameMaybeExp :: CallHistory -> Maybe Exp' -> (CallHistory, Maybe Exp')
+renameMaybeExp history Nothing = (history, Nothing)
+renameMaybeExp history (Just e) 
+    = let (history', e') = renameExp history e in (history', Just e')
+
+renameExp :: CallHistory -> Exp' -> (CallHistory, Exp')
+renameExp history (MethodInv' (MethodCall' n args)) 
+    = let (history', args') = mapAccumR renameExp history args
+          (x,callNumber)    = history M.! n
+          newName           = [head n ++ "$" ++ show callNumber]
+          history''         = M.insert n (x,callNumber + 1) history'
+       in (history'', MethodInv' (MethodCall' newName args'))
+renameExp history (ArrayAccess' i is)
+    = let (history', is') = mapAccumR renameExp history is
+       in (history', ArrayAccess' i is')
+renameExp history (PostIncrement' e)
+    = let (history', e') = renameExp history e in (history', PostIncrement' e')
+renameExp history (PostDecrement' e)
+    = let (history', e') = renameExp history e in (history', PostDecrement' e')
+renameExp history (PreIncrement' e)
+    = let (history', e') = renameExp history e in (history', PreIncrement' e')
+renameExp history (PreDecrement' e)
+    = let (history', e') = renameExp history e in (history', PreDecrement' e')
+renameExp history (PrePlus' e)
+    = let (history', e') = renameExp history e in (history', PrePlus' e')
+renameExp history (PreMinus' e)
+    = let (history', e') = renameExp history e in (history', PreMinus' e')
+renameExp history (PreBitCompl' e)
+    = let (history', e') = renameExp history e in (history', PreBitCompl' e')
+renameExp history (PreNot' e)
+    = let (history', e') = renameExp history e in (history', PreNot' e')
+renameExp history (BinOp' e1 op e2)
+    = let (history', e1')  = renameExp history e1
+          (history'', e2') = renameExp history' e2
+       in (history'', BinOp' e1' op e2')
+renameExp history (Cond' g e1 e2)
+    = let (history1, g')  = renameExp history g
+          (history2, e1') = renameExp history1 e1
+          (history3, e2') = renameExp history2 e2
+       in (history3, Cond' g' e1' e2')
+renameExp history (Assign' t op e)
+    = let (history', e') = renameExp history e
+       in (history', Assign' t op e')
+
+renameExp history e = (history, e)

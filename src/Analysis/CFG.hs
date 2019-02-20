@@ -27,7 +27,7 @@ type CFGNode = LNode CFGNodeValue
 type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
-    = InterEdge
+    = InterEdge       Name'
     | ConditionalEdge Exp'
     | IntraEdge
     deriving (Show, Eq)
@@ -56,5 +56,5 @@ entryOfMethod name CFG{cfg}
 isIntraEdge, isInterEdge :: CFGEdgeValue -> Bool
 isIntraEdge (ConditionalEdge _) = True
 isIntraEdge IntraEdge           = True
-isIntraEdge InterEdge           = False
+isIntraEdge (InterEdge _)       = False
 isInterEdge = not . isIntraEdge

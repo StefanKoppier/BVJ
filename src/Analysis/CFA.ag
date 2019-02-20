@@ -49,6 +49,7 @@ sem MemberDecl'
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
+                            .method  = [@name]
 
     | ConstructorDecl'  lhs .label   = new @body.label
                             .methods = M.singleton [@name] (new @lhs.label, new @body.label)
@@ -69,6 +70,7 @@ sem MemberDecl'
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
+                            .method  = [@name]
 
 attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'
     inh methods :: {Methods}
@@ -81,6 +83,7 @@ sem CompilationUnit'
 --------------------------------------------------------------------------------
 
 attr CompoundStmt' Stmt'
+    inh method                  :: Name'
     syn init                    :: {CFGNode}
     syn final                   :: {CFGNodes}
     syn breaks    use {++} {[]} :: {CFGNodes}
@@ -120,8 +123,8 @@ sem CompoundStmt'
                                       newCondEdge self @stat1.init (@exp.self)
                                       : -- Edge from condition to init of false branch.
                                       newCondEdge self @stat2.init (PreNot' @exp.self)
-                                      : -- Intra edge(s) from condition to entries and back.
-                                      createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                                      : -- Inter edge(s) from condition to entries and back.
+                                      createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
                                       ++ -- Edge(s) of the branches.
                                       @stat1.edges ++ @stat2.edges
                     stat1.label = new @lhs.label
@@ -138,8 +141,8 @@ sem CompoundStmt'
                                              newIntraEdges @body.final self
                                              ++ -- Edge(s) from continues of this loop to the condition.
                                              newIntraEdges (filter (isLabelOfThisLoop @ident) @body.continues) self
-                                             ++ -- Intra edge(s) from condition to entries and back.
-                                             createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                                             ++ -- Inter edge(s) from condition to entries and back.
+                                             createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
                                              ++ -- Edge(s) of the body
                                              @body.edges
                             .breaks    = filter (not . isLabelOfThisLoop @ident) @body.breaks
@@ -151,7 +154,7 @@ sem Stmt'
                     .init  = block (new @lhs.label) (Stmt' @self)
                     .final = [block (new @lhs.label) (Stmt' @self)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @vars.invocations
+                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @vars.invocations
 
     | Empty'    lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
@@ -162,21 +165,21 @@ sem Stmt'
                     .init  = block (new @lhs.label) (Stmt' @self)
                     .final = [block (new @lhs.label) (Stmt' @self)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
 
     | Assert'   lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
                     .final = [block (new @lhs.label) (Stmt' @self)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
                              ++
-                             createIntraEdges (new @lhs.label) @lhs.methods (invocations @error)
+                             createInterEdges (new @lhs.label) @lhs.method @lhs.methods (invocations @error)
 
     | Assume'   lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
                     .final = [block (new @lhs.label) (Stmt' @self)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createIntraEdges (new @lhs.label) @lhs.methods @exp.invocations
+                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
 
     | Break'    lhs .label  = new @lhs.label
                     .init   = block (new @lhs.label) (Stmt' @self)
@@ -194,7 +197,7 @@ sem Stmt'
                     .init    = block (new @lhs.label) (Stmt' @self)
                     .final   = []
                     .nodes   = [block (new @lhs.label) (Stmt' @self)]
-                    .edges   = createIntraEdges (new @lhs.label) @lhs.methods (invocations @exp)
+                    .edges   = createInterEdges (new @lhs.label) @lhs.method @lhs.methods (invocations @exp)
                     .returns = [block (new @lhs.label) (Stmt' @self)]
 
 --------------------------------------------------------------------------------
@@ -241,23 +244,20 @@ newIntraEdge (x,_) (y,_) = (x, y, IntraEdge)
 newIntraEdges :: CFGNodes -> CFGNode -> CFGEdges
 newIntraEdges xs y = map (`newIntraEdge` y) xs
 
-createIntraEdges :: Node -> Methods -> [Name'] -> CFGEdges
-createIntraEdges label methods invocations =
-    newInterEdges label entries ++ map (`newInterEdge` label) exits
+createInterEdges :: Node -> Name' -> Methods -> [Name'] -> CFGEdges
+createInterEdges label current methods invocations =
+    newInterEdges label entries ++ map (\ (e,_) -> newInterEdge e (label, current)) exits
     where
-        entries = map (fst . (methods M.!)) invocations
-        exits   = map (snd . (methods M.!)) invocations
-
---newCondEdge :: CFGNode -> CFGNode -> Bool -> CFGEdge
---newCondEdge (x,_) (y,_) b = (x, y, ConditionalEdge b)
+        entries = map (\ i -> (fst (methods M.! i), i)) invocations
+        exits   = map (\ i -> (snd (methods M.! i), i)) invocations
 
 newCondEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
 newCondEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)
 
-newInterEdge :: Node -> Node -> CFGEdge
-newInterEdge x y = (x, y, InterEdge)
+newInterEdge :: Node -> (Node, Name') -> CFGEdge
+newInterEdge x (y, n) = (x, y, InterEdge n)
 
-newInterEdges :: Node -> [Node] -> CFGEdges
+newInterEdges :: Node -> [(Node, Name')] -> CFGEdges
 newInterEdges x = map (newInterEdge x)
 
 insertEdge :: CFGEdge -> CFG -> CFG

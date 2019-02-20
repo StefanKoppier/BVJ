@@ -34,8 +34,9 @@ translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
 translateCall unit path 
     = CFDefExt $ CFunDef [returnType] (CDeclr name [params] Nothing [] noNodeInfo) [] body noNodeInfo
     where
-        methodName = (head . fst . head) path
-        name       = Just (ident methodName)
+        callName   = (head . fst . head) path
+        methodName = stripCallName callName
+        name       = Just (ident callName)
         body       = translatePath path
         method     = (fromJust . findMethod methodName . fromJust . findClass "Main") unit
         returnType = (CTypeSpec . translateMaybeType . fromJust . getReturnTypeOfMethod) method
@@ -98,7 +99,6 @@ translateMaybeType :: Maybe Type' -> CTypeSpec
 translateMaybeType (Just ty) = translateType ty
 translateMaybeType Nothing   = CVoidType noNodeInfo
 
---translateType :: Type' -> CDeclarationSpecifier NodeInfo
 translateType :: Type' -> CTypeSpec
 translateType (PrimType' BooleanT') = CTypeDef (ident "__Bool") noNodeInfo
 translateType (PrimType' ByteT')    = CTypeDef (ident "__int8") noNodeInfo
@@ -192,3 +192,9 @@ ident x = Ident x 0 noNodeInfo
 
 noNodeInfo :: NodeInfo
 noNodeInfo = OnlyPos nopos (nopos, 0)
+
+stripCallName :: String -> String
+stripCallName []        = []
+stripCallName (x:xs)
+            | x == '$'  = []
+            | otherwise = x : stripCallName xs

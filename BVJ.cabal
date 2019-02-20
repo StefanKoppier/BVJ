@@ -42,7 +42,6 @@ library
   other-modules:       Parsing.Fold
                        Parsing.Utility
                        Analysis.CFA
-                       -- Analysis.ECFA
                        Linearization.Utility
   -- other-extensions:    
   build-tools:         
@@ -60,7 +59,7 @@ library
                      , async
   hs-source-dirs:      src dist/build/autogen/uuagc
   default-language:    Haskell2010
-  ghc-options:         -Wall
+  ghc-options:         -Wall -fno-warn-orphans
   extensions:          TupleSections
                      , TypeSynonymInstances
                      , FlexibleInstances
