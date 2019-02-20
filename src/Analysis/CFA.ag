@@ -193,7 +193,6 @@ caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
 caseCondExp e1 previous (SwitchBlock' Nothing _)   
     = let exps = [e | (SwitchBlock' (Just e) _) <- previous]
        in foldr (\ e -> BinOp' (BinOp' e1 NotEq' e) CAnd') (Lit' (Boolean' True)) exps
-        --foldr ((SwitchBlock' (Just e) )) (Lit' (Boolean' True)) previous
 caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
     = BinOp' e1 Equal' e2
 
