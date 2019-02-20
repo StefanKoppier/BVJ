@@ -78,6 +78,11 @@ attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt
 sem CompilationUnit'
     | CompilationUnit' decls.methods = @decls.methods
 
+sem MemberDecl'
+    | MethodDecl'      body.methods = M.insert [@name] (new @lhs.label, new @body.label) @lhs.methods
+    
+    | ConstructorDecl' body.methods = M.insert [@name] (new @lhs.label, new @body.label) @lhs.methods
+
 --------------------------------------------------------------------------------
 -- Statements
 --------------------------------------------------------------------------------
