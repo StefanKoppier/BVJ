@@ -137,7 +137,7 @@ sem CompoundStmt'
 
     | While'        lhs .label     = @body.label
                         .init      = block (new @lhs.label) @self
-                        .final     = block (new @lhs.label) @self : filter (isLabelOfThisLoop @ident) @body.breaks
+                        .final     = block (new @lhs.label) @self : filter (isLabelOfThisNode @ident) @body.breaks
                         .nodes     = block (new @lhs.label) @self : @body.nodes
                         .edges     = let self = block (new @lhs.label) @self in
                                          -- Edge from condition to the init body.
@@ -145,21 +145,21 @@ sem CompoundStmt'
                                          : -- Edge(s) from finals of body to the condition.
                                          newIntraEdges @body.final self
                                          ++ -- Edge(s) from continues of this loop to the condition.
-                                         newIntraEdges (filter (isLabelOfThisLoop @ident) @body.continues) self
+                                         newIntraEdges (filter (isLabelOfThisNode @ident) @body.continues) self
                                          ++ -- Inter edge(s) from condition to entries and back.
                                          createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
                                          ++ -- Edge(s) of the body.
                                          @body.edges
-                        .breaks    = filter (not . isLabelOfThisLoop @ident) @body.breaks
-                        .continues = filter (not . isLabelOfThisLoop @ident) @body.continues
+                        .breaks    = filter (not . isLabelOfThisNode @ident) @body.breaks
+                        .continues = filter (not . isLabelOfThisNode @ident) @body.continues
                     body.label     = new @lhs.label
 
     | Switch'       lhs  .label    = @cases.label
                          .init     = block (new @lhs.label) @self
-                         .final    = @cases.final ++ filter (isLabelOfThisLoop Nothing) @cases.breaks 
+                         .final    = @cases.final ++ filter (isLabelOfThisNode Nothing) @cases.breaks 
                          .nodes    = block (new @lhs.label) @self : @cases.nodes
                          .edges    = @cases.edges
-                         .breaks   = filter (not . isLabelOfThisLoop Nothing) @cases.breaks
+                         .breaks   = filter (not . isLabelOfThisNode Nothing) @cases.breaks
                     cases.label    = new @lhs.label
                          .parent   = block (new @lhs.label) @self
                          .guard    = @exp.self
@@ -168,7 +168,7 @@ sem CompoundStmt'
 attr SwitchBlocks'
     inh parent   :: {CFGNode}
     inh guard    :: Exp'
-    inh previous :: SwitchBlocks' --{[SwitchBlock']}
+    inh previous :: SwitchBlocks'
                     
 sem SwitchBlocks'
     | Cons lhs.init     = @hd.init
@@ -320,14 +320,14 @@ insertEdges edges graph = graph{cfg=insEdges edges (cfg graph)}
 insertNode :: CFGNode -> CFG -> CFG
 insertNode node graph = graph{cfg=insNode node (cfg graph)}
     
-isLabelOfThisLoop :: Maybe String -> CFGNode -> Bool
-isLabelOfThisLoop _        (_, Block (Stmt' (Break' Nothing)))      = True
-isLabelOfThisLoop _        (_, Block (Stmt' (Continue' Nothing)))   = True
-isLabelOfThisLoop Nothing  (_, Block (Stmt' (Break' (Just _))))     = False
-isLabelOfThisLoop Nothing  (_, Block (Stmt' (Continue' (Just _))))  = False
-isLabelOfThisLoop (Just l) (_, Block (Stmt' (Break' (Just l'))))    = l == l'
-isLabelOfThisLoop (Just l) (_, Block (Stmt' (Continue' (Just l')))) = l == l'
-isLabelOfThisLoop _        _                                        = error "Not a break or continue statement."
+isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
+isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True
+isLabelOfThisNode _        (_, Block (Stmt' (Continue' Nothing)))   = True
+isLabelOfThisNode Nothing  (_, Block (Stmt' (Break' (Just _))))     = False
+isLabelOfThisNode Nothing  (_, Block (Stmt' (Continue' (Just _))))  = False
+isLabelOfThisNode (Just l) (_, Block (Stmt' (Break' (Just l'))))    = l == l'
+isLabelOfThisNode (Just l) (_, Block (Stmt' (Continue' (Just l')))) = l == l'
+isLabelOfThisNode _        _                                        = error "Not a break or continue statement."
 
 cfgOfCompilationUnit :: CompilationUnit' -> CFG
 cfgOfCompilationUnit unit
