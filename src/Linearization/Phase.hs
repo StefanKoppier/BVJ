@@ -73,7 +73,7 @@ interPath graph@CFG{cfg} n calls (InterEdge method, neighbour)
     = let (callNumber,x) = calls M.! method
           newName        = [head method ++ "$" ++ show callNumber]
           calls1         = M.insert method (callNumber + 1,x) calls
-       in paths [[]] calls1 newName graph (G.context cfg neighbour) n
+       in paths [[]] calls1 newName graph (G.context cfg neighbour) (n-1)
 
 merge :: ProgramPaths -> [ProgramPaths] -> ProgramPaths
 merge = foldl (\ acc call -> concatMap (\ a -> map (a++) call) acc)

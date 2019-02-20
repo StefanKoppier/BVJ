@@ -94,6 +94,9 @@ data CompoundStmt'
                     exp     :: Exp'
                     body    :: CompoundStmt'
                     
+    | Switch'       exp     :: Exp'
+                    cases   :: SwitchBlocks'
+
     | Stmt'         stat    :: Stmt'
 deriving CompoundStmt' : Eq, Show
 
@@ -117,6 +120,13 @@ data Stmt'
 
     | Return'       exp         :: {Maybe Exp'}
 deriving Stmt' : Eq, Show
+
+type SwitchBlocks' = [SwitchBlock']
+
+data SwitchBlock'
+    | SwitchBlock' exp  :: {Maybe Exp'}
+                   stat :: CompoundStmt'
+deriving SwitchBlock' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Variables

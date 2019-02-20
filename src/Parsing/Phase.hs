@@ -189,7 +189,7 @@ transformStmt = foldStmt alg
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp
               , \ g e       -> (\ e' -> Stmt' . Assert' e') <$> transformExp g <*> transformMaybeExp e
-              , \ e b       -> unsupported "switch"
+              , \ e bs      -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
               , \ s e       -> unsupported "do"
               ,                compound . Break' . transformMaybeIdent
               ,                compound . Continue' . transformMaybeIdent
@@ -201,6 +201,12 @@ transformStmt = foldStmt alg
               )
 
         labelize l (While' _ g s) = While' l g s 
+
+transformSwitchBlock :: SwitchBlock -> PhaseResult SwitchBlock'
+transformSwitchBlock (SwitchBlock (SwitchCase e) s) 
+    = SwitchBlock' . Just <$> transformExp e <*> transformBlock (Block s)
+transformSwitchBlock (SwitchBlock Default s) 
+    = SwitchBlock' Nothing <$> transformBlock (Block s)
 
 transformMaybeExp :: Maybe Exp -> PhaseResult (Maybe Exp')
 transformMaybeExp (Just e) = Just <$> transformExp e

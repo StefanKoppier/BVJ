@@ -92,6 +92,7 @@ instance Pretty CompoundStmt' where
     pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" <+> pretty s2
     pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) <+> nest 4 (pretty s)
     pretty (While' Nothing g s)      = text "while" <+> parens (pretty g) <+> nest 4 (pretty s)
+    pretty (Switch' e cs)            = text "switch" <+> parens (pretty e) $+$ braces (nest 4 (pretty cs))
     pretty (Stmt' s)                 = pretty s
 
 instance Pretty Stmt' where
@@ -107,6 +108,13 @@ instance Pretty Stmt' where
     pretty (Continue' Nothing)      = text "continue" <> semi
     pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
     pretty (Return' Nothing)        = text "return" <> semi
+
+instance Pretty SwitchBlocks' where
+    pretty = foldr (($+$) . pretty) empty
+
+instance Pretty SwitchBlock' where
+    pretty (SwitchBlock' (Just e) stat) = text "case" <+> pretty e <> colon $+$ nest 4 (pretty stat)
+    pretty (SwitchBlock' Nothing stat)  = text "default:" $+$ nest 4 (pretty stat)
 
 --------------------------------------------------------------------------------
 -- Variables

@@ -48,7 +48,6 @@ translateParam (FormalParam' _ ty (VarId' name))
     = CDecl [ty'] [(name', Nothing, Nothing)] noNodeInfo
     where
         ty'   = CTypeSpec $ translateType ty
-        name' :: Maybe (CDeclarator NodeInfo)
         name' = Just $ CDeclr (Just $ ident name) [] Nothing [] noNodeInfo
 
 translatePath :: ProgramPath -> CStat

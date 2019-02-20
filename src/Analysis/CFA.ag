@@ -7,7 +7,7 @@ import           Parsing.Syntax
 
 include "../Parsing/Syntax.ag"
 
-attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'
+attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
     syn nodes use {++} {[]} :: {CFGNodes}
     syn edges use {++} {[]} :: {CFGEdges}
     chn label               :: {Node}
@@ -72,7 +72,7 @@ sem MemberDecl'
                         body.label   = new @lhs.label
                             .method  = [@name]
 
-attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
     inh methods :: {Methods}
 
 sem CompilationUnit'
@@ -87,7 +87,7 @@ sem MemberDecl'
 -- Statements
 --------------------------------------------------------------------------------
 
-attr CompoundStmt' Stmt'
+attr CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
     inh method                  :: Name'
     syn init                    :: {CFGNode}
     syn final                   :: {CFGNodes}
@@ -135,24 +135,71 @@ sem CompoundStmt'
                     stat1.label = new @lhs.label
                     stat2.label = @stat1.label
 
-    | While'        lhs     .label     = @body.label
-                            .init      = block (new @lhs.label) @self
-                            .final     = block (new @lhs.label) @self : filter (isLabelOfThisLoop @ident) @body.breaks
-                            .nodes     = block (new @lhs.label) @self : @body.nodes
-                            .edges     = let self = block (new @lhs.label) @self in
-                                             -- Edge from condition to the init body.
-                                             newCondEdge self @body.init (@exp.self)
-                                             : -- Edge(s) from finals of body to the condition.
-                                             newIntraEdges @body.final self
-                                             ++ -- Edge(s) from continues of this loop to the condition.
-                                             newIntraEdges (filter (isLabelOfThisLoop @ident) @body.continues) self
-                                             ++ -- Inter edge(s) from condition to entries and back.
-                                             createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
-                                             ++ -- Edge(s) of the body
-                                             @body.edges
-                            .breaks    = filter (not . isLabelOfThisLoop @ident) @body.breaks
-                            .continues = filter (not . isLabelOfThisLoop @ident) @body.continues
-                    body    .label     = new @lhs.label
+    | While'        lhs .label     = @body.label
+                        .init      = block (new @lhs.label) @self
+                        .final     = block (new @lhs.label) @self : filter (isLabelOfThisLoop @ident) @body.breaks
+                        .nodes     = block (new @lhs.label) @self : @body.nodes
+                        .edges     = let self = block (new @lhs.label) @self in
+                                         -- Edge from condition to the init body.
+                                         newCondEdge self @body.init (@exp.self)
+                                         : -- Edge(s) from finals of body to the condition.
+                                         newIntraEdges @body.final self
+                                         ++ -- Edge(s) from continues of this loop to the condition.
+                                         newIntraEdges (filter (isLabelOfThisLoop @ident) @body.continues) self
+                                         ++ -- Inter edge(s) from condition to entries and back.
+                                         createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
+                                         ++ -- Edge(s) of the body.
+                                         @body.edges
+                        .breaks    = filter (not . isLabelOfThisLoop @ident) @body.breaks
+                        .continues = filter (not . isLabelOfThisLoop @ident) @body.continues
+                    body.label     = new @lhs.label
+
+    | Switch'       lhs  .label    = @cases.label
+                         .init     = block (new @lhs.label) @self
+                         .final    = @cases.final ++ filter (isLabelOfThisLoop Nothing) @cases.breaks 
+                         .nodes    = block (new @lhs.label) @self : @cases.nodes
+                         .edges    = @cases.edges
+                         .breaks   = filter (not . isLabelOfThisLoop Nothing) @cases.breaks
+                    cases.label    = new @lhs.label
+                         .parent   = block (new @lhs.label) @self
+                         .guard    = @exp.self
+                         .previous = []
+
+attr SwitchBlocks'
+    inh parent   :: {CFGNode}
+    inh guard    :: Exp'
+    inh previous :: SwitchBlocks' --{[SwitchBlock']}
+                    
+sem SwitchBlocks'
+    | Cons lhs.init     = @hd.init
+              .edges    = -- Edges from expression to each case.
+                          newCondEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 
+                          : -- Edges from final of case to init of the next.
+                          (if @tl.init == noInit
+                               then [] else newIntraEdges @hd.final @tl.init)
+                          -- Edges from the body and rest of the list. 
+                          ++ @hd.edges ++ @tl.edges
+           tl .previous = @hd.self : @lhs.previous 
+
+    | Nil  lhs.final    = []
+              .init     = noInit
+
+sem SwitchBlock'
+    | SwitchBlock' lhs.init  = @stat.init
+                      .final = @stat.final
+
+{
+caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
+caseCondExp e1 previous (SwitchBlock' Nothing _)   
+    = let exps = [e | (SwitchBlock' (Just e) _) <- previous]
+       in foldr (\ e -> BinOp' (BinOp' e1 NotEq' e) CAnd') (Lit' (Boolean' True)) exps
+        --foldr ((SwitchBlock' (Just e) )) (Lit' (Boolean' True)) previous
+caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
+    = BinOp' e1 Equal' e2
+
+noInit :: (Node, CFGNodeValue)
+noInit = (-1, undefined)
+}
 
 sem Stmt'
     | Decl'     lhs .label = new @lhs.label
