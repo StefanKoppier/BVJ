@@ -1,17 +1,15 @@
 class Main {
     public static void main() {
-        assert square(2) == (square(2) + id(0)) : "square(2) != square(2)";
+        int[] array = { 1, 2, 3 };
+        int m;
+
+        for (int i = 0; i < 3; i++)
+            m = max(m, array[i]);
+
+        assert m == 3 : "m != 3";
     }
 
-    public int id(int x) { 
-        int r = 0;
-        for (int i = 0; i < x; i++)  {
-            r += 1;
-        }
-        return r;
-    }
-
-    public int square(int x) {
-        return x * x;
+    public static int max(int x, int y) {
+        return x > y ? x : y;
     }
 }

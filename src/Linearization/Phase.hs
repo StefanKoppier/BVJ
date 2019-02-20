@@ -14,6 +14,8 @@ import           Linearization.Utility
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
+import Debug.Trace
+
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
 linearizationPhase Arguments{maximumDepth,method} (unit, graph@CFG{cfg}) = do
     newEitherT $ printHeader "3. LINEARIZATION"
@@ -96,6 +98,9 @@ clean []                   = []
 --------------------------------------------------------------------------------
 
 renameStmt :: CallHistory -> Stmt' -> (CallHistory, Stmt')
+renameStmt history (Decl' ms ty vars) =
+    let (history', vars') = mapAccumR renameVarDecl history vars
+     in (history', Decl' ms ty vars')
 renameStmt history (Assert' e err) = 
     let (history', e')    = renameExp history e
         (history'', err') = renameMaybeExp history' err
@@ -106,7 +111,25 @@ renameStmt history (Assume' e) =
 renameStmt history (Return' e) = 
     let (history', e') = renameMaybeExp history e
      in (history', Return' e')
+renameStmt history (ExpStmt' e) =
+    let (history', e') = renameExp history e
+     in (history', ExpStmt' e')
 renameStmt history s = (history, s)
+
+renameVarDecl :: CallHistory -> VarDecl' -> (CallHistory, VarDecl')
+renameVarDecl history (VarDecl' id init) 
+    = let (history', init') = renameVarInit history init
+       in (history', VarDecl' id init')
+
+renameVarInit :: CallHistory -> VarInit' -> (CallHistory, VarInit')
+renameVarInit history (InitExp' e)
+    = let (history', e') = renameExp history e
+       in (history', InitExp' e')
+renameVarInit history (InitArray' Nothing)
+    = (history, InitArray' Nothing)
+renameVarInit history (InitArray' (Just is))
+    = let (history', is') = mapAccumR renameVarInit history is
+       in (history', InitArray' (Just is'))
 
 renameMaybeExp :: CallHistory -> Maybe Exp' -> (CallHistory, Maybe Exp')
 renameMaybeExp history Nothing = (history, Nothing)
@@ -114,6 +137,11 @@ renameMaybeExp history (Just e)
     = let (history', e') = renameExp history e in (history', Just e')
 
 renameExp :: CallHistory -> Exp' -> (CallHistory, Exp')
+renameExp history (Lit' x)
+    = (history, Lit' x)
+renameExp history (ArrayCreate' ty ss u)
+    = let (history', ss') = mapAccumR renameExp history ss
+       in (history', ArrayCreate' ty ss' u)
 renameExp history (MethodInv' (MethodCall' n args)) 
     = let (history', args') = mapAccumR renameExp history args
           (x,callNumber)    = history M.! n
@@ -123,6 +151,8 @@ renameExp history (MethodInv' (MethodCall' n args))
 renameExp history (ArrayAccess' i is)
     = let (history', is') = mapAccumR renameExp history is
        in (history', ArrayAccess' i is')
+renameExp history (ExpName' n)
+    = (history, ExpName' n)
 renameExp history (PostIncrement' e)
     = let (history', e') = renameExp history e in (history', PostIncrement' e')
 renameExp history (PostDecrement' e)
@@ -151,5 +181,3 @@ renameExp history (Cond' g e1 e2)
 renameExp history (Assign' t op e)
     = let (history', e') = renameExp history e
        in (history', Assign' t op e')
-
-renameExp history e = (history, e)
