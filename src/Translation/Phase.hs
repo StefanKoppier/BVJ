@@ -1,7 +1,5 @@
 module Translation.Phase(
       translationPhase
-    , Program
-    , Programs
 ) where
 
 import Data.Maybe                  (fromJust)
@@ -65,12 +63,10 @@ translateStmt (Decl' _ (RefType' (ArrayType' ty)) [VarDecl' (VarId' name) init])
           declr = [(Just (CDeclr name' size' Nothing [] noNodeInfo), init', Nothing)]
        in CBlockDecl (CDecl ty' declr noNodeInfo)
 
-translateStmt (Decl' _ ty [VarDecl' (VarId' name) init])
-    = let init' = translateVarInit init
-          ty'   = [CTypeSpec $ translateType ty]
-          name' = Just $ ident name
-          declr = [(Just (CDeclr name' [] Nothing [] noNodeInfo), init', Nothing)]
-       in CBlockDecl (CDecl ty' declr noNodeInfo)
+translateStmt (Decl' _ ty ds)
+    = let ty' = [CTypeSpec $ translateType ty]
+          ds' = map translateVarDecl ds
+       in CBlockDecl (CDecl ty' ds' noNodeInfo)
    
 translateStmt (ExpStmt' exp)
     = CBlockStmt (CExpr (Just $ translateExp exp) noNodeInfo)
@@ -89,6 +85,12 @@ translateStmt (Assume' exp)
 translateStmt (Return' exp)
     = let exp'    = translateMaybeExp exp
        in CBlockStmt (CReturn exp' noNodeInfo)
+
+translateVarDecl :: VarDecl' -> (Maybe CDeclr, Maybe CInit, Maybe CExpr)
+translateVarDecl (VarDecl' (VarId' name) init) 
+    = ( Just $ CDeclr (Just $ ident name) [] Nothing [] noNodeInfo
+      , translateVarInit init
+      , Nothing)
 
 translateVarInit :: VarInit' -> Maybe CInit
 translateVarInit (InitExp' e)           = Just $ CInitExpr (translateExp e) noNodeInfo

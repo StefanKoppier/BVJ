@@ -9,6 +9,7 @@ import System.Directory
 import System.IO
 import Auxiliary.Phase
 import Translation.Phase
+import Translation.Program
 import Verification.Result
 
 verificationPhase :: Phase Programs VerificationResults
