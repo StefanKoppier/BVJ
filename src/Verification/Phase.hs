@@ -33,7 +33,7 @@ verify args program = do
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
     hPutStr handle (toString program)
     hClose handle
-    (_,result,_) <- readProcessWithExitCode "cbmc" (cbmcArgs path args) ""
+    (_,result,_) <- readProcessWithExitCode "./tools/cbmc/cbmc" (cbmcArgs path args) ""
     runEitherT $ parseOutput result
 
 createWorkingDir :: IO (Either PhaseError ())
