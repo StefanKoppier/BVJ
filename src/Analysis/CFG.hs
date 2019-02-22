@@ -18,6 +18,7 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 
 data CFGNodeValue 
     = Block CompoundStmt'
+    | Call  Name'        
     | Entry Name'
     | Exit  Name'
     deriving (Show, Eq)

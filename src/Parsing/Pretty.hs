@@ -106,8 +106,8 @@ instance Pretty Stmt' where
     pretty (Break' Nothing)         = text "break" <> semi
     pretty (Continue' (Just ident)) = text "continue:" <+> text ident <> semi
     pretty (Continue' Nothing)      = text "continue" <> semi
-    pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
-    pretty (Return' Nothing)        = text "return" <> semi
+    pretty (ReturnExp' exp)         = text "return" <+> pretty exp <> semi
+    pretty Return'                  = text "return" <> semi
 
 instance Pretty SwitchBlocks' where
     pretty = foldr (($+$) . pretty) empty

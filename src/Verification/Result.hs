@@ -19,8 +19,7 @@ data VerificationResult
 data VerificationFailure = VerificationFailure {
       property   :: ByteString
     , reason     :: ByteString
-    }
-    deriving (Show)
+    } deriving (Show)
 
 type VerificationResults = [VerificationResult]
 

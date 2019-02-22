@@ -2,7 +2,7 @@ module Verification.Phase(
     verificationPhase
 ) where
     
-import System.Process (readProcessWithExitCode)
+import System.Process           (readProcessWithExitCode)
 import Auxiliary.Pretty
 import Control.Concurrent.Async
 import System.Directory

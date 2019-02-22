@@ -41,11 +41,11 @@ sem MemberDecl'
                             .edges   = let entry' = entry (new @lhs.label) [@name]
                                            exit'  = exit (new @body.label) [@name] in
                                            -- Edge from entry of method to body.
-                                           newIntraEdge entry' @body.init
+                                           intraEdge entry' @body.init
                                            : -- Edge(s) from final of body to exit of method.
-                                           newIntraEdges @body.final exit'
+                                           intraEdges @body.final exit'
                                            ++ -- Edge(s) from returns to exit of method.
-                                           newIntraEdges @body.returns exit'
+                                           intraEdges @body.returns exit'
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
@@ -62,17 +62,18 @@ sem MemberDecl'
                             .edges   = let entry' = entry (new @lhs.label) [@name]
                                            exit'  = exit (new @body.label) [@name] in
                                            -- Edge from entry of method to body.
-                                           newIntraEdge entry' @body.init
+                                           intraEdge entry' @body.init
                                            : -- Edge(s) from final of body to exit of method.
-                                           newIntraEdges @body.final exit'
+                                           intraEdges @body.final exit'
                                            ++ -- Edge(s) from returns to exit of method.
-                                           newIntraEdges @body.returns exit'
+                                           intraEdges @body.returns exit'
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
                             .method  = [@name]
 
-attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
+     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' VarDecls' VarDecl' VarInit'
     inh methods :: {Methods}
 
 sem CompilationUnit'
@@ -95,64 +96,75 @@ attr CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
     syn continues use {++} {[]} :: {CFGNodes}
     syn returns   use {++} {[]} :: {CFGNodes}
 
+attr CompoundStmt'
+    syn guard :: {CFGNode}
+
 sem CompoundStmt'
     | Seq'          lhs  .label = @stat2.label
                          .init  = @stat1.init
                          .final = @stat2.final
                          .edges = case @stat1.self of
                                     While' _ e _
-                                       -> let conditional = @stat1.init
+                                       -> let conditional = @stat1.guard  -- + number of invocations
                                               normal      = filter (conditional /=) @stat1.final in
-                                              newCondEdge conditional @stat2.init (PreNot' e)
+                                              condEdge conditional @stat2.init (PreNot' e)
                                               :
-                                              newIntraEdges normal @stat2.init
+                                              intraEdges normal @stat2.init
                                               ++
                                               @stat1.edges ++ @stat2.edges
                                     Stmt' (Break' _)
                                        -> @stat1.edges
                                     Stmt' (Continue' _)
                                        -> @stat1.edges
-                                    Stmt' (Return' _)
+                                    Stmt' (ReturnExp' _)
+                                       -> @stat1.edges
+                                    Stmt' Return'
                                        -> @stat1.edges
                                     _  -> @stat1.edges ++ @stat2.edges ++
-                                          newIntraEdges @stat1.final @stat2.init
+                                          intraEdges @stat1.final @stat2.init
                     stat1.label = @lhs.label
                     stat2.label = @stat1.label
-                         
+      
     | IfThenElse'   lhs  .label = @stat2.label
-                         .init  = block (new @lhs.label) @self
+                         .init  = if noNode == @exp.init 
+                                     then (block (new @exp.label) @self)
+                                     else @exp.init
                          .final = @stat1.final ++ @stat2.final
-                         .nodes = block (new @lhs.label) @self : @stat1.nodes ++ @stat2.nodes
-                         .edges = let self = block (new @lhs.label) @self in       
-                                      -- Edge from condition to init of true branch.
-                                      newCondEdge self @stat1.init (@exp.self)
-                                      : -- Edge from condition to init of false branch.
-                                      newCondEdge self @stat2.init (PreNot' @exp.self)
-                                      : -- Inter edge(s) from condition to entries and back.
-                                      createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
-                                      ++ -- Edge(s) of the branches.
-                                      @stat1.edges ++ @stat2.edges
-                    stat1.label = new @lhs.label
+                         .nodes = block (new @exp.label) @self 
+                                  : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
+                         .edges = let self = block (new @exp.label) @self in
+                                    -- Edge from condition to init of true branch.
+                                    condEdge self @stat1.init @exp.self
+                                    : -- Edge from condition to init of false branch.
+                                    condEdge self @stat2.init (PreNot' @exp.self)
+                                    : -- Edge(s) of the branches.
+                                    @stat1.edges ++ @stat2.edges ++ @exp.edges
+                    exp  .label = @lhs.label
+                    stat1.label = new @exp.label
                     stat2.label = @stat1.label
 
     | While'        lhs .label     = @body.label
-                        .init      = block (new @lhs.label) @self
-                        .final     = block (new @lhs.label) @self : filter (isLabelOfThisNode @ident) @body.breaks
-                        .nodes     = block (new @lhs.label) @self : @body.nodes
-                        .edges     = let self = block (new @lhs.label) @self in
+                        .init      = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
+                        .final     = block (new @exp.label) @self : filter (isLabelOfThisNode @ident) @body.breaks
+                        .nodes     = block (new @exp.label) @self : @body.nodes ++ @exp.nodes
+                        .edges     = let self = block (new @exp.label) @self
+                                         init = if noNode == @exp.init
+                                                    then self else @exp.init in
                                          -- Edge from condition to the init body.
-                                         newCondEdge self @body.init (@exp.self)
+                                         condEdge self @body.init (@exp.self)
                                          : -- Edge(s) from finals of body to the condition.
-                                         newIntraEdges @body.final self
+                                         intraEdges @body.final init
                                          ++ -- Edge(s) from continues of this loop to the condition.
-                                         newIntraEdges (filter (isLabelOfThisNode @ident) @body.continues) self
-                                         ++ -- Inter edge(s) from condition to entries and back.
-                                         createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
+                                         intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init
                                          ++ -- Edge(s) of the body.
-                                         @body.edges
+                                         @body.edges ++ @exp.edges
                         .breaks    = filter (not . isLabelOfThisNode @ident) @body.breaks
                         .continues = filter (not . isLabelOfThisNode @ident) @body.continues
-                    body.label     = new @lhs.label
+                        .guard     = block (new @exp.label) @self
+                    exp .label     = @lhs.label
+                    body.label     = new @exp.label
 
     | Switch'       lhs  .label    = @cases.label
                          .init     = block (new @lhs.label) @self
@@ -173,64 +185,63 @@ attr SwitchBlocks'
 sem SwitchBlocks'
     | Cons lhs.init     = @hd.init
               .edges    = -- Edges from expression to each case.
-                          newCondEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 
+                          condEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 
                           : -- Edges from final of case to init of the next.
-                          (if @tl.init == noInit
-                               then [] else newIntraEdges @hd.final @tl.init)
+                          (if @tl.init == noNode
+                               then [] else intraEdges @hd.final @tl.init)
                           -- Edges from the body and rest of the list. 
                           ++ @hd.edges ++ @tl.edges
            tl .previous = @hd.self : @lhs.previous 
 
     | Nil  lhs.final    = []
-              .init     = noInit
+              .init     = noNode
 
 sem SwitchBlock'
     | SwitchBlock' lhs.init  = @stat.init
                       .final = @stat.final
 
-{
-caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
-caseCondExp e1 previous (SwitchBlock' Nothing _)   
-    = let exps = [e | (SwitchBlock' (Just e) _) <- previous]
-       in foldr (\ e -> BinOp' (BinOp' e1 NotEq' e) CAnd') (Lit' (Boolean' True)) exps
-caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
-    = BinOp' e1 Equal' e2
-
-noInit :: (Node, CFGNodeValue)
-noInit = (-1, undefined)
-}
-
 sem Stmt'
-    | Decl'     lhs .label = new @lhs.label
-                    .init  = block (new @lhs.label) (Stmt' @self)
-                    .final = [block (new @lhs.label) (Stmt' @self)]
-                    .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @vars.invocations
+    | Decl'     lhs .label = new @vars.label
+                    .init  = if noNode == @vars.init 
+                                then (block (new @vars.label) (Stmt' @self))
+                                else @vars.init
+                    .final = [block (new @vars.label) (Stmt' @self)]
+                    .nodes = block (new @vars.label) (Stmt' @self) : @vars.nodes
+                    .edges = @vars.edges
+                vars.label = @lhs.label
 
     | Empty'    lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
                     .final = [block (new @lhs.label) (Stmt' @self)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
 
-    | ExpStmt'  lhs .label = new @lhs.label
-                    .init  = block (new @lhs.label) (Stmt' @self)
-                    .final = [block (new @lhs.label) (Stmt' @self)]
-                    .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
+    | ExpStmt'  lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
 
-    | Assert'   lhs .label = new @lhs.label
-                    .init  = block (new @lhs.label) (Stmt' @self)
-                    .final = [block (new @lhs.label) (Stmt' @self)]
-                    .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
-                             ++
-                             createInterEdges (new @lhs.label) @lhs.method @lhs.methods (invocations @error)
+-- TODO: change assert error to string?
+    | Assert'   lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
 
-    | Assume'   lhs .label = new @lhs.label
-                    .init  = block (new @lhs.label) (Stmt' @self)
-                    .final = [block (new @lhs.label) (Stmt' @self)]
-                    .nodes = [block (new @lhs.label) (Stmt' @self)]
-                    .edges = createInterEdges (new @lhs.label) @lhs.method @lhs.methods @exp.invocations
+    | Assume'   lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
 
     | Break'    lhs .label  = new @lhs.label
                     .init   = block (new @lhs.label) (Stmt' @self)
@@ -244,28 +255,102 @@ sem Stmt'
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
                     .continues = [block (new @lhs.label) (Stmt' @self)]
 
+    | ReturnExp'    lhs .label   = new @exp.label
+                        .init    = if noNode == @exp.init
+                                      then (block (new @exp.label) (Stmt' @self))
+                                      else @exp.init
+                        .final   = []
+                        .nodes   = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                        .edges   = @exp.edges
+                        .returns = [block (new @exp.label) (Stmt' @self)]
+                    exp .label   = @lhs.label
+
     | Return'   lhs .label   = new @lhs.label
                     .init    = block (new @lhs.label) (Stmt' @self)
                     .final   = []
                     .nodes   = [block (new @lhs.label) (Stmt' @self)]
-                    .edges   = createInterEdges (new @lhs.label) @lhs.method @lhs.methods (invocations @exp)
                     .returns = [block (new @lhs.label) (Stmt' @self)]
 
 --------------------------------------------------------------------------------
--- Expressions
+-- Expressions and variable declarations
 --------------------------------------------------------------------------------
 
-attr Exps' Exp' MethodInvocation' VarDecls' VarDecl' VarInit'
-    syn invocations use {++} {[]} :: {[Name']}
-                
+attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation'
+    chn label               :: {Node}
+    syn init                :: {CFGNode}
+    syn final               :: {CFGNodes}
+    syn nodes use {++} {[]} :: {CFGNodes}
+    syn edges use {++} {[]} :: {CFGEdges}
+
+sem Exps'
+    | Cons      lhs.init  = if noNode == @hd.init
+                                then @tl.init
+                                else @hd.init
+                   .final = if null @tl.final
+                                then @hd.final
+                                else @tl.final
+    | Nil       lhs.init  = noNode
+                   .final = [] 
+
+sem Exp'
+    | Lit'      lhs.label  = @lhs.label
+                   .init   = noNode
+                   .final  = []
+
+    | ExpName'  lhs.label  = @lhs.label
+                   .init   = noNode
+                   .final  = []
+
+    | BinOp'    lhs.label   = @exp2.label
+                   .init    = if noNode == @exp1.init
+                                then @exp2.init
+                                else @exp1.init
+                   .final  = if null @exp2.final
+                                then @exp1.final
+                                else @exp2.final
+                   .edges  = @exp1.edges ++ @exp2.edges
+                exp1.label = @lhs.label
+                exp2.label = @exp1.label
+
+    | Cond'     lhs.label = @e2.label
+                   .init  = if noNode == @guard.init
+                                then if noNode == @e1.init
+                                        then @e2.init
+                                        else @e1.init
+                                else @guard.init
+                   .final = if null @e2.final
+                                then if null @e1.final
+                                        then @guard.final
+                                        else @e2.final
+                                else @e1.final
+                guard.label = @lhs.label
+                e1   .label = @guard.label
+                e2   .label = @e1.label
+
 sem MethodInvocation'
-    | MethodCall' lhs.invocations = [@name] ++ @args.invocations
-                
-{
-invocations :: Maybe Exp' -> [Name']
-invocations (Just e) = invocations_Syn_Exp' $ wrap_Exp' (sem_Exp' e) Inh_Exp'{}
-invocations Nothing  = []
-}
+    | MethodCall' lhs.label  = new @args.label
+                     .init   = if noNode == @args.init
+                                    then call (new @args.label) @name.self
+                                    else @args.init
+                     .final  = [call (new @args.label) @name.self]
+                     .nodes  = call (new @args.label) @name.self : @args.nodes
+                     .edges  = -- Inter edge from the call to the entry
+                               callEdge (new @args.label, @name.self) @lhs.methods
+                               : -- Inter edge from the exit to the next node
+                               returnEdge (@name.self, new (new @args.label))  @lhs.methods
+                               -- The edges of the call arguments.
+                               : @args.edges
+                  args.label = @lhs.label
+
+sem VarDecls'
+    | Cons      lhs.init  = if noNode == @hd.init then @tl.init else @hd.init
+    | Nil       lhs.init  = noNode
+                   .final = []
+
+sem VarDecl'
+    | VarDecl'  lhs.label = @init.label
+                   .init  = @init.init
+                   .final = @init.final
 
 --------------------------------------------------------------------------------
 -- Auxiliary functions
@@ -274,11 +359,24 @@ invocations Nothing  = []
 {
 type Methods = M.Map Name' (Node, Node)
 
+caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
+caseCondExp e1 previous (SwitchBlock' Nothing _)   
+    = let exps = [e | (SwitchBlock' (Just e) _) <- previous]
+       in foldr (\ e -> BinOp' (BinOp' e1 NotEq' e) CAnd') (Lit' (Boolean' True)) exps
+caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
+    = BinOp' e1 Equal' e2
+
+noNode :: (Node, CFGNodeValue)
+noNode = (-1, undefined)
+
 new :: Node -> Node
 new = (1+)
 
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
+
+call :: Node -> Name' -> CFGNode
+call n name = (n, Call name)
 
 block :: Node -> CompoundStmt' -> CFGNode
 block n s = (n, Block s)
@@ -289,37 +387,23 @@ entry n name = (n, Entry name)
 exit :: Node -> Name' -> CFGNode
 exit n name =  (n, Exit name)
 
-newIntraEdge :: CFGNode -> CFGNode -> CFGEdge
-newIntraEdge (x,_) (y,_) = (x, y, IntraEdge)
+intraEdge :: CFGNode -> CFGNode -> CFGEdge
+intraEdge (x,_) (y,_) = (x, y, IntraEdge)
 
-newIntraEdges :: CFGNodes -> CFGNode -> CFGEdges
-newIntraEdges xs y = map (`newIntraEdge` y) xs
+intraEdges :: CFGNodes -> CFGNode -> CFGEdges
+intraEdges xs y 
+    | noNode == y = []
+    | otherwise   = map (`intraEdge` y) xs
 
-createInterEdges :: Node -> Name' -> Methods -> [Name'] -> CFGEdges
-createInterEdges label current methods invocations =
-    newInterEdges label entries ++ map (\ (e,_) -> newInterEdge e (label, current)) exits
-    where
-        entries = map (\ i -> (fst (methods M.! i), i)) invocations
-        exits   = map (\ i -> (snd (methods M.! i), i)) invocations
+callEdge :: (Node, Name') -> Methods -> CFGEdge
+callEdge (node,name) methods = (node, fst (methods M.! name), InterEdge name)
 
-newCondEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
-newCondEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)
+returnEdge :: (Name',Node) -> Methods -> CFGEdge
+returnEdge (name,node) methods = (snd (methods M.! name), node, InterEdge name)
 
-newInterEdge :: Node -> (Node, Name') -> CFGEdge
-newInterEdge x (y, n) = (x, y, InterEdge n)
+condEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
+condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)
 
-newInterEdges :: Node -> [(Node, Name')] -> CFGEdges
-newInterEdges x = map (newInterEdge x)
-
-insertEdge :: CFGEdge -> CFG -> CFG
-insertEdge edge graph = graph{cfg=insEdge edge (cfg graph)}
-
-insertEdges :: [CFGEdge] -> CFG -> CFG
-insertEdges edges graph = graph{cfg=insEdges edges (cfg graph)}
-
-insertNode :: CFGNode -> CFG -> CFG
-insertNode node graph = graph{cfg=insNode node (cfg graph)}
-    
 isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
 isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True
 isLabelOfThisNode _        (_, Block (Stmt' (Continue' Nothing)))   = True

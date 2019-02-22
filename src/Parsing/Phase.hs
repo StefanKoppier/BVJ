@@ -193,7 +193,8 @@ transformStmt = foldStmt alg
               , \ s e       -> unsupported "do"
               ,                compound . Break' . transformMaybeIdent
               ,                compound . Continue' . transformMaybeIdent
-              ,                fmap (Stmt' . Return') . transformMaybeExp
+              , \case (Just e) -> Stmt' . ReturnExp' <$> transformExp e
+                      Nothing  -> return (Stmt' Return')
               , \ e s       -> unsupported "synchronized"
               , \ e         -> unsupported "throw"
               , \ b c f     -> unsupported "try catch (finally)"

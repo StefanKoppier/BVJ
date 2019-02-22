@@ -3,7 +3,8 @@ module Translation.Phase(
 ) where
 
 import Data.Maybe                  (fromJust)
-import Data.List                   (groupBy)
+import Data.List                   (groupBy, sortOn)
+import Data.Function               (on)
 import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants 
@@ -26,7 +27,7 @@ translationPhase _ (unit, paths) = do
 translate :: CompilationUnit' -> ProgramPath -> Program
 translate unit path = CTranslUnit calls noNodeInfo
     where
-        calls = (map (translateCall unit) . groupBy (\ x y -> fst x == fst y)) path
+        calls = (map (translateCall unit) . groupBy ((==) `on` fst) . sortOn fst) path
 
 translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
 translateCall unit path 
@@ -81,9 +82,12 @@ translateStmt (Assume' exp)
           assume' = CExpr (Just (CCall (CVar (ident "__CPROVER_assume") noNodeInfo) exp' noNodeInfo)) noNodeInfo
        in CBlockStmt assume'
        
-translateStmt (Return' exp)
-    = let exp'    = translateMaybeExp exp
-       in CBlockStmt (CReturn exp' noNodeInfo)
+translateStmt Return'
+    = CBlockStmt (CReturn Nothing noNodeInfo)
+
+translateStmt (ReturnExp' exp)
+    = let exp'    = translateExp exp
+       in CBlockStmt (CReturn (Just exp') noNodeInfo)
 
 translateVarDecl :: VarDecl' -> (Maybe CDeclr, Maybe CInit, Maybe CExpr)
 translateVarDecl (VarDecl' (VarId' name) init) 

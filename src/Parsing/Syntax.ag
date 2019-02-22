@@ -118,7 +118,9 @@ data Stmt'
 
     | Continue'     ident       :: {Maybe String}
 
-    | Return'       exp         :: {Maybe Exp'}
+    | ReturnExp'    exp         :: Exp'
+
+    | Return'
 deriving Stmt' : Eq, Show
 
 type SwitchBlocks' = [SwitchBlock']
