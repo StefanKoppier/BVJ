@@ -135,6 +135,10 @@ renameMaybeExp history (Just e)
 renameExp :: CallHistory -> Exp' -> (CallHistory, Exp')
 renameExp history (Lit' x)
     = (history, Lit' x)
+renameExp history (InstanceCreation' ty args)
+    = let (history', args') = mapAccumR renameExp history args
+          (history'', ty')  = renameClassType history ty
+       in (history'', InstanceCreation' ty' args')
 renameExp history (ArrayCreate' ty ss u)
     = let (history', ss') = mapAccumR renameExp history ss
        in (history', ArrayCreate' ty ss' u)
@@ -177,3 +181,10 @@ renameExp history (Cond' g e1 e2)
 renameExp history (Assign' t op e)
     = let (history', e') = renameExp history e
        in (history', Assign' t op e')
+
+renameClassType :: CallHistory -> ClassType' -> (CallHistory, ClassType')
+renameClassType history (ClassType' name)
+    = let (x, callNumber) = history M.! name
+          newName         = [head name ++ "$" ++ show callNumber]
+          history'        = M.insert name (x, callNumber + 1) history
+       in (history', ClassType' newName)

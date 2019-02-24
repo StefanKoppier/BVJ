@@ -80,7 +80,11 @@ instance Pretty PrimType' where
     pretty DoubleT'  = text "double"
 
 instance Pretty RefType' where
-    pretty (ArrayType' ty) = pretty ty <> brackets empty
+    pretty (ClassRefType' ty) = pretty ty 
+    pretty (ArrayType' ty)    = pretty ty <> brackets empty
+
+instance Pretty ClassType' where
+    pretty (ClassType' ty) = dots ty
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -140,22 +144,23 @@ instance Pretty VarInit' where
 --------------------------------------------------------------------------------
 
 instance Pretty Exp' where
-    pretty (Lit' x)               = pretty x
-    pretty (ArrayCreate' ty ss n) = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
-    pretty (MethodInv' inv)       = pretty inv
-    pretty (ArrayAccess' n es)    = text n <> (hcat . map (brackets . pretty)) es
-    pretty (ExpName' n)           = (hcat . punctuate dot . map text) n
-    pretty (PostIncrement' e)     = pretty e <> text "++"
-    pretty (PostDecrement' e)     = pretty e <> text "--"
-    pretty (PreIncrement' e)      = text "++" <> pretty e
-    pretty (PreDecrement' e)      = text "--" <> pretty e
-    pretty (PrePlus' e)           = char '+' <> pretty e
-    pretty (PreMinus' e)          = char '-' <> pretty e
-    pretty (PreBitCompl' e)       = char '~' <> pretty e
-    pretty (PreNot' e)            = char '!' <> pretty e
-    pretty (BinOp' e1 op e2)      = pretty e1 <> pretty op <> pretty e2
-    pretty (Cond' g e1 e2)        = pretty g <> char '?' <> pretty e1 <> char ':' <> pretty e2
-    pretty (Assign' t op e)       = pretty t <> pretty op <> pretty e
+    pretty (Lit' x)                    = pretty x
+    pretty (InstanceCreation' ty args) = text "new" <+> pretty ty <> parens (commas args)
+    pretty (ArrayCreate' ty ss n)      = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
+    pretty (MethodInv' inv)            = pretty inv
+    pretty (ArrayAccess' n es)         = text n <> (hcat . map (brackets . pretty)) es
+    pretty (ExpName' n)                = (hcat . punctuate dot . map text) n
+    pretty (PostIncrement' e)          = pretty e <> text "++"
+    pretty (PostDecrement' e)          = pretty e <> text "--"
+    pretty (PreIncrement' e)           = text "++" <> pretty e
+    pretty (PreDecrement' e)           = text "--" <> pretty e
+    pretty (PrePlus' e)                = char '+' <> pretty e
+    pretty (PreMinus' e)               = char '-' <> pretty e
+    pretty (PreBitCompl' e)            = char '~' <> pretty e
+    pretty (PreNot' e)                 = char '!' <> pretty e
+    pretty (BinOp' e1 op e2)           = pretty e1 <> pretty op <> pretty e2
+    pretty (Cond' g e1 e2)             = pretty g <> char '?' <> pretty e1 <> char ':' <> pretty e2
+    pretty (Assign' t op e)            = pretty t <> pretty op <> pretty e
 
 instance Pretty Literal' where
     pretty (Int' x)         = text $ show x

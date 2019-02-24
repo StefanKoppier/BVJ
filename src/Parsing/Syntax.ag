@@ -18,7 +18,7 @@ data TypeDecl'
 deriving TypeDecl' : Eq, Show
 
 data ClassDecl'
-    | ClassDecl'    modifiers :: {[Modifier']}
+    | ClassDecl'    modifiers :: Modifiers'
                     name      :: {String}
                     body      :: Decls'
 deriving ClassDecl' : Eq, Show
@@ -30,24 +30,24 @@ data Decl'
 deriving Decl' : Eq, Show
 
 data MemberDecl'
-    | FieldDecl'        modifiers :: {[Modifier']}
+    | FieldDecl'        modifiers :: Modifiers'
                         ty        :: Type'
                         var       :: {[VarDecl']}
 
-    | MethodDecl'       modifiers :: {[Modifier']}
+    | MethodDecl'       modifiers :: Modifiers'
                         ty        :: {Maybe Type'}
                         name      :: {String}
                         params    :: {[FormalParam']}
                         body      :: CompoundStmt'
 
-    | ConstructorDecl'  modifiers :: {[Modifier']}
+    | ConstructorDecl'  modifiers :: Modifiers'
                         name      :: {String}
                         params    :: {[FormalParam']}
                         body      :: CompoundStmt'
 deriving MemberDecl' : Eq, Show
 
 data FormalParam'
-    | FormalParam'  modifiers :: {[Modifier']}
+    | FormalParam'  modifiers :: Modifiers'
                     ty        :: Type'
                     id        :: VarDeclId'
 deriving FormalParam' : Eq, Show
@@ -73,8 +73,13 @@ data PrimType'
 deriving PrimType' : Eq, Show
 
 data RefType'
-    | ArrayType' ty :: Type'
+    | ClassRefType' ty :: ClassType'
+    | ArrayType'    ty :: Type'
 deriving RefType' : Eq, Show
+
+data ClassType'
+    | ClassType' name :: Name'
+deriving ClassType' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -101,7 +106,7 @@ data CompoundStmt'
 deriving CompoundStmt' : Eq, Show
 
 data Stmt'
-    | Decl'     modifiers   :: {[Modifier']}
+    | Decl'     modifiers   :: Modifiers'
                 ty          :: Type'
                 vars        :: VarDecls'
 
@@ -160,14 +165,17 @@ type Exps' = [Exp']
 data Exp'
     | Lit'              value       :: Literal'
 
+    | InstanceCreation' ty          :: ClassType'
+                        args        :: Exps'
+
     | ArrayCreate'      ty          :: Type'
-                        sizes       :: {[Exp']}
+                        sizes       :: Exps'
                         unspecified :: {Int}
 
     | MethodInv'        invocation  :: MethodInvocation'
 
     | ArrayAccess'      ident       :: {String}
-                        index       :: {[Exp']}
+                        index       :: Exps'
 
     | ExpName'          name        :: Name'
 
@@ -267,5 +275,7 @@ data Modifier'
     | Final'
     | Static'
 deriving Modifier' : Eq, Show
+
+type Modifiers' = [Modifier']
 
 type Name' = [String]

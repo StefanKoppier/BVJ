@@ -2,7 +2,7 @@ module Parsing.Phase where
 
 import Language.Java.Parser hiding (methodRef)
 import Language.Java.Syntax
-import Parsing.Fold
+import Language.Java.Fold
 import Parsing.Syntax
 import Parsing.Utility
 import Auxiliary.Phase
@@ -133,8 +133,11 @@ transformType (PrimType DoubleT)  = return $ PrimType' DoubleT'
 transformType (RefType ty)        = RefType' <$> transformRefType ty
 
 transformRefType :: RefType -> PhaseResult RefType'
-transformRefType (ArrayType ty)   = ArrayType' <$> transformType ty
-transformRefType (ClassRefType _) = unsupported "class ref type"
+transformRefType (ClassRefType ty) = ClassRefType' <$> transformClassType ty
+transformRefType (ArrayType ty)    = ArrayType'    <$> transformType ty
+
+transformClassType :: ClassType -> PhaseResult ClassType'
+transformClassType (ClassType tys) = ClassType' <$> return [i | (Ident i) <- map fst tys]
 
 transformVarDecls :: Type -> [VarDecl] -> PhaseResult [VarDecl']
 transformVarDecls ty = mapM (transformVarDecl ty)
@@ -225,8 +228,7 @@ transformExp = foldExp alg
         , this = unsupported "this"
         , thisClass = \ _
             -> unsupported "this class"
-        , instanceCreation = \ _ _ _ _ 
-            -> unsupported "instance creation"
+        , instanceCreation = transformInstanceCreation
         , qualInstanceCreation = \ _ _ _ _ _ 
             -> unsupported "qual instance creation"
         , arrayCreate = \ ty es 0
@@ -280,6 +282,13 @@ transformLhs :: Lhs -> PhaseResult Lhs'
 transformLhs (NameLhs name) = Name' <$> transformName name
 transformLhs (FieldLhs _)   = unsupported "field lhs"
 transformLhs (ArrayLhs _)   = unsupported "array lhs"
+
+transformInstanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> PhaseResult Exp'
+transformInstanceCreation (ty:tys) _ _ _ = unsupported "generics"
+transformInstanceCreation _ _ _ (Just b) = unsupported "anonymous class creation"
+transformInstanceCreation [] (TypeDeclSpecifier ty) args Nothing
+    = InstanceCreation' <$> transformClassType ty <*> transformExps args 
+transformInstanceCreation _ s _ _ = unsupported "generics"
 
 transformOp:: Op -> PhaseResult Op'
 transformOp Mult    = return Mult'

@@ -38,7 +38,7 @@ library
                        Auxiliary.Verbosity
                        Auxiliary.Arguments
                        Complete
-  other-modules:       Parsing.Fold
+  other-modules:       Language.Java.Fold
                        Parsing.Utility
                        Analysis.CFA
                        Linearization.Utility

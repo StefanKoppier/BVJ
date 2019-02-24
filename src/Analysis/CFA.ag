@@ -292,40 +292,58 @@ sem Exps'
     | Nil       lhs.init  = noNode
                    .final = [] 
 
+{
+nameOfClassType :: ClassType' -> Name'
+nameOfClassType (ClassType' n) = n
+}
+
 sem Exp'
-    | Lit'      lhs.label  = @lhs.label
-                   .init   = noNode
-                   .final  = []
+    | Lit'              lhs .label  = @lhs.label
+                            .init   = noNode
+                            .final  = []
 
-    | ExpName'  lhs.label  = @lhs.label
-                   .init   = noNode
-                   .final  = []
+    | InstanceCreation' lhs .label = new @args.label
+                            .init  = if noNode == @args.init
+                                        then call (new @args.label) (nameOfClassType @ty.self)
+                                        else @args.init 
+                            .final = [call (new @args.label) (nameOfClassType @ty.self)]
+                            .nodes = call (new @args.label) (nameOfClassType @ty.self) : @args.nodes
+                            .edges = -- Inter edge from the call to the entry
+                                     callEdge (new @args.label, (nameOfClassType @ty.self)) @lhs.methods
+                                     : -- Inter edge from the exit to the next node
+                                     returnEdge ((nameOfClassType @ty.self), new (new @args.label))  @lhs.methods
+                                     : @args.edges
+                        args.label = @lhs.label
 
-    | BinOp'    lhs.label   = @exp2.label
-                   .init    = if noNode == @exp1.init
-                                then @exp2.init
-                                else @exp1.init
-                   .final  = if null @exp2.final
-                                then @exp1.final
-                                else @exp2.final
-                   .edges  = @exp1.edges ++ @exp2.edges
-                exp1.label = @lhs.label
-                exp2.label = @exp1.label
+    | ExpName'          lhs .label  = @lhs.label
+                            .init   = noNode
+                            .final  = []
 
-    | Cond'     lhs.label = @e2.label
-                   .init  = if noNode == @guard.init
-                                then if noNode == @e1.init
-                                        then @e2.init
-                                        else @e1.init
-                                else @guard.init
-                   .final = if null @e2.final
-                                then if null @e1.final
-                                        then @guard.final
-                                        else @e2.final
-                                else @e1.final
-                guard.label = @lhs.label
-                e1   .label = @guard.label
-                e2   .label = @e1.label
+    | BinOp'            lhs .label   = @exp2.label
+                            .init    = if noNode == @exp1.init
+                                        then @exp2.init
+                                        else @exp1.init
+                            .final  = if null @exp2.final
+                                        then @exp1.final
+                                        else @exp2.final
+                            .edges  = @exp1.edges ++ @exp2.edges
+                        exp1.label = @lhs.label
+                        exp2.label = @exp1.label
+
+    | Cond'             lhs .label = @e2.label
+                            .init  = if noNode == @guard.init
+                                        then if noNode == @e1.init
+                                                then @e2.init
+                                                else @e1.init
+                                        else @guard.init
+                            .final = if null @e2.final
+                                        then if null @e1.final
+                                                then @guard.final
+                                                else @e2.final
+                                        else @e1.final
+                        guard.label = @lhs.label
+                        e1   .label = @guard.label
+                        e2   .label = @e1.label
 
 sem MethodInvocation'
     | MethodCall' lhs.label  = new @args.label
