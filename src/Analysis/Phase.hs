@@ -41,7 +41,7 @@ reachabilityAnalysisSubphase Arguments{method} graph@CFG{cfg} = do
     newEitherT $ printPretty graph
     case entryOfMethod method graph of
         Just (init, _) -> return CFG{cfg = reachableFrom init cfg}
-        Nothing        -> left $ MethodNotFound method
+        Nothing        -> semanticalError (UndefinedMethodReference method)
         
 -- | Returns the subgraph containing the nodes that are
 -- reachable from the starting node.

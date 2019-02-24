@@ -14,7 +14,7 @@ allPhases :: Phase String VerificationResults
 allPhases args file = do
     ast      <- parsingPhase args file
     cfg      <- analysisPhase args ast
-    paths    <- linearizationPhase args (ast, cfg)
+    paths    <- linearizationPhase args cfg
     programs <- translationPhase args (ast, paths)
     results  <- verificationPhase args programs
     newEitherT $ printHeader "FINAL RESULT"

@@ -38,7 +38,7 @@ parseOutput output = do
 parseRoot :: ByteString -> PhaseResult Node
 parseRoot output =
     case parse output of
-        Left  _ -> failure "parseRoot"
+        Left  _ -> resultError "parseRoot"
         Right r -> right r
 
 getStatus :: Node -> PhaseResult ByteString
@@ -46,7 +46,7 @@ getStatus node = do
     status <- (try (show node) . find (hasName "cprover-status") . children) node
     case head $ contents status of
         Text s -> return s
-        _      -> failure "getStatus"
+        _      -> resultError "getStatus"
 
 getResults :: Node -> PhaseResult [Node]
 getResults = return . filter (hasName "result") . children
@@ -67,8 +67,5 @@ getFailure node = do
 hasName :: ByteString -> Node -> Bool
 hasName s = (s ==) . name
 
-failure :: String -> PhaseResult a
-failure = left . ResultParseError
-
 try :: String -> Maybe a -> PhaseResult a
-try f = maybe (failure f) return
+try f = maybe (resultError f) return

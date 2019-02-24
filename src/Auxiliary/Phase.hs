@@ -2,8 +2,15 @@ module Auxiliary.Phase(
       module Control.Monad.Trans.Either
     , module Auxiliary.Arguments
     , module Auxiliary.Verbosity
+
     , PhaseResult
-    , PhaseError(..)
+    , PhaseError
+    , SemanticalError(..)
+    , parsingError
+    , semanticalError
+    , syntacticalError
+    , resultError
+
     , Phase
     , Subphase
 ) where
@@ -20,11 +27,28 @@ import Auxiliary.Arguments
 type PhaseResult a = EitherT PhaseError IO a
 
 data PhaseError
-    = ParseError        String
-    | MethodNotFound    Name'
-    | UnsupportedSyntax String
-    | ResultParseError  String
+    = ParsingError       String
+    | SemanticalError  SemanticalError
+    | SyntacticalError String
+    | ResultError      String
     deriving (Show, Eq)
+
+data SemanticalError
+    = UndefinedMethodReference Name'
+    | UndefinedClassReference  Name'
+    deriving (Show, Eq)
+
+parsingError :: String -> PhaseResult a
+parsingError = left . ParsingError
+
+semanticalError :: SemanticalError -> PhaseResult a
+semanticalError = left . SemanticalError
+
+syntacticalError :: String -> PhaseResult a
+syntacticalError = left . SyntacticalError
+
+resultError :: String -> PhaseResult a
+resultError = left . ResultError
 
 type Phase a b = Arguments -> a -> PhaseResult b
 

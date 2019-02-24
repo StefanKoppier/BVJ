@@ -17,8 +17,8 @@ parsingPhase args content = do
     newEitherT $ printHeader "1. PARSING"
     newEitherT $ printTitled "Input program" content
     case parser compilationUnit content of 
-        Left  e       -> left $ ParseError (show e)
         Right program -> syntaxTransformationSubphase args program
+        Left  e       -> parsingError (show e)
 
 --------------------------------------------------------------------------------
 -- Syntax transformation subphase
@@ -37,19 +37,19 @@ transformPackageDecl (Just (PackageDecl n)) = Just <$> transformName n
 
 transformTypeDecl :: TypeDecl -> PhaseResult TypeDecl'
 transformTypeDecl (ClassTypeDecl cls)   = ClassTypeDecl' <$> transformClassDecl cls
-transformTypeDecl (InterfaceTypeDecl _) = unsupported "interface declaration"
+transformTypeDecl (InterfaceTypeDecl _) = syntacticalError "interface declaration"
     
 transformClassDecl :: ClassDecl -> PhaseResult ClassDecl'
 transformClassDecl (ClassDecl ms (Ident n) [] Nothing [] (ClassBody ds)) 
     = ClassDecl' <$> transformModifiers ms <*> return n <*> mapM transformDecl ds
 transformClassDecl ClassDecl{}                              
-    = unsupported "inheritance or generics"
+    = syntacticalError "inheritance or generics"
 transformClassDecl EnumDecl{}
-    = unsupported "enum declaration"
+    = syntacticalError "enum declaration"
 
 transformDecl :: Decl -> PhaseResult Decl'
 transformDecl (MemberDecl m) = MemberDecl' <$> transformMemberDecl m
-transformDecl (InitDecl _ _) = unsupported "initializer declarations"
+transformDecl (InitDecl _ _) = syntacticalError "initializer declarations"
 
 transformMemberDecl :: MemberDecl -> PhaseResult MemberDecl'
 transformMemberDecl (FieldDecl ms ty vs) 
@@ -57,15 +57,15 @@ transformMemberDecl (FieldDecl ms ty vs)
 transformMemberDecl (MethodDecl ms [] ty (Ident n) ps [] _ b)
     = MethodDecl' <$> transformModifiers ms <*> transformMaybeType ty <*> return n <*> transformParams ps <*> transformMethodBody b
 transformMemberDecl MethodDecl{}
-    = unsupported "generics or exception"
+    = syntacticalError "generics or exception"
 transformMemberDecl (ConstructorDecl ms [] (Ident n) ps [] b)
     = ConstructorDecl' <$> transformModifiers ms <*> return n <*> transformParams ps <*> transformConstructorBody b
 transformMemberDecl ConstructorDecl{}
-    = unsupported "generics or exception"
+    = syntacticalError "generics or exception"
 transformMemberDecl (MemberClassDecl _)
-    = unsupported "nested class declaration"
+    = syntacticalError "nested class declaration"
 transformMemberDecl (MemberInterfaceDecl _)
-    = unsupported "nested interface declaration"
+    = syntacticalError "nested interface declaration"
 
 transformParams :: [FormalParam] -> PhaseResult [FormalParam']
 transformParams = mapM transformParam
@@ -74,19 +74,19 @@ transformParam :: FormalParam -> PhaseResult FormalParam'
 transformParam (FormalParam ms ty False id) 
     = FormalParam' <$> transformModifiers ms <*> transformType ty <*> transformVarDeclId id
 transformParam (FormalParam _ _ True _)
-    = unsupported "variable arity parameter"
+    = syntacticalError "variable arity parameter"
 
 transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmt'
 transformConstructorBody (ConstructorBody Nothing ss)
     = let b' = Block (ss ++ [BlockStmt Empty]) in transformBlock b'
 transformConstructorBody (ConstructorBody (Just _) _) 
-    = unsupported "base class constructor call"
+    = syntacticalError "base class constructor call"
 
 transformMethodBody :: MethodBody -> PhaseResult CompoundStmt'
 transformMethodBody (MethodBody (Just (Block b))) 
     = let b' = Block (b ++ [BlockStmt Empty]) in transformBlock b'
 transformMethodBody (MethodBody Nothing)  
-    = unsupported "method without implementation"
+    = syntacticalError "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block [])     = return emptyStmt
@@ -95,7 +95,7 @@ transformBlock (Block (s:ss)) = Seq' <$> transformBlockStmt s <*> transformBlock
 
 transformBlockStmt :: BlockStmt -> PhaseResult CompoundStmt'
 transformBlockStmt (BlockStmt s)        = transformStmt s
-transformBlockStmt (LocalClass _)       = unsupported "local class"
+transformBlockStmt (LocalClass _)       = syntacticalError "local class"
 transformBlockStmt (LocalVars ms ty ds) = (\ ms' ty' -> Stmt' . Decl' ms' ty') 
     <$> transformModifiers ms 
     <*> transformType ty 
@@ -108,14 +108,14 @@ transformModifier :: Modifier -> PhaseResult Modifier'
 transformModifier Public        = return Public'
 transformModifier Private       = return Private'
 transformModifier Protected     = return Protected'
-transformModifier Abstract      = unsupported "abstract modifier"
+transformModifier Abstract      = syntacticalError "abstract modifier"
 transformModifier Final         = return Final'
 transformModifier Static        = return Static'
-transformModifier StrictFP      = unsupported "strictfp modifier"
-transformModifier Transient     = unsupported "transient modifier"
-transformModifier Volatile      = unsupported "volatile modifier"
-transformModifier Annotation{}  = unsupported "annotation"
-transformModifier Synchronized_ = unsupported "synchronized modifier"
+transformModifier StrictFP      = syntacticalError "strictfp modifier"
+transformModifier Transient     = syntacticalError "transient modifier"
+transformModifier Volatile      = syntacticalError "volatile modifier"
+transformModifier Annotation{}  = syntacticalError "annotation"
+transformModifier Synchronized_ = syntacticalError "synchronized modifier"
 
 transformMaybeType :: Maybe Type -> PhaseResult (Maybe Type')
 transformMaybeType (Just ty) = Just <$> transformType ty
@@ -148,7 +148,7 @@ transformVarDecl _  (VarDecl id (Just init)) = VarDecl' <$> transformVarDeclId i
 
 transformVarDeclId :: VarDeclId -> PhaseResult VarDeclId'
 transformVarDeclId (VarId (Ident n)) = return $ VarId' n
-transformVarDeclId (VarDeclArray _)  = unsupported "array typed declaration"
+transformVarDeclId (VarDeclArray _)  = syntacticalError "array typed declaration"
 
 transformVarInit :: VarInit -> PhaseResult VarInit'
 transformVarInit (InitExp e)                = InitExp' <$> transformExp e
@@ -167,7 +167,7 @@ defaultInit (RefType ty)        = defaultRefInit ty
 
 defaultRefInit :: RefType -> PhaseResult VarInit'
 defaultRefInit (ArrayType    _) = (return . InitArray') Nothing
-defaultRefInit (ClassRefType _) = unsupported "default class type init"
+defaultRefInit (ClassRefType _) = syntacticalError "default class type init"
 
 transformMaybeIdent :: Maybe Ident -> Maybe String
 transformMaybeIdent (Just (Ident x)) = Just x
@@ -188,19 +188,19 @@ transformStmt = foldStmt alg
                     g' <- maybe ((return . Lit' . Boolean') True) transformExp g
                     let while = While' Nothing g' (Seq' s' u')
                     return $ Block' $ Seq' i' (Seq' while emptyStmt)
-              , \ m t i g s -> unsupported "for (iterator)"
+              , \ m t i g s -> syntacticalError "for (iterator)"
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp
               , \ g e       -> (\ e' -> Stmt' . Assert' e') <$> transformExp g <*> transformMaybeExp e
               , \ e bs      -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
-              , \ s e       -> unsupported "do"
+              , \ s e       -> syntacticalError "do"
               ,                compound . Break' . transformMaybeIdent
               ,                compound . Continue' . transformMaybeIdent
               , \case (Just e) -> Stmt' . ReturnExp' <$> transformExp e
                       Nothing  -> return (Stmt' Return')
-              , \ e s       -> unsupported "synchronized"
-              , \ e         -> unsupported "throw"
-              , \ b c f     -> unsupported "try catch (finally)"
+              , \ e s       -> syntacticalError "synchronized"
+              , \ e         -> syntacticalError "throw"
+              , \ b c f     -> syntacticalError "try catch (finally)"
               , \ (Ident l) s -> labelize (Just l) <$> s
               )
 
@@ -225,21 +225,21 @@ transformExp = foldExp alg
         alg :: ExpAlgebra (PhaseResult Exp')
         alg = ExpAlgebra {
           lit  = fmap Lit' . transformLiteral
-        , this = unsupported "this"
+        , this = syntacticalError "this"
         , thisClass = \ _
-            -> unsupported "this class"
+            -> syntacticalError "this class"
         , instanceCreation = transformInstanceCreation
         , qualInstanceCreation = \ _ _ _ _ _ 
-            -> unsupported "qual instance creation"
+            -> syntacticalError "qual instance creation"
         , arrayCreate = \ ty es 0
             -> ArrayCreate' <$> transformType ty <*> sequence es <*> return 0
         , arrayCreateInit = \ _ _ _
-            -> unsupported "array creation"
+            -> syntacticalError "array creation"
         , fieldAccess = \ _
-            -> unsupported "field access"
+            -> syntacticalError "field access"
         , methodInv = \case
             (MethodCall n as) -> (\ n' -> MethodInv' . MethodCall' n') <$> transformName n <*> transformExps as
-            _                 -> unsupported "method invocation"
+            _                 -> syntacticalError "method invocation"
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
             -> ArrayAccess' n <$> mapM transformExp es
         , expName = fmap ExpName' . transformName
@@ -260,19 +260,19 @@ transformExp = foldExp alg
         , preNot = \ e
             -> PreNot' <$> e
         , cast = \ _ _
-            -> unsupported "cast"
+            -> syntacticalError "cast"
         , binOp = \ e1 op e2
             -> BinOp' <$> e1 <*> transformOp op <*> e2
         , instanceOf = \ _ _
-            -> unsupported "instance of"
+            -> syntacticalError "instance of"
         , cond = \ g e1 e2
             -> Cond' <$> g <*> e1 <*> e2
         , assign = \ lhs op e
             -> Assign' <$> transformLhs lhs <*> transformAssignOp op <*> e
         , lambda = \ _ _
-            -> unsupported "lambda"
+            -> syntacticalError "lambda"
         , methodRef = \ _ _
-            -> unsupported "method ref"
+            -> syntacticalError "method ref"
         }
 
 transformName :: Name -> PhaseResult Name'
@@ -280,15 +280,15 @@ transformName (Name ns) = return [n | (Ident n) <- ns]
 
 transformLhs :: Lhs -> PhaseResult Lhs'
 transformLhs (NameLhs name) = Name' <$> transformName name
-transformLhs (FieldLhs _)   = unsupported "field lhs"
-transformLhs (ArrayLhs _)   = unsupported "array lhs"
+transformLhs (FieldLhs _)   = syntacticalError "field lhs"
+transformLhs (ArrayLhs _)   = syntacticalError "array lhs"
 
 transformInstanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> PhaseResult Exp'
-transformInstanceCreation (ty:tys) _ _ _ = unsupported "generics"
-transformInstanceCreation _ _ _ (Just b) = unsupported "anonymous class creation"
+transformInstanceCreation (ty:tys) _ _ _ = syntacticalError "generics"
+transformInstanceCreation _ _ _ (Just b) = syntacticalError "anonymous class creation"
 transformInstanceCreation [] (TypeDeclSpecifier ty) args Nothing
     = InstanceCreation' <$> transformClassType ty <*> transformExps args 
-transformInstanceCreation _ s _ _ = unsupported "generics"
+transformInstanceCreation _ s _ _ = syntacticalError "generics"
 
 transformOp:: Op -> PhaseResult Op'
 transformOp Mult    = return Mult'
@@ -339,6 +339,3 @@ emptyStmt = Stmt' Empty'
 
 compound :: Stmt' -> PhaseResult CompoundStmt'
 compound = return . Stmt'
-
-unsupported :: String -> PhaseResult a
-unsupported = left . UnsupportedSyntax

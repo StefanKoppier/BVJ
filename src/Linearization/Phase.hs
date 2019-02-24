@@ -8,25 +8,24 @@ import           Data.Stack            as S
 import           Data.Maybe
 import           Data.List
 import           Analysis.CFG
-import           Analysis.Pretty
+import           Analysis.Pretty()
 import           Parsing.Syntax
 import           Linearization.Path
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
-linearizationPhase Arguments{maximumDepth,method} (_, graph@CFG{cfg}) = do
+linearizationPhase :: Phase CFG ProgramPaths
+linearizationPhase Arguments{maximumDepth,method} graph@CFG{cfg} = do
     newEitherT $ printHeader "3. LINEARIZATION"
     newEitherT $ printPretty graph
     case entryOfMethod method graph of
         Just (entry,_) -> do
             let history   = M.fromList [(n, (0,0)) | (_,Entry n) <- G.labNodes cfg]
             let callStack = S.singleton (method, -1)
-            let acc       = (history, callStack, [[]])
-            let ps        = paths acc graph (G.context cfg entry) maximumDepth
+            let acc       = (history, callStack, [[]], maximumDepth)
+            let ps        = paths acc graph (G.context cfg entry)
             return . map (reverse . clean) $ ps
-        Nothing        -> 
-            left $ MethodNotFound method
+        Nothing        -> semanticalError (UndefinedMethodReference method)
 
 --------------------------------------------------------------------------------
 -- Program path generation
@@ -38,44 +37,44 @@ type CallHistory = M.Map Name' (Int, Int)
 
 type CallStack = Stack (Name', G.Node)
 
-type Accumulator = (CallHistory, CallStack, ProgramPaths)
+type Accumulator = (CallHistory, CallStack, ProgramPaths, Int)
 
-paths :: Accumulator -> CFG -> CFGContext -> Int -> ProgramPaths
+paths :: Accumulator -> CFG -> CFGContext -> ProgramPaths
 -- Case: the end is not reached and the maximum path length is reached.
-paths _ _ (_, _, _, _:_) 0
+paths (_,_,_,0) _ (_, _, _, _:_)
     = []
 
 -- Case: the final statement.
-paths (_,_,ps)  _ (_,_,Exit _, []) _
+paths (_,_,ps,_)  _ (_,_,Exit _, [])
     = ps
 
 -- Case: the entry of an method.
-paths acc graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)]) n
-    = paths acc graph (G.context cfg neighbour) n
+paths acc graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
+    = paths acc graph (G.context cfg neighbour)
     
 -- Case: the exit of an method.
-paths (history, callStack, ps) graph@CFG{cfg} (_,_,Exit _,_) n
+paths (history, callStack, ps, k) graph@CFG{cfg} (_,_,Exit _,_)
     = let (_,destination) = fromJust $ S.peek callStack
-          acc'            = (history, S.pop callStack, ps)
-       in paths acc' graph (G.context cfg destination) n
+          acc'            = (history, S.pop callStack, ps, k)
+       in paths acc' graph (G.context cfg destination)
 
 -- Case: the call of an method.
-paths (history, callStack, ps) graph@CFG{cfg} (_,node,Call method,[(_,neighbour)]) n
+paths (history, callStack, ps, k) graph@CFG{cfg} (_,node,Call method,[(_,neighbour)])
     = let (callNumber, x)      = history M.! method
           history'             = M.insert method (callNumber + 1, x) history
           newName              = [head method ++ "$" ++ show callNumber]
           callStack'           = S.push (newName, node + 1) callStack
-          acc'                 = (history', callStack', ps)
-       in paths acc' graph (G.context cfg neighbour) n
+          acc'                 = (history', callStack', ps, k)
+       in paths acc' graph (G.context cfg neighbour)
 
 -- Case: a statement.
-paths acc graph (_,_,Block s,neighbours) n
-    = concatMap (next acc s graph n) neighbours
+paths acc graph (_,_,Block s,neighbours)
+    = concatMap (next acc s graph) neighbours
 
-next :: Accumulator -> CompoundStmt' -> CFG -> Int -> (CFGEdgeValue, G.Node) -> ProgramPaths
-next (history, callStack, ps) s graph@CFG{cfg} n (edge, neighbour) 
-    = let acc' = (history', callStack, map ((scope,stat):) ps)
-       in paths acc' graph (G.context cfg neighbour) (n-1) 
+next :: Accumulator -> CompoundStmt' -> CFG -> (CFGEdgeValue, G.Node) -> ProgramPaths
+next (history, callStack, ps, k) s graph@CFG{cfg} (edge, neighbour) 
+    = let acc' = (history', callStack, map ((scope,stat):) ps, k-1)
+       in paths acc' graph (G.context cfg neighbour)
     where
         (scope, _)                      = fromJust $ S.peek callStack
         (history',stat) 
@@ -137,7 +136,7 @@ renameExp history (Lit' x)
     = (history, Lit' x)
 renameExp history (InstanceCreation' ty args)
     = let (history', args') = mapAccumR renameExp history args
-          (history'', ty')  = renameClassType history ty
+          (history'', ty')  = renameClassType history' ty
        in (history'', InstanceCreation' ty' args')
 renameExp history (ArrayCreate' ty ss u)
     = let (history', ss') = mapAccumR renameExp history ss
