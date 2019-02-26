@@ -3,6 +3,8 @@ import qualified Data.Map                          as M
 import           Analysis.CFG
 import           Data.Graph.Inductive.Graph    
 import           Parsing.Syntax
+
+import Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
@@ -414,10 +416,14 @@ intraEdges xs y
     | otherwise   = map (`intraEdge` y) xs
 
 callEdge :: (Node, Name') -> Methods -> CFGEdge
-callEdge (node,name) methods = (node, fst (methods M.! name), InterEdge name)
+callEdge (node,name) methods 
+    = let name' = [last name] 
+       in ((node, fst (methods M.! name'), InterEdge name'))
 
 returnEdge :: (Name',Node) -> Methods -> CFGEdge
-returnEdge (name,node) methods = (snd (methods M.! name), node, InterEdge name)
+returnEdge (name,node) methods 
+    = let name' = [last name] 
+       in (snd (methods M.! name'), node, InterEdge name')
 
 condEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
 condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)

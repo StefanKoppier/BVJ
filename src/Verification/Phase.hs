@@ -32,7 +32,8 @@ runAsync args programs = do
 verify :: Arguments -> Program -> IO (Either PhaseError VerificationResult)
 verify args program = do
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
-    hPutStr handle (toString program)
+    let program' = "#include <stdlib.h>\n" ++ toString program
+    hPutStr handle program'
     hClose handle
     (_,result,_) <- readProcessWithExitCode "./tools/cbmc/cbmc" (cbmcArgs path args) ""
     runEitherT $ parseOutput result
@@ -52,7 +53,11 @@ workingDir = "tmp_verification_folder"
 
 cbmcArgs :: FilePath -> Arguments -> [String]
 cbmcArgs path args
-    =  [path , "--xml-ui"]
+    =  [ path , "--xml-ui"
+        -- TODO: find a nice way to set these include paths.
+       , "-I", "C:\\MinGW\\lib\\gcc\\mingw32\\6.3.0\\include"
+       , "-I", "C:\\MinGW\\include"
+       ]
     ++ ["--no-assertions"         | not $ enableAssertions args  ]
     ++ ["--bounds-check"          | enableArrayBoundsCheck args  ]
     ++ ["--pointer-check"         | enablePointerChecks args     ]

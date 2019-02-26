@@ -32,19 +32,21 @@ deriving Decl' : Eq, Show
 data MemberDecl'
     | FieldDecl'        modifiers :: Modifiers'
                         ty        :: Type'
-                        var       :: {[VarDecl']}
+                        var       :: VarDecls'
 
     | MethodDecl'       modifiers :: Modifiers'
                         ty        :: {Maybe Type'}
                         name      :: {String}
-                        params    :: {[FormalParam']}
+                        params    :: FormalParams'
                         body      :: CompoundStmt'
 
     | ConstructorDecl'  modifiers :: Modifiers'
                         name      :: {String}
-                        params    :: {[FormalParam']}
+                        params    :: FormalParams'
                         body      :: CompoundStmt'
 deriving MemberDecl' : Eq, Show
+
+type FormalParams' = [FormalParam']
 
 data FormalParam'
     | FormalParam'  modifiers :: Modifiers'
@@ -115,7 +117,7 @@ data Stmt'
     | ExpStmt'      exp         :: Exp'
 
     | Assert'       exp         :: Exp'
-                    error       :: {Maybe Exp'}
+                    message     :: {String}
 
     | Assume'       exp         :: Exp'
 
@@ -164,6 +166,8 @@ type Exps' = [Exp']
 
 data Exp'
     | Lit'              value       :: Literal'
+
+    | This'
 
     | InstanceCreation' ty          :: ClassType'
                         args        :: Exps'
@@ -256,8 +260,16 @@ data AssignOp'
 deriving AssignOp' : Eq, Show
 
 data Lhs'
-    | Name'  name :: Name'
+    | Name'  name   :: Name'
+    | Field' access :: FieldAccess'
 deriving Lhs' : Eq, Show
+
+data FieldAccess'
+    | PrimaryFieldAccess'   exp   :: Exp'
+                            field :: {String}
+    | ClassFieldAccess'     ty    :: Name'
+                            field :: {String}
+deriving FieldAccess' : Eq, Show
 
 data MethodInvocation'
     | MethodCall'   name :: Name'

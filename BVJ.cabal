@@ -42,6 +42,7 @@ library
                        Parsing.Utility
                        Analysis.CFA
                        Linearization.Utility
+                       Translation.Utility
                        Data.Stack
   -- other-extensions:    
   build-tools:         

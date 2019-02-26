@@ -17,247 +17,347 @@ import Translation.Program
 import Translation.Pretty
 import Parsing.Syntax
 import Parsing.Utility
+import Translation.Utility
 
-translationPhase :: Phase (CompilationUnit', ProgramPaths) Programs
+import Debug.Trace
+
+translationPhase :: Phase (CompilationUnit', ProgramPaths) [CTranslUnit]
 translationPhase _ (unit, paths) = do
     newEitherT $ printHeader "4. TRANSLATION"
     newEitherT $ printPretty paths
-    return $ map (translate unit) paths
+    return $ map (translatePath unit) paths
 
-translate :: CompilationUnit' -> ProgramPath -> Program
-translate unit@(CompilationUnit' _ decls) path 
-    = CTranslUnit (types ++ calls) noNodeInfo
+--------------------------------------------------------------------------------
+-- Path
+--------------------------------------------------------------------------------
+
+translatePath :: CompilationUnit' -> ProgramPath -> CTranslUnit
+translatePath unit@(CompilationUnit' _ decls) path
+    = let classes      = concatMap (translateClass unit) classDecls
+          calls        = map (translateCall unit) . groupBy ((==) `on` fst) . sortOn fst $ path
+          declarations = classes ++ calls
+       in cUnit declarations
     where
-        types = map createStruct [c | (ClassTypeDecl' c) <- decls]
-        calls = (map (translateCall unit) . groupBy ((==) `on` fst) . sortOn fst) path
-
-createStruct :: ClassDecl' -> CExtDecl
-createStruct (ClassDecl' _ name body) 
-    = let name'     = Just (ident name)
-          fields    = Just (concatMap translateField [f | MemberDecl'(f@FieldDecl'{}) <- body])
-          struct    = CStruct CStructTag name' fields [] noNodeInfo
-          specifier = [CTypeSpec $ CSUType struct noNodeInfo]
-       in CDeclExt $ CDecl specifier [] noNodeInfo
-
-translateField :: MemberDecl' -> [CDecl]
-translateField (FieldDecl' _ ty vars) 
-    = let ty' :: CDeclarationSpecifier NodeInfo
-          ty'   = CTypeSpec $ translateType ty
-          vars' = map (\ var -> let (v,_,_) = translateVarDecl ty var in [(v,Nothing,Nothing)]) vars
-       in map ( \ var -> CDecl [ty'] var noNodeInfo) vars'
+        classDecls :: [ClassDecl']
+        classDecls = [c | ClassTypeDecl'(c) <- decls]
 
 translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
-translateCall unit path 
-    | MethodDecl'{} <- method
-        = let body = translateMethodCall path
-           in CFDefExt $ CFunDef [returnType] (CDeclr name [params] Nothing [] noNodeInfo) [] body noNodeInfo
-    | ConstructorDecl'{} <- method
-        = let body = translateConstructorCall (ClassType' [methodName]) path
-           in CFDefExt $ CFunDef [returnType] (CDeclr name (params : [CPtrDeclr [] noNodeInfo]) Nothing [] noNodeInfo) [] body noNodeInfo
+translateCall unit path
+    = case methodDecl of
+         MethodDecl'{}      -> translateMethodCall unit callName methodDecl path
+         ConstructorDecl'{} -> translateConstructorCall unit callName methodDecl path
     where
-        callName   = (head . fst . head) path
+        callName   = head . fst . head $ path
         methodName = stripCallName callName
-        name       = Just (ident callName)
-        method     = fromJust $ getMethod unit methodName
-        returnType = (CTypeSpec . translateMaybeType . fromJust . getReturnTypeOfMethod) method
-        params     = (translateParams . fromJust . getParamsOfMethod) method
+        methodDecl = fromJust $ getMethod unit methodName
 
-getMethod :: CompilationUnit' -> String -> Maybe MemberDecl'
-getMethod unit methodName 
-    -- Case: the method is a constructor.
-    | (Just class') <- findClass methodName unit
-        = findConstructor class'
-
-    -- Case: the method is a method.
-    | otherwise
-        = findMethod methodName (fromJust $ findClass "Main" unit)
-
-translateParams :: [FormalParam'] -> CDerivedDeclr
-translateParams ps = CFunDeclr (Right (map translateParam ps, False)) [] noNodeInfo
-
-translateParam :: FormalParam' -> CDeclaration NodeInfo
-translateParam (FormalParam' _ ty (VarId' name)) 
-    = CDecl [ty'] [(name', Nothing, Nothing)] noNodeInfo
+translateConstructorCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
+translateConstructorCall unit callName methodDecl path
+    = let returns = translateType unit methodType
+          name    = cIdent callName
+          params  = translateParams unit methodParams
+          stats   =  cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
+                  :  map (translateStmt unit . transformReturnToReturnThis . snd) path
+                  ++ [cReturnStat (Just cThis)]
+          body    = cCompoundStat stats
+       in cFunction returns name [params, cPointer] body
     where
-        ty'   = CTypeSpec $ translateType ty
-        name' = Just $ CDeclr (Just $ ident name) [] Nothing [] noNodeInfo
+        methodParams = getParams methodDecl
+        methodName   = stripCallName callName
+        methodType   = fromJust (getReturnTypeOfMethod methodDecl)
 
-translateConstructorCall :: ClassType' -> ProgramPath -> CStat
-translateConstructorCall ty path
-    = let thisSize :: CExpr
-          thisSize   = CSizeofType (CDecl thisTy [] noNodeInfo) noNodeInfo
-          thisInit   = Just $ CInitExpr (CCall (CVar (ident "malloc") noNodeInfo) [thisSize] noNodeInfo) noNodeInfo
-          thisDecl   = CBlockDecl $ CDecl thisTy 
-                            [( Just (CDeclr (Just $ ident "this") [CPtrDeclr [] noNodeInfo] Nothing [] noNodeInfo)
-                             , thisInit
-                             , Nothing)] noNodeInfo
-          thisTy     = [CTypeSpec $ translateClassType ty]
-          returnThis = translateStmt (ReturnExp' (ExpName' ["this"]))
-          body       = thisDecl : map (translateStmt . toReturnThis . snd) path ++ [returnThis]
-       in CCompound [] body noNodeInfo
+transformReturnToReturnThis :: Stmt' -> Stmt'
+transformReturnToReturnThis Return' = ReturnExp' (ExpName' ["this"])
+transformReturnToReturnThis s       = s
+
+translateMethodCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
+translateMethodCall unit callName methodDecl path
+    = let returns = translateType unit methodType
+          name    = cIdent callName
+          params  = translateParams unit methodParams
+          body    = cCompoundStat (map (translateStmt unit . snd) path)
+          declr   = params : [cPointer | isRefType methodType]
+      in cFunction returns name declr body
     where
-        toReturnThis Return' = ReturnExp' (ExpName' ["this"])
-        toReturnThis x       = x
+        methodType   = fromJust $ getReturnTypeOfMethod methodDecl
+        thisTy       = RefType' . ClassRefType' . ClassType' $ ["Test"]
+        methodParams = if isStatic methodDecl
+                            then getParams methodDecl
+                            else thisParam thisTy : getParams methodDecl
 
-translateMethodCall :: ProgramPath -> CStat
-translateMethodCall path 
-    = CCompound [] (map (translateStmt . snd) path) noNodeInfo
+translateParams :: CompilationUnit' -> FormalParams' -> CDerivedDeclr
+translateParams unit params 
+    = cParams (map (translateParam unit) params)
 
-translateStmt :: Stmt' -> CBlockItem
-translateStmt (Decl' _ (RefType' (ArrayType' ty)) [VarDecl' (VarId' name) init])
-    = let init' = translateVarInit init
-          ty'   = [CTypeSpec $ translateType ty]
-          name' = Just $ ident name
-          size' = [CArrDeclr [] (CNoArrSize False) noNodeInfo]
-          declr = [(Just (CDeclr name' size' Nothing [] noNodeInfo), init', Nothing)]
-       in CBlockDecl (CDecl ty' declr noNodeInfo)
+translateParam :: CompilationUnit' -> FormalParam' -> CDecl
+translateParam unit (FormalParam' _ ty' (VarId' name)) 
+    = let ty     = translateType unit (Just ty')
+          declrs = [cPointer | isRefType (Just ty')]
+          var    = (cDeclr (cIdent name) declrs, Nothing)
+       in cDecl ty [var]
 
-translateStmt (Decl' _ ty ds)
-    = let ty' = [CTypeSpec $ translateType ty]
-          ds' = map (translateVarDecl ty) ds
-       in CBlockDecl (CDecl ty' ds' noNodeInfo)
-   
-translateStmt (ExpStmt' exp)
-    = CBlockStmt (CExpr (Just $ translateExp exp) noNodeInfo)
+translateClass :: CompilationUnit' -> ClassDecl' -> [CExtDecl]
+translateClass unit classDecl@(ClassDecl' modifiers name body)
+    = let fields       = concatMap (translateField unit) nonStaticFields'
+          struct       = cStruct (cIdent name) fields
+          allocator    = translateStructAllocator unit classDecl
+          staticFields = concatMap (translateStaticField unit classDecl) staticFields'
+       in struct : allocator : staticFields
+    where
+        classFields'     = getFields classDecl
+        nonStaticFields' = filter (not . isStatic) classFields'
+        staticFields'    = filter isStatic classFields'
 
-translateStmt (Assert' exp err)
-    = let err'    = maybe (CConst $ CStrConst (cString "") noNodeInfo) translateExp err
-          exp'    = translateExp exp
-          assert' = CExpr (Just (CCall (CVar (ident "__CPROVER_assert") noNodeInfo) [exp', err'] noNodeInfo)) noNodeInfo
-       in CBlockStmt assert'
+translateField :: CompilationUnit' -> MemberDecl' -> [CDecl]
+translateField unit (FieldDecl' _ ty' vars')
+    = let ty    = translateType unit (Just ty')
+          decls = map (translateFieldDecl unit ty) vars'
+       in decls
 
-translateStmt (Assume' exp)
-    = let exp'    = [translateExp exp]
-          assume' = CExpr (Just (CCall (CVar (ident "__CPROVER_assume") noNodeInfo) exp' noNodeInfo)) noNodeInfo
-       in CBlockStmt assume'
+translateFieldDecl :: CompilationUnit' -> CTypeSpec -> VarDecl' -> CDecl
+translateFieldDecl _ ty (VarDecl' (VarId' name') _)
+    = cDecl ty [(cDeclr (cIdent name') [], Nothing)]
+
+translateStaticField :: CompilationUnit' -> ClassDecl' -> MemberDecl' -> [CExtDecl]
+translateStaticField unit classDecl (FieldDecl' _ ty' vars')
+    = map (translateStaticFieldDecl unit ty' classDecl) vars'
        
-translateStmt Return'
-    = CBlockStmt (CReturn Nothing noNodeInfo)
+translateStaticFieldDecl :: CompilationUnit' -> Type' -> ClassDecl' -> VarDecl' -> CExtDecl
+translateStaticFieldDecl unit ty' (ClassDecl' _ name _) (VarDecl' (VarId' id) init')
+    = let ty      = translateType unit (Just ty')
+          renamed = VarDecl' (VarId' (name ++ "_" ++ id)) init'
+          decl    = translateVarDecl unit [cPointer | isRefType (Just ty')] renamed
+       in cDeclExt (cDecl ty [decl])
 
-translateStmt (ReturnExp' exp)
-    = let exp'    = translateExp exp
-       in CBlockStmt (CReturn (Just exp') noNodeInfo)
+translateStructAllocator :: CompilationUnit' -> ClassDecl' -> CExtDecl
+translateStructAllocator unit classDecl@(ClassDecl' _ name' _)
+    = let ty     = translateRefType unit (ClassRefType' (ClassType' [name']))
+          name   = cIdent ("allocator_" ++ name')
+          alloc  = cVarDeclStat (cDecl ty [(cDeclr cThisIdent [cPointer], Just (cExpInit (cMalloc (cSizeofType ty))))])
+          inits  = concatMap (translateFieldInitializer unit) nonStaticFields'
+          return = cReturnStat (Just cThis)
+          body   = cCompoundStat ([alloc] ++ inits ++ [return])
+       in cFunction ty name [cParams [], cPointer] body
+    where
+        classFields'     = getFields classDecl
+        nonStaticFields' = filter (not . isStatic) classFields'
 
-translateVarDecl :: Type' -> VarDecl' -> (Maybe CDeclr, Maybe CInit, Maybe CExpr)
-translateVarDecl ty (VarDecl' (VarId' name) init) 
-    = let derived = case ty of
-                         PrimType' _ -> []
-                         RefType'  _ -> [CPtrDeclr [] noNodeInfo]
-          declr'  = Just $ CDeclr (Just $ ident name) derived Nothing [] noNodeInfo
-          init'   = translateVarInit init
-       in (declr', init', Nothing)
+translateFieldInitializer :: CompilationUnit' -> MemberDecl' -> [CBlockItem]
+translateFieldInitializer unit (FieldDecl' _ _ decls)
+    = map (translateFieldDeclInitializer unit) decls
 
-translateVarInit :: VarInit' -> Maybe CInit
-translateVarInit (InitExp' e)           = Just $ CInitExpr (translateExp e) noNodeInfo
-translateVarInit (InitArray' (Just es)) = Just $ CInitList (map (([],) . fromJust . translateVarInit) es) noNodeInfo
-translateVarInit (InitArray' Nothing)   = Nothing
+translateFieldDeclInitializer :: CompilationUnit' -> VarDecl' -> CBlockItem
+translateFieldDeclInitializer  unit (VarDecl' (VarId' name') (InitExp' exp'))
+    = let exp        = translateExp unit exp'
+          name       = cIdent name'
+          assignment = cAssign CAssignOp (cMember cThis name) exp
+       in cExprStat assignment
+    
+translateFieldDeclInitializer  unit (VarDecl' (VarId' name') (InitArray' Nothing))
+    = trace ("array without initializer not supported") undefined
 
-translateMaybeType :: Maybe Type' -> CTypeSpec
-translateMaybeType (Just ty) = translateType ty
-translateMaybeType Nothing   = CVoidType noNodeInfo
+--------------------------------------------------------------------------------
+-- Statements
+--------------------------------------------------------------------------------
 
-translateType :: Type' -> CTypeSpec
-translateType (PrimType' BooleanT') = CTypeDef (ident "__Bool") noNodeInfo
-translateType (PrimType' ByteT')    = CTypeDef (ident "__int8") noNodeInfo
-translateType (PrimType' ShortT')   = CTypeDef (ident "__int16") noNodeInfo
-translateType (PrimType' IntT')     = CTypeDef (ident "__int32") noNodeInfo
-translateType (PrimType' LongT')    = CTypeDef (ident "__int64") noNodeInfo
-translateType (PrimType' CharT')    = CCharType noNodeInfo
-translateType (PrimType' FloatT')   = CFloatType noNodeInfo
-translateType (PrimType' DoubleT')  = CDoubleType noNodeInfo
-translateType (RefType' ty)         = translateRefType ty
+translateStmt :: CompilationUnit' -> Stmt' -> CBlockItem
+translateStmt unit (Decl' _ ty' vars') 
+    = let ty   = translateType unit (Just ty')
+          vars = map (translateVarDecl unit [cPointer | isRefType (Just ty')]) vars'
+       in cVarDeclStat (cDecl ty vars)
 
-translateRefType :: RefType' -> CTypeSpec
-translateRefType (ClassRefType' ty) = translateClassType ty
-translateRefType (ArrayType'    ty) = translateType ty
+translateStmt _ Empty'
+    = cEmptyStat
 
-translateClassType :: ClassType' -> CTypeSpec
-translateClassType (ClassType' ty) 
-    = let ty'    = Just . ident . head $ ty
-          struct = CStruct CStructTag ty' Nothing [] noNodeInfo
-       in CSUType struct noNodeInfo
+translateStmt unit (ExpStmt' exp')
+    = let exp = translateExp unit exp'
+       in cExprStat exp
 
-translateMaybeExp :: Maybe Exp' -> Maybe CExpr
-translateMaybeExp (Just e) = Just (translateExp e)
-translateMaybeExp Nothing  = Nothing
+translateStmt unit (Assert' exp' error')
+    = let exp   = translateExp unit exp'
+          error = cString error'
+       in cAssertStat exp error 
 
-translateExp :: Exp' -> CExpr
-translateExp (Lit' Null')        = CVar (ident "NULL") noNodeInfo
-translateExp (Lit' l)            = CConst $ translateLiteral l
-translateExp (ArrayAccess' n es) = translateArrayIndex n (reverse es)
-translateExp (ExpName' [name])   = CVar (ident name) noNodeInfo
-translateExp (PostIncrement' e)  = CUnary CPostIncOp (translateExp e) noNodeInfo
-translateExp (PostDecrement' e)  = CUnary CPostDecOp (translateExp e) noNodeInfo
-translateExp (PreIncrement' e)   = CUnary CPreIncOp (translateExp e) noNodeInfo
-translateExp (PreDecrement' e)   = CUnary CPreDecOp (translateExp e) noNodeInfo
-translateExp (PrePlus' e)        = CUnary CPlusOp (translateExp e) noNodeInfo
-translateExp (PreMinus' e)       = CUnary CMinOp (translateExp e) noNodeInfo
-translateExp (PreBitCompl' e)    = CUnary CCompOp (translateExp e) noNodeInfo
-translateExp (PreNot' e)         = CUnary CNegOp (translateExp e) noNodeInfo
-translateExp (BinOp' e1 op e2)   = CBinary (translateOp op) (translateExp e1) (translateExp e2) noNodeInfo
-translateExp (Cond' g e1 e2)     = CCond (translateExp g) (Just $ translateExp e1) (translateExp e2) noNodeInfo
-translateExp (Assign' lhs op e)  = CAssign (translateAssignOp op) (translateLhs lhs) (translateExp e) noNodeInfo
-translateExp (MethodInv' (MethodCall' name args))      
-    = CCall (CVar ((ident . head) name) noNodeInfo) (map translateExp args) noNodeInfo
-translateExp (InstanceCreation' (ClassType' name) args)
-    = CCall (CVar ((ident . head) name) noNodeInfo) (map translateExp args) noNodeInfo
+translateStmt unit (Assume' exp')
+    = let exp = translateExp unit exp'
+       in cAssumeStat exp
 
-translateArrayIndex :: String -> [Exp'] -> CExpr
-translateArrayIndex n [e]    = CIndex (CVar (ident n) noNodeInfo) (translateExp e) noNodeInfo
-translateArrayIndex n (e:es) = CIndex (translateArrayIndex n es) (translateExp e) noNodeInfo
+translateStmt _ (Break' _)
+    = cEmptyStat
 
-translateLhs :: Lhs' -> CExpr
-translateLhs (Name' [name]) = CVar (ident name) noNodeInfo
+translateStmt _ (Continue' _)
+    = cEmptyStat
 
-translateOp :: Op' -> CBinaryOp
-translateOp Mult'    = CMulOp
-translateOp Div'     = CDivOp
-translateOp Rem'     = CRmdOp
-translateOp Add'     = CAddOp
-translateOp Sub'     = CSubOp
-translateOp LShift'  = CShlOp
-translateOp RShift'  = CShrOp
-translateOp RRShift' = CShrOp
-translateOp LThan'   = CLeOp
-translateOp GThan'   = CGrOp
-translateOp LThanE'  = CLeqOp
-translateOp GThanE'  = CGeqOp
-translateOp Equal'   = CEqOp
-translateOp NotEq'   = CNeqOp
-translateOp And'     = CAndOp
-translateOp Or'      = COrOp
-translateOp Xor'     = CXorOp
-translateOp CAnd'    = CLndOp
-translateOp COr'     = CLorOp
+translateStmt unit (ReturnExp' exp')
+    = let exp = translateExp unit exp' 
+       in cReturnStat (Just exp)
 
-translateAssignOp :: AssignOp' -> CAssignOp
-translateAssignOp EqualA'   = CAssignOp
-translateAssignOp MultA'    = CMulAssOp
-translateAssignOp DivA'     = CDivAssOp
-translateAssignOp RemA'     = CRmdAssOp
-translateAssignOp AddA'     = CAddAssOp
-translateAssignOp SubA'     = CSubAssOp
-translateAssignOp LShiftA'  = CShlAssOp
-translateAssignOp RShiftA'  = CShrAssOp
-translateAssignOp RRShiftA' = CShrAssOp
-translateAssignOp AndA'     = CAndAssOp
-translateAssignOp XorA'     = CXorAssOp
-translateAssignOp OrA'      = COrAssOp
+translateStmt _ Return'
+    = cReturnStat Nothing
 
-translateLiteral :: Literal' -> CConst
-translateLiteral (Int'     x)     = CIntConst (cInteger x) noNodeInfo
-translateLiteral (Float'   x)     = CFloatConst (cFloat x) noNodeInfo
-translateLiteral (Double'  x)     = CFloatConst (cFloat x) noNodeInfo
-translateLiteral (Boolean' True)  = CIntConst (cInteger 1) noNodeInfo
-translateLiteral (Boolean' False) = CIntConst (cInteger 0) noNodeInfo
-translateLiteral (Char'    x)     = CCharConst (cChar x) noNodeInfo
-translateLiteral (String'  x)     = CStrConst (cString x) noNodeInfo
+translateVarDecl :: CompilationUnit' -> [CDerivedDeclr] -> VarDecl' -> (CDeclr, Maybe CInit)
+translateVarDecl unit declrs (VarDecl' (VarId' name') init')
+    = let name = cIdent name'
+          init = translateVarInit unit init'
+       in (cDeclr name declrs, init)
 
-ident :: String -> Ident
-ident x = Ident x 0 noNodeInfo
+translateVarInit :: CompilationUnit' -> VarInit' -> Maybe CInit
+translateVarInit unit (InitExp' exp')
+    = let exp = translateExp unit exp'
+       in Just $ cExpInit exp
 
-noNodeInfo :: NodeInfo
-noNodeInfo = OnlyPos nopos (nopos, 0)
+translateVarInit _ (InitArray' Nothing)
+    = Nothing
+
+translateVarInit unit (InitArray' (Just inits'))
+    = cArrayInit <$> mapM (translateVarInit unit) inits'
+
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+
+translateType :: CompilationUnit' -> Maybe Type' -> CTypeSpec
+translateType _ Nothing = cVoidType
+
+translateType _ (Just (PrimType' ty))
+    = case ty of
+        BooleanT' -> cBoolType ; ByteT'   -> cByteType  ; ShortT' -> cShortType
+        IntT'     -> cIntType  ; LongT'   -> cLongType  ; CharT'  -> cCharType
+        FloatT'   -> cFloatType; DoubleT' -> cDoubleType
+
+translateType unit (Just (RefType' ty))
+    = translateRefType unit ty
+    
+translateRefType :: CompilationUnit' -> RefType' -> CTypeSpec
+translateRefType _ (ClassRefType' (ClassType' [name']))
+    = let name = cIdent name'
+       in cStructType name
+        
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
+translateExp :: CompilationUnit' -> Exp' -> CExpr
+translateExp _ (Lit' lit') 
+    = case lit' of
+        Int'     value -> cConst (cIntConst    (cInteger value))
+        Float'   value -> cConst (cFloatConst  (cFloat value))
+        Double'  value -> cConst (cFloatConst  (cFloat value))
+        Boolean' True  -> cConst (cIntConst    (cInteger 1))
+        Boolean' False -> cConst (cIntConst    (cInteger 0))
+        Char'    value -> cConst (cCharConst   (cChar value))
+        String'  value -> cConst (cStringConst (cString value))
+        Null'          -> cNull
+
+translateExp _ This'
+    = cThis
+
+translateExp unit (InstanceCreation' (ClassType' name') args') 
+    = let name = cIdent (head name')
+          args = map (translateExp unit) args'
+       in cCall name args
+
+translateExp unit (ArrayCreate' _ _ _) 
+    = trace "array creation in expression unsupported." undefined
+
+translateExp unit (MethodInv' (MethodCall' name' args')) 
+    = let name = cIdent (head name')
+          args = map (translateExp unit) args'
+       in cCall name args
+
+translateExp unit (ArrayAccess' name' [index'])
+    = let name  = cIdent name'
+          index = translateExp unit index'
+       in cIndex name index
+
+translateExp unit (ExpName' [name'])
+    = let name = cIdent name'
+       in cVar name
+
+translateExp unit (PostIncrement' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CPostIncOp exp
+
+translateExp unit (PostDecrement' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CPreDecOp exp
+
+translateExp unit (PreIncrement' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CPreIncOp exp
+
+translateExp unit (PreDecrement' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CPostDecOp exp
+
+translateExp unit (PrePlus' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CPlusOp exp
+
+translateExp unit (PreMinus' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CMinOp exp
+
+translateExp unit (PreBitCompl' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CCompOp exp
+
+translateExp unit (PreNot' exp')
+    = let exp = translateExp unit exp'
+       in cUnary CNegOp exp
+
+translateExp unit (BinOp' exp1' op' exp2')
+    = let op   = case op' of
+                    Mult'   -> CMulOp; Div'     -> CDivOp; Rem'    -> CRmdOp
+                    Add'    -> CAddOp; Sub'     -> CSubOp; LShift' -> CShlOp
+                    RShift' -> CShrOp; RRShift' -> CShrOp; LThan'  -> CLeOp
+                    GThan'  -> CGrOp ; LThanE'  -> CLeqOp; GThanE' -> CGeqOp
+                    Equal'  -> CEqOp ; NotEq'   -> CNeqOp; And'    -> CAndOp
+                    Or'     -> COrOp ; Xor'     -> CXorOp; CAnd'   -> CLndOp
+                    COr'    -> CLorOp
+          exp1 = translateExp unit exp1'
+          exp2 = translateExp unit exp2'
+       in cBinary op exp1 exp2 
+
+translateExp unit (Cond' guard' exp1' exp2')
+    = let guard = translateExp unit guard'
+          exp1  = translateExp unit exp1'
+          exp2  = translateExp unit exp2'
+       in cCond guard exp1 exp2 
+
+translateExp unit (Assign' lhs' op' exp') 
+    = let op  = case op' of 
+                    EqualA'   -> CAssignOp; MultA'   -> CMulAssOp
+                    DivA'     -> CDivAssOp; RemA'    -> CRmdAssOp
+                    AddA'     -> CAddAssOp; SubA'    -> CSubAssOp
+                    LShiftA'  -> CShlAssOp; RShiftA' -> CShrAssOp
+                    RRShiftA' -> CShrAssOp; AndA'    -> CAndAssOp
+                    XorA'     -> CXorAssOp; OrA'     -> COrAssOp
+          lhs = translateLhs unit lhs'
+          exp = translateExp unit exp'
+       in cAssign op lhs exp
+
+translateLhs :: CompilationUnit' -> Lhs' -> CExpr
+translateLhs _ (Name' [name'])
+    = cVar (cIdent name')
+
+translateLhs unit (Field' (PrimaryFieldAccess' exp' field'))
+    = let exp   = translateExp unit exp'
+          field = cIdent field'
+       in cMember exp field
+
+{-translateLhs unit (Field' (ClassFieldAccess' [ty'] field'))
+    = cVar (cIdent (ty' ++ "_" ++ field'))
+
+translateLhs _ (Field' (ClassFieldAccess' ty' field'))
+    = trace (show ty' ++ "---" ++ show field') undefined-}
+
+--------------------------------------------------------------------------------
+-- Auxiliary
+--------------------------------------------------------------------------------
+
+thisParam :: Type' -> FormalParam'
+thisParam ty = FormalParam' [] ty (VarId' "this")
 
 stripCallName :: String -> String
 stripCallName []        = []

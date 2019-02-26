@@ -7,12 +7,23 @@ import Parsing.Pretty
 
 type ScopedStmt = (Name', Stmt')
 
+type PathStmt = (Stmt', StmtPathInfo)
+
+data StmtPathInfo = StmtPathInfo {
+      callName   :: String
+    , methodName :: Name'
+    , className  :: String
+    }
+
 type ProgramPath = [ScopedStmt]
 
 type ProgramPaths = [ProgramPath]
 
 instance Pretty ScopedStmt where
     pretty (scope, stmt) = parens (dots scope <> comma <> pretty stmt)
+
+instance Pretty PathStmt where
+    pretty (s,_) = pretty s
 
 instance Pretty ProgramPath where
     pretty = hsep . map pretty

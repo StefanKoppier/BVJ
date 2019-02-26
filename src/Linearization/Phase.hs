@@ -24,7 +24,7 @@ linearizationPhase Arguments{maximumDepth,method} graph@CFG{cfg} = do
             let callStack = S.singleton (method, -1)
             let acc       = (history, callStack, [[]], maximumDepth)
             let ps        = paths acc graph (G.context cfg entry)
-            return . map (reverse . clean) $ ps
+            return . map reverse $ ps
         Nothing        -> semanticalError (UndefinedMethodReference method)
 
 --------------------------------------------------------------------------------
@@ -60,8 +60,8 @@ paths (history, callStack, ps, k) graph@CFG{cfg} (_,_,Exit _,_)
 
 -- Case: the call of an method.
 paths (history, callStack, ps, k) graph@CFG{cfg} (_,node,Call method,[(_,neighbour)])
-    = let (callNumber, x)      = history M.! method
-          history'             = M.insert method (callNumber + 1, x) history
+    = let (callNumber, x)      = history M.! [last method]
+          history'             = M.insert [last method] (callNumber + 1, x) history
           newName              = [head method ++ "$" ++ show callNumber]
           callStack'           = S.push (newName, node + 1) callStack
           acc'                 = (history', callStack', ps, k)
@@ -81,13 +81,6 @@ next (history, callStack, ps, k) s graph@CFG{cfg} (edge, neighbour)
             | ConditionalEdge e <- edge = renameStmt history (Assume' e)
             | (Stmt' s')        <- s    = renameStmt history s'
 
-clean :: ProgramPath -> ProgramPath
-clean ((_,Empty'     ):ss) = clean ss
-clean ((_,Break'    _):ss) = clean ss
-clean ((_,Continue' _):ss) = clean ss
-clean (s:ss)               = s : clean ss
-clean []                   = []
-
 --------------------------------------------------------------------------------
 -- Renaming of method calls
 --------------------------------------------------------------------------------
@@ -96,10 +89,9 @@ renameStmt :: CallHistory -> Stmt' -> (CallHistory, Stmt')
 renameStmt history (Decl' ms ty vars) =
     let (history', vars') = mapAccumR renameVarDecl history vars
      in (history', Decl' ms ty vars')
-renameStmt history (Assert' e err) = 
-    let (history', e')    = renameExp history e
-        (history'', err') = renameMaybeExp history' err
-     in (history'', Assert' e' err')
+renameStmt history (Assert' e mssg) = 
+    let (history', e') = renameExp history e
+     in (history', Assert' e' mssg)
 renameStmt history (Assume' e) = 
     let (history', e') = renameExp history e
      in (history', Assume' e')
@@ -143,9 +135,9 @@ renameExp history (ArrayCreate' ty ss u)
        in (history', ArrayCreate' ty ss' u)
 renameExp history (MethodInv' (MethodCall' n args)) 
     = let (history', args') = mapAccumR renameExp history args
-          (x,callNumber)    = history M.! n
+          (x,callNumber)    = history M.! [last n]
           newName           = [head n ++ "$" ++ show callNumber]
-          history''         = M.insert n (x,callNumber + 1) history'
+          history''         = M.insert [last n] (x,callNumber + 1) history'
        in (history'', MethodInv' (MethodCall' newName args'))
 renameExp history (ArrayAccess' i is)
     = let (history', is') = mapAccumR renameExp history is
@@ -183,7 +175,7 @@ renameExp history (Assign' t op e)
 
 renameClassType :: CallHistory -> ClassType' -> (CallHistory, ClassType')
 renameClassType history (ClassType' name)
-    = let (x, callNumber) = history M.! name
+    = let (x, callNumber) = history M.! [last name]
           newName         = [head name ++ "$" ++ show callNumber]
-          history'        = M.insert name (x, callNumber + 1) history
+          history'        = M.insert [last name] (x, callNumber + 1) history
        in (history', ClassType' newName)

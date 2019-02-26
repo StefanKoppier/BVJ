@@ -2,6 +2,7 @@ module Parsing.Phase where
 
 import Language.Java.Parser hiding (methodRef)
 import Language.Java.Syntax
+import Language.Java.Pretty (prettyPrint)
 import Language.Java.Fold
 import Parsing.Syntax
 import Parsing.Utility
@@ -191,7 +192,8 @@ transformStmt = foldStmt alg
               , \ m t i g s -> syntacticalError "for (iterator)"
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp
-              , \ g e       -> (\ e' -> Stmt' . Assert' e') <$> transformExp g <*> transformMaybeExp e
+              , \ g -> \case Just m  -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformExpToString m --transformExp m
+                             Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> return ""
               , \ e bs      -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
               , \ s e       -> syntacticalError "do"
               ,                compound . Break' . transformMaybeIdent
@@ -212,9 +214,8 @@ transformSwitchBlock (SwitchBlock (SwitchCase e) s)
 transformSwitchBlock (SwitchBlock Default s) 
     = SwitchBlock' Nothing <$> transformBlock (Block s)
 
-transformMaybeExp :: Maybe Exp -> PhaseResult (Maybe Exp')
-transformMaybeExp (Just e) = Just <$> transformExp e
-transformMaybeExp Nothing  = return Nothing
+transformExpToString :: Exp -> PhaseResult String
+transformExpToString = return . prettyPrint
 
 transformExps :: [Exp] -> PhaseResult [Exp']
 transformExps = mapM transformExp
@@ -225,7 +226,7 @@ transformExp = foldExp alg
         alg :: ExpAlgebra (PhaseResult Exp')
         alg = ExpAlgebra {
           lit  = fmap Lit' . transformLiteral
-        , this = syntacticalError "this"
+        , this = return This'
         , thisClass = \ _
             -> syntacticalError "this class"
         , instanceCreation = transformInstanceCreation
@@ -280,7 +281,12 @@ transformName (Name ns) = return [n | (Ident n) <- ns]
 
 transformLhs :: Lhs -> PhaseResult Lhs'
 transformLhs (NameLhs name) = Name' <$> transformName name
-transformLhs (FieldLhs _)   = syntacticalError "field lhs"
+transformLhs (FieldLhs (PrimaryFieldAccess e (Ident field)))
+    = (\ e' -> Field' . PrimaryFieldAccess' e') <$> transformExp e <*> return field
+transformLhs (FieldLhs (ClassFieldAccess ty (Ident name)))
+    = (\ ty' -> Field' . ClassFieldAccess' ty') <$> transformName ty <*> return name
+transformLhs (FieldLhs (SuperFieldAccess _))
+    = syntacticalError "field access of super class"
 transformLhs (ArrayLhs _)   = syntacticalError "array lhs"
 
 transformInstanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> PhaseResult Exp'

@@ -103,8 +103,7 @@ instance Pretty Stmt' where
     pretty (Decl' ms ty vars)       = pretty ms <+> pretty ty <+> pretty vars <> semi
     pretty Empty'                   = semi
     pretty (ExpStmt' exp)           = pretty exp <> semi
-    pretty (Assert' exp (Just err)) = text "assert" <+> pretty exp <+> colon <+> pretty err <> semi
-    pretty (Assert' exp Nothing)    = text "assert" <+> pretty exp <> semi
+    pretty (Assert' exp mssg)       = text "assert" <+> pretty exp <+> colon <+> text mssg <> semi
     pretty (Assume' exp)            = text "assume" <+> pretty exp <> semi
     pretty (Break' (Just ident))    = text "break:" <+> text ident <> semi
     pretty (Break' Nothing)         = text "break" <> semi
@@ -145,6 +144,7 @@ instance Pretty VarInit' where
 
 instance Pretty Exp' where
     pretty (Lit' x)                    = pretty x
+    pretty This'                       = text "this"
     pretty (InstanceCreation' ty args) = text "new" <+> pretty ty <> parens (commas args)
     pretty (ArrayCreate' ty ss n)      = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
     pretty (MethodInv' inv)            = pretty inv
@@ -208,7 +208,14 @@ instance Pretty AssignOp' where
     pretty OrA'      = text "|="
 
 instance Pretty Lhs' where
-    pretty (Name' name) = dots name
+    pretty (Name' name)    = dots name
+    pretty (Field' access) = pretty access
+
+instance Pretty FieldAccess' where
+    pretty (PrimaryFieldAccess' exp field)
+        = pretty exp <> dot <> text field
+    pretty (ClassFieldAccess' ty field)
+        = dots ty <> dot <> text field
 
 instance Pretty MethodInvocation' where
     pretty (MethodCall' name args) = name' <> parens args'
