@@ -16,11 +16,17 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 -- Control Flow Graph
 --------------------------------------------------------------------------------
 
+data Scope = Scope {
+       scopePackage :: Maybe Name'
+     , scopeClass   :: String
+     , scopeMember  :: String
+     } deriving (Show, Eq, Ord)
+
 data CFGNodeValue 
     = Block CompoundStmt'
-    | Call  Name'        
-    | Entry Name'
-    | Exit  Name'
+    | Call  Scope        
+    | Entry Scope
+    | Exit  Scope
     deriving (Show, Eq)
     
 type CFGNode = LNode CFGNodeValue
@@ -28,7 +34,7 @@ type CFGNode = LNode CFGNodeValue
 type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
-    = InterEdge       Name'
+    = InterEdge       Scope
     | ConditionalEdge Exp'
     | IntraEdge
     deriving (Show, Eq)
@@ -41,19 +47,19 @@ type CFGAdj = Adj CFGEdgeValue
 
 type CFGContext = (CFGAdj, Node, CFGNodeValue, CFGAdj)
 
-data CFG = CFG { cfg :: Gr CFGNodeValue CFGEdgeValue }
+newtype CFG = CFG { cfg :: Gr CFGNodeValue CFGEdgeValue }
 
 constructCFG :: CFGNodes -> CFGEdges -> CFG
 constructCFG nodes edges = (CFG . insEdges edges . insNodes nodes) empty
 
-entryOfMethod :: Name' -> CFG -> Maybe CFGNode
-entryOfMethod name CFG{cfg} 
+entryOfMethod :: Scope -> CFG -> Maybe CFGNode
+entryOfMethod scope CFG{cfg}
     | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
     | otherwise         = Nothing
     where
-        entry = nodes $ labfilter (\case (Entry n) -> n == name
-                                         _         -> False) cfg
-
+        entry = nodes $ labfilter (\case (Entry scope') -> scope == scope'
+                                         _              -> False) cfg
+         
 isIntraEdge, isInterEdge :: CFGEdgeValue -> Bool
 isIntraEdge (ConditionalEdge _) = True
 isIntraEdge IntraEdge           = True

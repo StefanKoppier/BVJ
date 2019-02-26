@@ -4,23 +4,24 @@ import Text.PrettyPrint
 import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
+import Analysis.CFG     (Scope)
 
-type ScopedStmt = (Name', Stmt')
+--type ScopedStmt = (Name', Stmt')
 
-type PathStmt = (Stmt', StmtPathInfo)
+type PathStmt = (Stmt', PathStmtInfo)
 
-data StmtPathInfo = StmtPathInfo {
-      callName   :: String
-    , methodName :: String
-    , className  :: String
+data PathStmtInfo = PathStmtInfo {
+      callName :: String -- ^ The name of the method the statement belongs to,
+                         --   which is unique for every method call.
+    , original :: Scope  -- ^ The original scope the statement belongs to.
     }
 
-type ProgramPath = [ScopedStmt]
+type ProgramPath = [PathStmt]
 
 type ProgramPaths = [ProgramPath]
 
-instance Pretty ScopedStmt where
-    pretty (scope, stmt) = parens (dots scope <> comma <> pretty stmt)
+--instance Pretty ScopedStmt where
+--    pretty (scope, stmt) = parens (dots scope <> comma <> pretty stmt)
 
 instance Pretty PathStmt where
     pretty (s,_) = pretty s

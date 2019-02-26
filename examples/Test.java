@@ -1,35 +1,22 @@
 class Main {
     public static void main() {
-        Test var = new Test(10);
-        
-        for (int i = 0; i < 5; i++) {
-            var.setX(i);
-            assert var.getX() == i : "var.getX() != i";
-        }
+        Test x = new Test(10);
 
-        switch (var) {
-            case 0:
-                break;
-            case 1:
-            default:
-                break;
-        }
+        assert x.getX() == 10;
     }
-}
 
-class Test2 {
-    public int getX() {
-        return 0;
+    public static int id(int x) {
+        return x;
     }
 }
 
 class Test {
-    public int x = 0;
-    
+    private int x;
+
     public Test(int x) {
         this.x = x;
     }
-
+    
     public int getX() {
         return x;
     }

@@ -1,13 +1,21 @@
 imports {
 import qualified Data.Map                          as M
 import           Analysis.CFG
-import           Data.Graph.Inductive.Graph    
+import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
+import           Parsing.Utility
 
 import Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
+
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
+     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation'
+     inh ast :: CompilationUnit'
+
+sem CompilationUnit'
+    | CompilationUnit' decls.ast = @self
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
     syn nodes use {++} {[]} :: {CFGNodes}
@@ -28,20 +36,29 @@ sem CompilationUnit'
 -- Methods
 --------------------------------------------------------------------------------
 
+attr Decls' Decl' MemberDecl' CompoundStmt' Stmt' Exps' Exp' MethodInvocation'
+    inh className :: {String}
+
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
     syn methods use {M.union} {M.empty} :: {Methods} 
 
+sem ClassDecl'
+    | ClassDecl' body.className = @name
+
 sem MemberDecl'
     | MethodDecl'       lhs .label   = new @body.label
-                            .methods = M.singleton [@name] (new @lhs.label, new @body.label)
-                            .nodes   = -- Entry node of the method.
-                                       entry (new @lhs.label) [@name]
-                                       : -- Exit node of the method.
-                                       exit (new @body.label) [@name]
-                                       : -- Nodes of the body.
-                                       @body.nodes
-                            .edges   = let entry' = entry (new @lhs.label) [@name]
-                                           exit'  = exit (new @body.label) [@name] in
+                            .methods = let scope = Scope Nothing @lhs.className @name
+                                        in M.singleton scope (new @lhs.label, new @body.label)
+                            .nodes   = let scope = Scope Nothing @lhs.className @name in
+                                            -- Entry node of the method.
+                                            entry (new @lhs.label) scope
+                                            : -- Exit node of the method.
+                                            exit (new @body.label) scope
+                                            : -- Nodes of the body.
+                                            @body.nodes
+                            .edges   = let scope  = Scope Nothing @lhs.className @name
+                                           entry' = entry (new @lhs.label) scope
+                                           exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
                                            intraEdge entry' @body.init
                                            : -- Edge(s) from final of body to exit of method.
@@ -54,15 +71,18 @@ sem MemberDecl'
                             .method  = [@name]
 
     | ConstructorDecl'  lhs .label   = new @body.label
-                            .methods = M.singleton [@name] (new @lhs.label, new @body.label)
-                            .nodes   = -- Entry node of the method.
-                                       entry (new @lhs.label) [@name]
-                                       : -- Exit node of the method.
-                                       exit (new @body.label) [@name]
-                                       : -- Nodes of the body.
-                                       @body.nodes
-                            .edges   = let entry' = entry (new @lhs.label) [@name]
-                                           exit'  = exit (new @body.label) [@name] in
+                            .methods = let scope = Scope Nothing @lhs.className @name
+                                        in M.singleton scope (new @lhs.label, new @body.label)
+                            .nodes   = let scope = Scope Nothing @lhs.className @name in
+                                            -- Entry node of the method.
+                                            entry (new @lhs.label) scope
+                                            : -- Exit node of the method.
+                                            exit (new @body.label) scope
+                                            : -- Nodes of the body.
+                                            @body.nodes
+                            .edges   = let scope  = Scope Nothing @lhs.className @name 
+                                           entry' = entry (new @lhs.label) scope
+                                           exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
                                            intraEdge entry' @body.init
                                            : -- Edge(s) from final of body to exit of method.
@@ -82,9 +102,11 @@ sem CompilationUnit'
     | CompilationUnit' decls.methods = @decls.methods
 
 sem MemberDecl'
-    | MethodDecl'      body.methods = M.insert [@name] (new @lhs.label, new @body.label) @lhs.methods
+    | MethodDecl'      body.methods = let scope = Scope Nothing @lhs.className @name
+                                       in M.insert scope (new @lhs.label, new @body.label) @lhs.methods
     
-    | ConstructorDecl' body.methods = M.insert [@name] (new @lhs.label, new @body.label) @lhs.methods
+    | ConstructorDecl' body.methods = let scope = Scope Nothing @lhs.className @name
+                                       in M.insert scope (new @lhs.label, new @body.label) @lhs.methods
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -107,7 +129,7 @@ sem CompoundStmt'
                          .final = @stat2.final
                          .edges = case @stat1.self of
                                     While' _ e _
-                                       -> let conditional = @stat1.guard  -- + number of invocations
+                                       -> let conditional = @stat1.guard
                                               normal      = filter (conditional /=) @stat1.final in
                                               condEdge conditional @stat2.init (PreNot' e)
                                               :
@@ -226,7 +248,6 @@ sem Stmt'
                     .edges = @exp.edges
                 exp .label = @lhs.label
 
--- TODO: change assert error to string?
     | Assert'   lhs .label = new @exp.label
                     .init  = if noNode == @exp.init 
                                 then (block (new @exp.label) (Stmt' @self))
@@ -294,27 +315,26 @@ sem Exps'
     | Nil       lhs.init  = noNode
                    .final = [] 
 
-{
-nameOfClassType :: ClassType' -> Name'
-nameOfClassType (ClassType' n) = n
-}
-
 sem Exp'
     | Lit'              lhs .label  = @lhs.label
                             .init   = noNode
                             .final  = []
 
     | InstanceCreation' lhs .label = new @args.label
-                            .init  = if noNode == @args.init
-                                        then call (new @args.label) (nameOfClassType @ty.self)
-                                        else @args.init 
-                            .final = [call (new @args.label) (nameOfClassType @ty.self)]
-                            .nodes = call (new @args.label) (nameOfClassType @ty.self) : @args.nodes
-                            .edges = -- Inter edge from the call to the entry
-                                     callEdge (new @args.label, (nameOfClassType @ty.self)) @lhs.methods
-                                     : -- Inter edge from the exit to the next node
-                                     returnEdge ((nameOfClassType @ty.self), new (new @args.label))  @lhs.methods
-                                     : @args.edges
+                            .init  = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+                                        if noNode == @args.init
+                                            then call (new @args.label) scope
+                                            else @args.init 
+                            .final = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+                                        [call (new @args.label) scope]
+                            .nodes = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+                                        call (new @args.label) scope : @args.nodes
+                            .edges = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+                                        -- Inter edge from the call to the entry
+                                        callEdge (new @args.label, scope) @lhs.methods
+                                        : -- Inter edge from the exit to the next node
+                                        returnEdge (scope, new (new @args.label))  @lhs.methods
+                                        : @args.edges
                         args.label = @lhs.label
 
     | ExpName'          lhs .label  = @lhs.label
@@ -349,17 +369,21 @@ sem Exp'
 
 sem MethodInvocation'
     | MethodCall' lhs.label  = new @args.label
-                     .init   = if noNode == @args.init
-                                    then call (new @args.label) @name.self
-                                    else @args.init
-                     .final  = [call (new @args.label) @name.self]
-                     .nodes  = call (new @args.label) @name.self : @args.nodes
-                     .edges  = -- Inter edge from the call to the entry
-                               callEdge (new @args.label, @name.self) @lhs.methods
-                               : -- Inter edge from the exit to the next node
-                               returnEdge (@name.self, new (new @args.label))  @lhs.methods
-                               -- The edges of the call arguments.
-                               : @args.edges
+                     .init   = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                                    if noNode == @args.init
+                                        then call (new @args.label) scope
+                                        else @args.init
+                     .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                                    [call (new @args.label) scope]
+                     .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                                    call (new @args.label) scope : @args.nodes
+                     .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                                    -- Inter edge from the call to the entry
+                                    callEdge (new @args.label, scope) @lhs.methods
+                                    : -- Inter edge from the exit to the next node
+                                    returnEdge (scope, new (new @args.label))  @lhs.methods
+                                    -- The edges of the call arguments.
+                                    : @args.edges
                   args.label = @lhs.label
 
 sem VarDecls'
@@ -373,11 +397,73 @@ sem VarDecl'
                    .final = @init.final
 
 --------------------------------------------------------------------------------
+-- Type environment
+--------------------------------------------------------------------------------
+
+{
+type TypeEnvironment = M.Map Scope Type'
+
+generateTypesFromDecls :: Maybe Name' -> String -> Type' -> VarDecls' -> TypeEnvironment
+generateTypesFromDecls package className ty
+    = foldr (\ (VarDecl' (VarId' name) _) -> (M.singleton (Scope package className name) ty `M.union`)) M.empty 
+
+generateTypesFromParams :: Maybe Name' -> String -> FormalParams' -> TypeEnvironment
+generateTypesFromParams package className
+    = foldr (\ (FormalParam' _ ty (VarId' name)) -> (M.singleton (Scope package className name) ty `M.union`)) M.empty
+
+generateTypesFromStmt :: Maybe Name' -> String -> CompoundStmt' -> TypeEnvironment
+generateTypesFromStmt package className (Stmt' (Decl' _ ty vars)) 
+    = generateTypesFromDecls package className ty vars
+generateTypesFromStmt _ _ _
+     = M.empty
+
+getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Scope
+getScopeOfCreation _ package _ _ (InstanceCreation' (ClassType' [name]) args)
+    = Scope package name name
+
+getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope
+getScopeOfInvocation _ package className types [name]
+    = Scope package className name
+
+getScopeOfInvocation ast package className types (name:names)
+    | (Just _) <- findClass name ast 
+        = getScopeOfInvocation ast package name types names
+    | otherwise
+        = let classNameOfVar = getNameOfType (types M.! (Scope package className name))
+           in getScopeOfInvocation ast package classNameOfVar types names
+
+getNameOfType :: Type' -> String
+getNameOfType (RefType' (ClassRefType' (ClassType' [name]))) = name
+}
+
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
+    syn fieldTypes use {M.union} {M.empty} :: {TypeEnvironment}
+
+sem MemberDecl'
+    | FieldDecl' lhs.fieldTypes = generateTypesFromDecls Nothing @lhs.className @ty.self @var.self
+
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' 
+     Stmt' SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' 
+     VarInit' VarDecls' VarDecl'
+    inh types :: {TypeEnvironment}
+
+sem CompilationUnit'
+    | CompilationUnit' decls.types = @decls.fieldTypes
+
+sem MemberDecl'
+    | MethodDecl'       body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
+    | ConstructorDecl'  body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
+
+sem CompoundStmt'
+    | Seq'          stat1.types = @lhs.types
+                    stat2.types = @lhs.types `M.union` generateTypesFromStmt Nothing @lhs.className @stat1.self
+
+--------------------------------------------------------------------------------
 -- Auxiliary functions
 --------------------------------------------------------------------------------
 
 {
-type Methods = M.Map Name' (Node, Node)
+type Methods = M.Map Scope (Node, Node)
 
 caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
 caseCondExp e1 previous (SwitchBlock' Nothing _)   
@@ -395,17 +481,17 @@ new = (1+)
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
 
-call :: Node -> Name' -> CFGNode
+call :: Node -> Scope -> CFGNode
 call n name = (n, Call name)
 
 block :: Node -> CompoundStmt' -> CFGNode
 block n s = (n, Block s)
 
-entry :: Node -> Name' -> CFGNode
-entry n name = (n, Entry name)
+entry :: Node -> Scope -> CFGNode
+entry n scope = (n, Entry scope)
 
-exit :: Node -> Name' -> CFGNode
-exit n name =  (n, Exit name)
+exit :: Node -> Scope -> CFGNode
+exit n scope =  (n, Exit scope)
 
 intraEdge :: CFGNode -> CFGNode -> CFGEdge
 intraEdge (x,_) (y,_) = (x, y, IntraEdge)
@@ -415,15 +501,13 @@ intraEdges xs y
     | noNode == y = []
     | otherwise   = map (`intraEdge` y) xs
 
-callEdge :: (Node, Name') -> Methods -> CFGEdge
-callEdge (node,name) methods 
-    = let name' = [last name] 
-       in ((node, fst (methods M.! name'), InterEdge name'))
+callEdge :: (Node, Scope) -> Methods -> CFGEdge
+callEdge (node, scope) methods 
+    = (node, fst (methods M.! scope), InterEdge scope)
 
-returnEdge :: (Name',Node) -> Methods -> CFGEdge
-returnEdge (name,node) methods 
-    = let name' = [last name] 
-       in (snd (methods M.! name'), node, InterEdge name')
+returnEdge :: (Scope, Node) -> Methods -> CFGEdge
+returnEdge (scope, node) methods 
+    = (snd (methods M.! scope), node, InterEdge scope)
 
 condEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
 condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)

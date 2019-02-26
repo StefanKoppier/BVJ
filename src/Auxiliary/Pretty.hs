@@ -21,6 +21,9 @@ class Pretty a where
     toString    :: a -> String
     toString = render . pretty
 
+instance Pretty Doc where
+    pretty = id
+
 instance Pretty String where
     pretty = text
 

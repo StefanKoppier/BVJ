@@ -41,6 +41,7 @@ library
   other-modules:       Language.Java.Fold
                        Parsing.Utility
                        Analysis.CFA
+                       Linearization.Renaming
                        Linearization.Utility
                        Translation.Utility
                        Data.Stack

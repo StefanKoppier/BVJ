@@ -34,7 +34,7 @@ translationPhase _ (unit, paths) = do
 translatePath :: CompilationUnit' -> ProgramPath -> CTranslUnit
 translatePath unit@(CompilationUnit' _ decls) path
     = let classes      = concatMap (translateClass unit) classDecls
-          calls        = map (translateCall unit) . groupBy ((==) `on` fst) . sortOn fst $ path
+          calls        = map (translateCall unit) . groupBy ((==) `on` (callName . snd)) . sortOn (callName . snd) $ path
           declarations = classes ++ calls
        in cUnit declarations
     where
@@ -47,8 +47,8 @@ translateCall unit path
          MethodDecl'{}      -> translateMethodCall unit callName methodDecl path
          ConstructorDecl'{} -> translateConstructorCall unit callName methodDecl path
     where
-        callName   = head . fst . head $ path
-        methodName = stripCallName callName
+        (PathStmtInfo callName scope) = snd . head $ path
+        methodName = scopeMember scope
         methodDecl = fromJust $ getMethod unit methodName
 
 translateConstructorCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
@@ -57,13 +57,14 @@ translateConstructorCall unit callName methodDecl path
           name    = cIdent callName
           params  = translateParams unit methodParams
           stats   =  cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
-                  :  map (translateStmt unit . transformReturnToReturnThis . snd) path
+                  :  map (translateStmt unit . transformReturnToReturnThis . fst) path
                   ++ [cReturnStat (Just cThis)]
           body    = cCompoundStat stats
        in cFunction returns name [params, cPointer] body
     where
+        (PathStmtInfo callName scope) = snd . head $ path
+        methodName = scopeMember scope
         methodParams = getParams methodDecl
-        methodName   = stripCallName callName
         methodType   = fromJust (getReturnTypeOfMethod methodDecl)
 
 transformReturnToReturnThis :: Stmt' -> Stmt'
@@ -75,12 +76,15 @@ translateMethodCall unit callName methodDecl path
     = let returns = translateType unit methodType
           name    = cIdent callName
           params  = translateParams unit methodParams
-          body    = cCompoundStat (map (translateStmt unit . snd) path)
+          body    = cCompoundStat (map (translateStmt unit . fst) path)
           declr   = params : [cPointer | isRefType methodType]
       in cFunction returns name declr body
     where
+        (PathStmtInfo callName scope) = snd . head $ path
+        methodName   = scopeMember scope
+        className    = scopeClass scope
         methodType   = fromJust $ getReturnTypeOfMethod methodDecl
-        thisTy       = RefType' . ClassRefType' . ClassType' $ ["Test"]
+        thisTy       = RefType' . ClassRefType' . ClassType' $ [className]
         methodParams = if isStatic methodDecl
                             then getParams methodDecl
                             else thisParam thisTy : getParams methodDecl
@@ -358,9 +362,3 @@ translateLhs _ (Field' (ClassFieldAccess' ty' field'))
 
 thisParam :: Type' -> FormalParam'
 thisParam ty = FormalParam' [] ty (VarId' "this")
-
-stripCallName :: String -> String
-stripCallName []        = []
-stripCallName (x:xs)
-            | x == '$'  = []
-            | otherwise = x : stripCallName xs

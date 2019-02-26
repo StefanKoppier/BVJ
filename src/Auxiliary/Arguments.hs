@@ -1,10 +1,15 @@
-module Auxiliary.Arguments where
+module Auxiliary.Arguments(
+      module Analysis.CFG
+    , Arguments(..)
+    , defaultArgs
+) where
     
 import Auxiliary.Verbosity
 import Parsing.Syntax
+import Analysis.CFG (Scope(..))
 
 data Arguments = Arguments {
-      method                   :: Name'
+      method                   :: Scope
     , verbosity                :: Verbosity
     , keepOutputFiles          :: Bool
     , maximumDepth             :: Int
@@ -20,7 +25,7 @@ data Arguments = Arguments {
 
 defaultArgs :: Arguments
 defaultArgs = Arguments {
-      method = ["main"]
+      method = Scope Nothing "main" "main"
     , verbosity = Everything
     , keepOutputFiles = False
     , maximumDepth = 100

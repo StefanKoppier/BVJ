@@ -11,17 +11,18 @@ import           Analysis.CFG
 import           Analysis.Pretty()
 import           Parsing.Syntax
 import           Linearization.Path
+import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
 linearizationPhase :: Phase CFG ProgramPaths
-linearizationPhase Arguments{maximumDepth,method} graph@CFG{cfg} = do
+linearizationPhase Arguments{maximumDepth, method} graph@CFG{cfg} = do
     newEitherT $ printHeader "3. LINEARIZATION"
     newEitherT $ printPretty graph
     case entryOfMethod method graph of
         Just (entry,_) -> do
             let history   = M.fromList [(n, (0,0)) | (_,Entry n) <- G.labNodes cfg]
-            let callStack = S.singleton (method, -1)
+            let callStack = S.singleton (method, scopeMember method, -1)
             let acc       = (history, callStack, [[]], maximumDepth)
             let ps        = paths acc graph (G.context cfg entry)
             return . map reverse $ ps
@@ -31,11 +32,15 @@ linearizationPhase Arguments{maximumDepth,method} graph@CFG{cfg} = do
 -- Program path generation
 --------------------------------------------------------------------------------
 
--- Call history, the first value represents the scope renaming, the second
--- one represents the call renaming.
-type CallHistory = M.Map Name' (Int, Int)
+-- | The history of number of calls renamed, and number of statements renamed.
+type CallHistory = M.Map Scope (Int, Int)
 
-type CallStack = Stack (Name', G.Node)
+-- | A stack frame containing the current method, the current call name, and 
+-- the node the method should return to.
+type StackFrame = (Scope, String, G.Node)
+
+-- | The stack of method calls.
+type CallStack = Stack StackFrame
 
 type Accumulator = (CallHistory, CallStack, ProgramPaths, Int)
 
@@ -54,16 +59,16 @@ paths acc graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
     
 -- Case: the exit of an method.
 paths (history, callStack, ps, k) graph@CFG{cfg} (_,_,Exit _,_)
-    = let (_,destination) = fromJust $ S.peek callStack
-          acc'            = (history, S.pop callStack, ps, k)
+    = let (_, _, destination) = fromJust $ S.peek callStack
+          acc'                = (history, S.pop callStack, ps, k)
        in paths acc' graph (G.context cfg destination)
 
 -- Case: the call of an method.
-paths (history, callStack, ps, k) graph@CFG{cfg} (_,node,Call method,[(_,neighbour)])
-    = let (callNumber, x)      = history M.! [last method]
-          history'             = M.insert [last method] (callNumber + 1, x) history
-          newName              = [head method ++ "$" ++ show callNumber]
-          callStack'           = S.push (newName, node + 1) callStack
+paths (history, callStack, ps, k) graph@CFG{cfg} (_,node, Call method, [(_,neighbour)])
+    = let (callNumber, x)      = history M.! method
+          history'             = M.insert method (callNumber + 1, x) history
+          newName              = renameMethodCall method callNumber
+          callStack'           = S.push (method, newName, node + 1) callStack
           acc'                 = (history', callStack', ps, k)
        in paths acc' graph (G.context cfg neighbour)
 
@@ -73,109 +78,116 @@ paths acc graph (_,_,Block s,neighbours)
 
 next :: Accumulator -> CompoundStmt' -> CFG -> (CFGEdgeValue, G.Node) -> ProgramPaths
 next (history, callStack, ps, k) s graph@CFG{cfg} (edge, neighbour) 
-    = let acc' = (history', callStack, map ((scope,stat):) ps, k-1)
+    = let pathInfo = PathStmtInfo{callName=callName', original=scope'}
+          acc' = (history', callStack, map ((stat, pathInfo):) ps, k-1)
        in paths acc' graph (G.context cfg neighbour)
     where
-        (scope, _)                      = fromJust $ S.peek callStack
-        (history',stat) 
-            | ConditionalEdge e <- edge = renameStmt history (Assume' e)
-            | (Stmt' s')        <- s    = renameStmt history s'
+        (scope', callName', _)          = fromJust $ S.peek callStack
+        (history', stat) 
+            | ConditionalEdge e <- edge = renameStmt scope' history (Assume' e)
+            | (Stmt' s')        <- s    = renameStmt scope' history s'
 
 --------------------------------------------------------------------------------
 -- Renaming of method calls
 --------------------------------------------------------------------------------
 
-renameStmt :: CallHistory -> Stmt' -> (CallHistory, Stmt')
-renameStmt history (Decl' ms ty vars) =
-    let (history', vars') = mapAccumR renameVarDecl history vars
+renameStmt :: Scope -> CallHistory -> Stmt' -> (CallHistory, Stmt')
+renameStmt scope history (Decl' ms ty vars) =
+    let (history', vars') = mapAccumR (renameVarDecl scope) history vars
      in (history', Decl' ms ty vars')
-renameStmt history (Assert' e mssg) = 
-    let (history', e') = renameExp history e
+renameStmt scope history (Assert' e mssg) = 
+    let (history', e') = renameExp scope history e
      in (history', Assert' e' mssg)
-renameStmt history (Assume' e) = 
-    let (history', e') = renameExp history e
+renameStmt scope history (Assume' e) = 
+    let (history', e') = renameExp scope history e
      in (history', Assume' e')
-renameStmt history (ReturnExp' e) = 
-    let (history', e') = renameExp history e
+renameStmt scope history (ReturnExp' e) = 
+    let (history', e') = renameExp scope history e
      in (history', ReturnExp' e')
-renameStmt history (ExpStmt' e) =
-    let (history', e') = renameExp history e
+renameStmt scope history (ExpStmt' e) =
+    let (history', e') = renameExp scope history e
      in (history', ExpStmt' e')
-renameStmt history s = (history, s)
+renameStmt _ history s = (history, s)
 
-renameVarDecl :: CallHistory -> VarDecl' -> (CallHistory, VarDecl')
-renameVarDecl history (VarDecl' id init) 
-    = let (history', init') = renameVarInit history init
+renameVarDecl :: Scope -> CallHistory -> VarDecl' -> (CallHistory, VarDecl')
+renameVarDecl scope history (VarDecl' id init) 
+    = let (history', init') = renameVarInit scope history init
        in (history', VarDecl' id init')
 
-renameVarInit :: CallHistory -> VarInit' -> (CallHistory, VarInit')
-renameVarInit history (InitExp' e)
-    = let (history', e') = renameExp history e
+renameVarInit :: Scope -> CallHistory -> VarInit' -> (CallHistory, VarInit')
+renameVarInit scope history (InitExp' e)
+    = let (history', e') = renameExp scope history e
        in (history', InitExp' e')
-renameVarInit history (InitArray' Nothing)
+renameVarInit _ history (InitArray' Nothing)
     = (history, InitArray' Nothing)
-renameVarInit history (InitArray' (Just is))
-    = let (history', is') = mapAccumR renameVarInit history is
+renameVarInit scope history (InitArray' (Just is))
+    = let (history', is') = mapAccumR (renameVarInit scope) history is
        in (history', InitArray' (Just is'))
 
-renameMaybeExp :: CallHistory -> Maybe Exp' -> (CallHistory, Maybe Exp')
-renameMaybeExp history Nothing = (history, Nothing)
-renameMaybeExp history (Just e) 
-    = let (history', e') = renameExp history e in (history', Just e')
+renameMaybeExp :: Scope -> CallHistory -> Maybe Exp' -> (CallHistory, Maybe Exp')
+renameMaybeExp _ history Nothing = (history, Nothing)
+renameMaybeExp scope history (Just e) 
+    = let (history', e') = renameExp scope history e in (history', Just e')
 
-renameExp :: CallHistory -> Exp' -> (CallHistory, Exp')
-renameExp history (Lit' x)
+renameExp :: Scope -> CallHistory -> Exp' -> (CallHistory, Exp')
+renameExp _ history (Lit' x)
     = (history, Lit' x)
-renameExp history (InstanceCreation' ty args)
-    = let (history', args') = mapAccumR renameExp history args
+renameExp scope history (InstanceCreation' ty args)
+    = let (history', args') = mapAccumR (renameExp scope) history args
           (history'', ty')  = renameClassType history' ty
        in (history'', InstanceCreation' ty' args')
-renameExp history (ArrayCreate' ty ss u)
-    = let (history', ss') = mapAccumR renameExp history ss
+renameExp scope history (ArrayCreate' ty ss u)
+    = let (history', ss') = mapAccumR (renameExp scope) history ss
        in (history', ArrayCreate' ty ss' u)
-renameExp history (MethodInv' (MethodCall' n args)) 
-    = let (history', args') = mapAccumR renameExp history args
-          (x,callNumber)    = history M.! [last n]
-          newName           = [head n ++ "$" ++ show callNumber]
-          history''         = M.insert [last n] (x,callNumber + 1) history'
-       in (history'', MethodInv' (MethodCall' newName args'))
-renameExp history (ArrayAccess' i is)
-    = let (history', is') = mapAccumR renameExp history is
+renameExp scope history (MethodInv' (MethodCall' n args)) 
+    = let (history', args') = mapAccumR (renameExp scope) history args
+          (x, callNumber)   = history M.! scope
+          newName           = renameMethodCall scope callNumber
+          history''         = M.insert scope (x, callNumber + 1) history'
+        -- TODO: check if changeLast newName n is correct.
+       in (history'', MethodInv' (MethodCall' (changeLast newName n) args'))
+renameExp scope history (ArrayAccess' i is)
+    = let (history', is') = mapAccumR (renameExp scope) history is
        in (history', ArrayAccess' i is')
-renameExp history (ExpName' n)
+renameExp _ history (ExpName' n)
     = (history, ExpName' n)
-renameExp history (PostIncrement' e)
-    = let (history', e') = renameExp history e in (history', PostIncrement' e')
-renameExp history (PostDecrement' e)
-    = let (history', e') = renameExp history e in (history', PostDecrement' e')
-renameExp history (PreIncrement' e)
-    = let (history', e') = renameExp history e in (history', PreIncrement' e')
-renameExp history (PreDecrement' e)
-    = let (history', e') = renameExp history e in (history', PreDecrement' e')
-renameExp history (PrePlus' e)
-    = let (history', e') = renameExp history e in (history', PrePlus' e')
-renameExp history (PreMinus' e)
-    = let (history', e') = renameExp history e in (history', PreMinus' e')
-renameExp history (PreBitCompl' e)
-    = let (history', e') = renameExp history e in (history', PreBitCompl' e')
-renameExp history (PreNot' e)
-    = let (history', e') = renameExp history e in (history', PreNot' e')
-renameExp history (BinOp' e1 op e2)
-    = let (history', e1')  = renameExp history e1
-          (history'', e2') = renameExp history' e2
+renameExp scope history (PostIncrement' e)
+    = let (history', e') = renameExp scope history e in (history', PostIncrement' e')
+renameExp scope history (PostDecrement' e)
+    = let (history', e') = renameExp scope history e in (history', PostDecrement' e')
+renameExp scope history (PreIncrement' e)
+    = let (history', e') = renameExp scope history e in (history', PreIncrement' e')
+renameExp scope history (PreDecrement' e)
+    = let (history', e') = renameExp scope history e in (history', PreDecrement' e')
+renameExp scope history (PrePlus' e)
+    = let (history', e') = renameExp scope history e in (history', PrePlus' e')
+renameExp scope history (PreMinus' e)
+    = let (history', e') = renameExp scope history e in (history', PreMinus' e')
+renameExp scope history (PreBitCompl' e)
+    = let (history', e') = renameExp scope history e in (history', PreBitCompl' e')
+renameExp scope history (PreNot' e)
+    = let (history', e') = renameExp scope history e in (history', PreNot' e')
+renameExp scope history (BinOp' e1 op e2)
+    = let (history', e1')  = renameExp scope history e1
+          (history'', e2') = renameExp scope history' e2
        in (history'', BinOp' e1' op e2')
-renameExp history (Cond' g e1 e2)
-    = let (history1, g')  = renameExp history g
-          (history2, e1') = renameExp history1 e1
-          (history3, e2') = renameExp history2 e2
+renameExp scope history (Cond' g e1 e2)
+    = let (history1, g')  = renameExp scope history g
+          (history2, e1') = renameExp scope history1 e1
+          (history3, e2') = renameExp scope history2 e2
        in (history3, Cond' g' e1' e2')
-renameExp history (Assign' t op e)
-    = let (history', e') = renameExp history e
+renameExp scope history (Assign' t op e)
+    = let (history', e') = renameExp scope history e
        in (history', Assign' t op e')
 
+changeLast :: a -> [a] -> [a]
+changeLast x [_]    = [x]
+changeLast x (_:xs) = changeLast x xs 
+
 renameClassType :: CallHistory -> ClassType' -> (CallHistory, ClassType')
-renameClassType history (ClassType' name)
-    = let (x, callNumber) = history M.! [last name]
-          newName         = [head name ++ "$" ++ show callNumber]
-          history'        = M.insert [last name] (x, callNumber + 1) history
-       in (history', ClassType' newName)
+renameClassType history (ClassType' [name])
+    = let constructor     = Scope Nothing name name
+          (x, callNumber) = history M.! constructor
+          newName         = renameMethodCall constructor callNumber
+          history'        = M.insert constructor (x, callNumber + 1) history
+       in (history', ClassType' [newName])

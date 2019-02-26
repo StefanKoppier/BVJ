@@ -3,6 +3,7 @@ module Analysis.Pretty where
 import Data.Graph.Inductive.Graph (Node, context, nodes)
 import Text.PrettyPrint
 import Analysis.CFG
+import Parsing.Utility
 import Parsing.Pretty
 import Auxiliary.Pretty
 
@@ -16,9 +17,17 @@ instance Pretty CFGContext where
 
 instance Pretty CFGNodeValue where
     pretty (Block s) = pretty s
-    pretty (Call n)  = "call of" <+> quotes (dots n)
-    pretty (Entry n) = "entry of" <+> quotes (dots n)
-    pretty (Exit n)  = "exit of" <+> quotes (dots n)
+    pretty (Call s)  = "call of"  <+> quotes (pretty s)
+    pretty (Entry s) = "entry of" <+> quotes (pretty s)
+    pretty (Exit s)  = "exit of"  <+> quotes (pretty s)
+
+instance Pretty Scope where
+    pretty Scope{scopePackage, scopeClass, scopeMember}
+        = maybe empty (const (package' <> dot)) scopePackage <> dots [class', member']
+        where
+            package' = maybe empty dots scopePackage
+            class'   = text scopeClass
+            member'  = text scopeMember
 
 instance Pretty CFGAdj where
     pretty = brackets . commas

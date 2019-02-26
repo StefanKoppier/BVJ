@@ -20,7 +20,7 @@ cleanag:
 dist/build/autogen/uuagc/Analysis/CFA.hs:
 	mkdir -p `dirname $@`					
 	uuagc -Hcfws --self --module=Analysis.CFA src/Analysis/CFA.ag --output=$@
-	
+		
 dist/build/autogen/uuagc/Parsing/Syntax.hs:	
 	mkdir -p `dirname $@`					
 	uuagc -Hd --module=Parsing.Syntax src/Parsing/Syntax.ag --output=$@

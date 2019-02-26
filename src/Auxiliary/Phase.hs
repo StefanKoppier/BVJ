@@ -17,6 +17,7 @@ module Auxiliary.Phase(
 
 import Control.Monad.Trans.Either
 import Parsing.Syntax
+import Analysis.CFG
 import Auxiliary.Verbosity
 import Auxiliary.Arguments
 
@@ -34,8 +35,8 @@ data PhaseError
     deriving (Show, Eq)
 
 data SemanticalError
-    = UndefinedMethodReference Name'
-    | UndefinedClassReference  Name'
+    = UndefinedMethodReference Scope
+    | UndefinedClassReference  String
     deriving (Show, Eq)
 
 parsingError :: String -> PhaseResult a

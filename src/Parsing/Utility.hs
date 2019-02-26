@@ -29,6 +29,13 @@ getParams (MethodDecl' _ _ _ params _)    = params
 getParams (ConstructorDecl' _ _ params _) = params
 getParams (FieldDecl' _ _ _)              = trace "IMPLEMENTATION ERROR: getParams call on FieldDecl'" []
 
+nameOfClass :: ClassDecl' -> String
+nameOfClass (ClassDecl' _ name _) = name
+
+nameOfMember :: MemberDecl' -> String
+nameOfMember (MethodDecl' _ _ name _ _)    = name
+nameOfMember (ConstructorDecl' _ name _ _) = name
+
 findClass :: String -> CompilationUnit' -> Maybe ClassDecl'
 findClass name (CompilationUnit' _ decls) 
     | [c] <- filter (hasClassName name) classes 
