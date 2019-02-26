@@ -10,7 +10,6 @@ import Parsing.Syntax
 --------------------------------------------------------------------------------
 
 instance Pretty CompilationUnit' where
---    toString = renderStyle (style{mode=PageMode}) . pretty
     pretty (CompilationUnit' package decls)
         = package' $+$ pretty decls
         where
