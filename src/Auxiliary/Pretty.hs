@@ -3,6 +3,7 @@ module Auxiliary.Pretty(
     , spaces
     , newline
     , newlines
+    , tab
     , dot
     , commas
     , dots
@@ -34,6 +35,9 @@ newline = char '\n'
 
 newlines :: Doc -> Doc
 newlines d = newline <> d <> newline
+
+tab :: Doc -> Doc
+tab = nest 4
 
 dot :: Doc
 dot = char '.'

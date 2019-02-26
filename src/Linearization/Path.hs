@@ -11,7 +11,7 @@ type PathStmt = (Stmt', StmtPathInfo)
 
 data StmtPathInfo = StmtPathInfo {
       callName   :: String
-    , methodName :: Name'
+    , methodName :: String
     , className  :: String
     }
 

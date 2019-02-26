@@ -10,6 +10,7 @@ import Parsing.Syntax
 --------------------------------------------------------------------------------
 
 instance Pretty CompilationUnit' where
+--    toString = renderStyle (style{mode=PageMode}) . pretty
     pretty (CompilationUnit' package decls)
         = package' $+$ pretty decls
         where
@@ -29,7 +30,7 @@ instance Pretty ClassDecl' where
     pretty (ClassDecl' ms n body) = header' $+$ body'
         where
             header' = pretty ms <+> text "class" <+> text n
-            body'   = braces (pretty body)
+            body'   = lbrace $+$ tab (pretty body) $+$ rbrace
 
 instance Pretty Decls' where
     pretty = foldr (($+$) . pretty) empty
@@ -38,18 +39,19 @@ instance Pretty Decl' where
     pretty (MemberDecl' decl) = pretty decl
 
 instance Pretty MemberDecl' where
-    pretty (FieldDecl' ms ty var) = pretty ms <+> pretty ty <+> pretty var
+    pretty (FieldDecl' ms ty var) = pretty ms <+> pretty ty <+> pretty var <> semi
 
     pretty (MethodDecl' ms ty n ps b)   
         = header' $+$ body'
         where
             header' = pretty ms <+> pretty ty <+> pretty n <> parens (pretty ps)
-            body'   = braces (pretty b)
+            body'   = lbrace $+$ tab (pretty b) $+$ rbrace
 
     pretty (ConstructorDecl' ms n ps b) 
-        = header' $+$ (braces . newlines . pretty) b
+        = header' $+$ body'
         where
             header' = pretty ms <+> pretty n <> parens (pretty ps)
+            body'   = lbrace $+$ tab (pretty b) $+$ rbrace
 
 instance Pretty [FormalParam'] where
     pretty = commas
@@ -95,8 +97,8 @@ instance Pretty CompoundStmt' where
     pretty (Block' s)                = lbrace $+$ nest 4 (pretty s) $+$ rbrace
     pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" <+> pretty s2
     pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) <+> nest 4 (pretty s)
-    pretty (While' Nothing g s)      = text "while" <+> parens (pretty g) <+> nest 4 (pretty s)
-    pretty (Switch' e cs)            = text "switch" <+> parens (pretty e) $+$ braces (nest 4 (pretty cs))
+    pretty (While' Nothing g s)      = text "while" <+> parens (pretty g) $+$ pretty s
+    pretty (Switch' e cs)            = text "switch" <+> parens (pretty e) $+$ lbrace $+$ pretty cs $+$ rbrace
     pretty (Stmt' s)                 = pretty s
 
 instance Pretty Stmt' where

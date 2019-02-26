@@ -6,6 +6,14 @@ class Main {
             var.setX(i);
             assert var.getX() == i : "var.getX() != i";
         }
+
+        switch (var) {
+            case 0:
+                break;
+            case 1:
+            default:
+                break;
+        }
     }
 }
 
