@@ -53,11 +53,8 @@ workingDir = "tmp_verification_folder"
 
 cbmcArgs :: FilePath -> Arguments -> [String]
 cbmcArgs path args
-    =  [ path , "--xml-ui"
-        -- TODO: find a nice way to set these include paths.
-       , "-I", "C:\\MinGW\\lib\\gcc\\mingw32\\6.3.0\\include"
-       , "-I", "C:\\MinGW\\include"
-       ]
+    =  [path , "--xml-ui"]
+    ++ includes (includePaths args)
     ++ ["--no-assertions"         | not $ enableAssertions args  ]
     ++ ["--bounds-check"          | enableArrayBoundsCheck args  ]
     ++ ["--pointer-check"         | enablePointerChecks args     ]
@@ -66,3 +63,6 @@ cbmcArgs path args
     ++ ["--undefined-shift-check" | enableShiftCheck args        ]
     ++ ["--float-overflow-check"  | enableFloatOverflowCheck args]
     ++ ["--nan-check"             | enableNaNCheck args          ]
+
+includes :: [FilePath] -> [String]
+includes = concatMap (\ path -> ["-I", path])

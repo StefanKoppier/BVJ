@@ -20,6 +20,7 @@ data Arguments = Arguments {
     , enableShiftCheck         :: Bool
     , enableFloatOverflowCheck :: Bool
     , enableNaNCheck           :: Bool
+    , includePaths             :: [FilePath]
 }
 
 defaultArgs :: Arguments
@@ -36,4 +37,5 @@ defaultArgs = Arguments {
     , enableShiftCheck = True
     , enableFloatOverflowCheck = True
     , enableNaNCheck = True
+    , includePaths = []
 }

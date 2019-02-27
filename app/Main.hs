@@ -16,6 +16,10 @@ arguments = defaultArgs {
       method          = Scope Nothing "Main" "main"
     , maximumDepth    = 30
     , keepOutputFiles = False
+    , includePaths    = -- For PC:
+                        [ "C:\\MinGW\\lib\\gcc\\mingw32\\6.3.0\\include"
+                        , "C:\\MinGW\\include"
+                        ]
     }
 
 main :: IO ()
