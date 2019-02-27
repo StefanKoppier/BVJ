@@ -11,8 +11,9 @@ import Debug.Trace
 include "../Parsing/Syntax.ag"
 
 attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
-     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation'
-     inh ast :: CompilationUnit'
+     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' VarDecls' VarDecl' 
+     VarInit'
+    inh ast :: CompilationUnit'
 
 sem CompilationUnit'
     | CompilationUnit' decls.ast = @self
@@ -37,6 +38,7 @@ sem CompilationUnit'
 --------------------------------------------------------------------------------
 
 attr Decls' Decl' MemberDecl' CompoundStmt' Stmt' Exps' Exp' MethodInvocation'
+     VarDecls' VarDecl' VarInit'
     inh className :: {String}
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
@@ -233,6 +235,7 @@ sem Stmt'
                     .nodes = block (new @vars.label) (Stmt' @self) : @vars.nodes
                     .edges = @vars.edges
                 vars.label = @lhs.label
+                vars.statNode = 1 + @lhs.label + @vars.numberOfCalls
 
     | Empty'    lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
@@ -247,6 +250,7 @@ sem Stmt'
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
     | Assert'   lhs .label = new @exp.label
                     .init  = if noNode == @exp.init 
@@ -256,6 +260,7 @@ sem Stmt'
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
     | Assume'   lhs .label = new @exp.label
                     .init  = if noNode == @exp.init 
@@ -265,6 +270,7 @@ sem Stmt'
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
     | Break'    lhs .label  = new @lhs.label
                     .init   = block (new @lhs.label) (Stmt' @self)
@@ -278,6 +284,7 @@ sem Stmt'
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
                     .continues = [block (new @lhs.label) (Stmt' @self)]
 
+    -- TODO: return calls not implemented yet.
     | ReturnExp'    lhs .label   = new @exp.label
                         .init    = if noNode == @exp.init
                                       then (block (new @exp.label) (Stmt' @self))
@@ -287,6 +294,7 @@ sem Stmt'
                         .edges   = @exp.edges
                         .returns = [block (new @exp.label) (Stmt' @self)]
                     exp .label   = @lhs.label
+                        .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
     | Return'   lhs .label   = new @lhs.label
                     .init    = block (new @lhs.label) (Stmt' @self)
@@ -299,11 +307,21 @@ sem Stmt'
 --------------------------------------------------------------------------------
 
 attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation'
-    chn label               :: {Node}
-    syn init                :: {CFGNode}
-    syn final               :: {CFGNodes}
-    syn nodes use {++} {[]} :: {CFGNodes}
-    syn edges use {++} {[]} :: {CFGEdges}
+    chn label                       :: {Node}
+    syn init                        :: {CFGNode}
+    syn final                       :: {CFGNodes}
+    syn nodes         use {++} {[]} :: {CFGNodes}
+    syn edges         use {++} {[]} :: {CFGEdges}
+    syn numberOfCalls use {+} {0}   :: {Int}
+
+sem MethodInvocation'
+    | MethodCall' lhs.numberOfCalls = 1 + @args.numberOfCalls
+
+sem Exp'
+    | InstanceCreation' lhs.numberOfCalls = 1 + @args.numberOfCalls
+
+attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation' 
+    inh statNode            :: {Node}
 
 sem Exps'
     | Cons      lhs.init  = if noNode == @hd.init
@@ -323,12 +341,12 @@ sem Exp'
     | InstanceCreation' lhs .label = new @args.label
                             .init  = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
                                         if noNode == @args.init
-                                            then call (new @args.label) scope
+                                            then call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self)
                                             else @args.init 
                             .final = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
-                                        [call (new @args.label) scope]
+                                        [call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self)]
                             .nodes = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
-                                        call (new @args.label) scope : @args.nodes
+                                        call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self) : @args.nodes
                             .edges = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
                                         -- Inter edge from the call to the entry
                                         callEdge (new @args.label, scope) @lhs.methods
@@ -371,12 +389,12 @@ sem MethodInvocation'
     | MethodCall' lhs.label  = new @args.label
                      .init   = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
                                     if noNode == @args.init
-                                        then call (new @args.label) scope
+                                        then call (new @args.label) scope @lhs.statNode @name
                                         else @args.init
                      .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
-                                    [call (new @args.label) scope]
+                                    [call (new @args.label) scope @lhs.statNode @name]
                      .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
-                                    call (new @args.label) scope : @args.nodes
+                                    call (new @args.label) scope @lhs.statNode @name : @args.nodes
                      .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
                                     -- Inter edge from the call to the entry
                                     callEdge (new @args.label, scope) @lhs.methods
@@ -481,8 +499,8 @@ new = (1+)
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
 
-call :: Node -> Scope -> CFGNode
-call n name = (n, Call name)
+call :: Node -> Scope -> Node -> Name' -> CFGNode
+call n scope statNode name = (n, Call scope statNode name)
 
 block :: Node -> CompoundStmt' -> CFGNode
 block n s = (n, Block s)

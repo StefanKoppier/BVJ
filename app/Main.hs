@@ -14,7 +14,7 @@ perform args file = do
 arguments :: Arguments
 arguments = defaultArgs {
       method          = Scope Nothing "Main" "main"
-    , maximumDepth    = 20
+    , maximumDepth    = 30
     , keepOutputFiles = False
     }
 

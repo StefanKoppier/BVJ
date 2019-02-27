@@ -14,16 +14,16 @@ instance WithModifiers MemberDecl' where
     isStatic (MethodDecl'      ms _ _ _ _) = Static' `elem` ms
     isStatic (ConstructorDecl' ms _ _ _)   = True
 
-getMethod :: CompilationUnit' -> String -> Maybe MemberDecl'
-getMethod unit methodName 
+getMethod :: CompilationUnit' -> Scope -> Maybe MemberDecl'
+getMethod unit (Scope _ scopeClass scopeMember)
     -- Case: the method is a constructor.
-    | (Just class') <- findClass methodName unit
+    | (Just class') <- findClass scopeMember unit
         = findConstructor class'
 
     -- Case: the method is a method.
     | otherwise
-        = findMethod methodName (fromJust $ findClass "Main" unit)
-        
+        = findMethod scopeMember (fromJust $ findClass scopeClass unit)
+
 getParams :: MemberDecl' -> [FormalParam']
 getParams (MethodDecl' _ _ _ params _)    = params
 getParams (ConstructorDecl' _ _ params _) = params
@@ -35,6 +35,21 @@ nameOfClass (ClassDecl' _ name _) = name
 nameOfMember :: MemberDecl' -> String
 nameOfMember (MethodDecl' _ _ name _ _)    = name
 nameOfMember (ConstructorDecl' _ name _ _) = name
+
+namesOfParams :: FormalParams' -> [String]
+namesOfParams = map nameOfParam
+
+nameOfParam :: FormalParam' -> String
+nameOfParam (FormalParam' _ _ (VarId' name)) = name
+
+namesOfDecls :: VarDecls' -> [String]
+namesOfDecls = map nameOfDecl
+
+nameOfClassType :: ClassType' -> Name'
+nameOfClassType (ClassType' name) = name
+
+nameOfDecl :: VarDecl' -> String
+nameOfDecl (VarDecl' (VarId' name) _) = name
 
 findClass :: String -> CompilationUnit' -> Maybe ClassDecl'
 findClass name (CompilationUnit' _ decls) 

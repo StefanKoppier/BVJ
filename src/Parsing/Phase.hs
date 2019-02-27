@@ -215,7 +215,8 @@ transformSwitchBlock (SwitchBlock Default s)
     = SwitchBlock' Nothing <$> transformBlock (Block s)
 
 transformExpToString :: Exp -> PhaseResult String
-transformExpToString = return . prettyPrint
+transformExpToString (Lit (String string)) = return string
+transformExpToString e                     = (return . prettyPrint) e
 
 transformExps :: [Exp] -> PhaseResult [Exp']
 transformExps = mapM transformExp

@@ -291,3 +291,9 @@ deriving Modifier' : Eq, Show
 type Modifiers' = [Modifier']
 
 type Name' = [String]
+
+data Scope 
+    | Scope scopePackage :: {Maybe Name'}
+            scopeClass   :: {String}
+            scopeMember  :: {String}
+deriving Scope : Show, Eq, Ord

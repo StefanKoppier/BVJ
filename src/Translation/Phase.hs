@@ -3,7 +3,7 @@ module Translation.Phase(
 ) where
 
 import Data.Maybe                  (fromJust)
-import Data.List                   (groupBy, sortOn)
+import Data.List                   (groupBy, sortOn, mapAccumL)
 import Data.Function               (on)
 import Language.C.Data.Position
 import Language.C.Syntax.AST
@@ -47,23 +47,24 @@ translateCall unit path
          MethodDecl'{}      -> translateMethodCall unit callName methodDecl path
          ConstructorDecl'{} -> translateConstructorCall unit callName methodDecl path
     where
-        (PathStmtInfo callName scope) = snd . head $ path
-        methodName = scopeMember scope
-        methodDecl = fromJust $ getMethod unit methodName
+        (PathStmtInfo callName scope@(Scope _ _ scopeMember)) = snd . head $ path
+        methodName = scopeMember
+        methodDecl = fromJust $ getMethod unit scope
 
 translateConstructorCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
 translateConstructorCall unit callName methodDecl path
-    = let returns = translateType unit methodType
-          name    = cIdent callName
-          params  = translateParams unit methodParams
-          stats   =  cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
-                  :  map (translateStmt unit . transformReturnToReturnThis . fst) path
-                  ++ [cReturnStat (Just cThis)]
-          body    = cCompoundStat stats
+    = let returns   = translateType unit methodType
+          name      = cIdent callName
+          params    = translateParams unit methodParams
+          preStats  = cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
+          postStats = cReturnStat (Just cThis)
+          stats     = cBlockStat $ translateStmts unit paramNames (map (transformReturnToReturnThis . fst) path)
+          body      = cCompoundStat [preStats, stats, postStats]
        in cFunction returns name [params, cPointer] body
     where
-        (PathStmtInfo callName scope) = snd . head $ path
-        methodName = scopeMember scope
+        (PathStmtInfo callName scope@(Scope _ _ scopeMember)) = snd . head $ path
+        methodName   = scopeMember
+        paramNames   = namesOfParams methodParams
         methodParams = getParams methodDecl
         methodType   = fromJust (getReturnTypeOfMethod methodDecl)
 
@@ -76,15 +77,17 @@ translateMethodCall unit callName methodDecl path
     = let returns = translateType unit methodType
           name    = cIdent callName
           params  = translateParams unit methodParams
-          body    = cCompoundStat (map (translateStmt unit . fst) path)
+          body    = translateStmts unit paramNames (map fst path)
           declr   = params : [cPointer | isRefType methodType]
       in cFunction returns name declr body
     where
         (PathStmtInfo callName scope) = snd . head $ path
-        methodName   = scopeMember scope
-        className    = scopeClass scope
+        (Scope _ scopeClass scopeMember) = scope
+        methodName   = scopeMember
+        className    = scopeClass
         methodType   = fromJust $ getReturnTypeOfMethod methodDecl
         thisTy       = RefType' . ClassRefType' . ClassType' $ [className]
+        paramNames   = namesOfParams (getParams methodDecl)
         methodParams = if isStatic methodDecl
                             then getParams methodDecl
                             else thisParam thisTy : getParams methodDecl
@@ -130,7 +133,7 @@ translateStaticFieldDecl :: CompilationUnit' -> Type' -> ClassDecl' -> VarDecl' 
 translateStaticFieldDecl unit ty' (ClassDecl' _ name _) (VarDecl' (VarId' id) init')
     = let ty      = translateType unit (Just ty')
           renamed = VarDecl' (VarId' (name ++ "_" ++ id)) init'
-          decl    = translateVarDecl unit [cPointer | isRefType (Just ty')] renamed
+          decl    = translateVarDecl unit [] [cPointer | isRefType (Just ty')] renamed
        in cDeclExt (cDecl ty [decl])
 
 translateStructAllocator :: CompilationUnit' -> ClassDecl' -> CExtDecl
@@ -151,8 +154,8 @@ translateFieldInitializer unit (FieldDecl' _ _ decls)
     = map (translateFieldDeclInitializer unit) decls
 
 translateFieldDeclInitializer :: CompilationUnit' -> VarDecl' -> CBlockItem
-translateFieldDeclInitializer  unit (VarDecl' (VarId' name') (InitExp' exp'))
-    = let exp        = translateExp unit exp'
+translateFieldDeclInitializer unit (VarDecl' (VarId' name') (InitExp' exp'))
+    = let exp        = translateExp unit [] exp'
           name       = cIdent name'
           assignment = cAssign CAssignOp (cMember cThis name) exp
        in cExprStat assignment
@@ -164,57 +167,65 @@ translateFieldDeclInitializer  unit (VarDecl' (VarId' name') (InitArray' Nothing
 -- Statements
 --------------------------------------------------------------------------------
 
-translateStmt :: CompilationUnit' -> Stmt' -> CBlockItem
-translateStmt unit (Decl' _ ty' vars') 
+type LocalDeclarations = [String]
+
+translateStmts :: CompilationUnit' -> LocalDeclarations -> [Stmt'] -> CStat
+translateStmts unit locals 
+    = cCompoundStat . snd . mapAccumL (translateStmtAcc unit) locals
+
+translateStmtAcc :: CompilationUnit' -> LocalDeclarations -> Stmt' -> (LocalDeclarations, CBlockItem)
+translateStmtAcc unit locals (Decl' _ ty' vars') 
     = let ty   = translateType unit (Just ty')
-          vars = map (translateVarDecl unit [cPointer | isRefType (Just ty')]) vars'
-       in cVarDeclStat (cDecl ty vars)
+          vars = map (translateVarDecl unit locals [cPointer | isRefType (Just ty')]) vars'
+       in (newLocals ++ locals, cVarDeclStat (cDecl ty vars))
+    where
+        newLocals = namesOfDecls vars'
 
-translateStmt _ Empty'
-    = cEmptyStat
+translateStmtAcc _ locals Empty'
+    = (locals, cEmptyStat)
 
-translateStmt unit (ExpStmt' exp')
-    = let exp = translateExp unit exp'
-       in cExprStat exp
+translateStmtAcc unit locals (ExpStmt' exp')
+    = let exp = translateExp unit locals exp'
+       in (locals, cExprStat exp)
 
-translateStmt unit (Assert' exp' error')
-    = let exp   = translateExp unit exp'
+translateStmtAcc unit locals (Assert' exp' error')
+    = let exp   = translateExp unit locals exp'
           error = cString error'
-       in cAssertStat exp error 
+       in (locals, cAssertStat exp error)
 
-translateStmt unit (Assume' exp')
-    = let exp = translateExp unit exp'
-       in cAssumeStat exp
+translateStmtAcc unit locals (Assume' exp')
+    = let exp = translateExp unit locals exp'
+       in (locals, cAssumeStat exp)
 
-translateStmt _ (Break' _)
-    = cEmptyStat
+translateStmtAcc _ locals (Break' _)
+    = (locals, cEmptyStat)
 
-translateStmt _ (Continue' _)
-    = cEmptyStat
+translateStmtAcc _ locals (Continue' _)
+    = (locals, cEmptyStat)
 
-translateStmt unit (ReturnExp' exp')
-    = let exp = translateExp unit exp' 
-       in cReturnStat (Just exp)
+translateStmtAcc unit locals (ReturnExp' exp')
+    = let exp = translateExp unit locals exp' 
+       in (locals, cReturnStat (Just exp))
 
-translateStmt _ Return'
-    = cReturnStat Nothing
+translateStmtAcc _ locals Return'
+    = (locals, cReturnStat Nothing)
 
-translateVarDecl :: CompilationUnit' -> [CDerivedDeclr] -> VarDecl' -> (CDeclr, Maybe CInit)
-translateVarDecl unit declrs (VarDecl' (VarId' name') init')
+translateVarDecl :: CompilationUnit' -> LocalDeclarations -> [CDerivedDeclr] -> VarDecl' -> (CDeclr, Maybe CInit)
+translateVarDecl unit locals declrs (VarDecl' (VarId' name') init')
     = let name = cIdent name'
-          init = translateVarInit unit init'
+          init = translateVarInit unit locals init'
        in (cDeclr name declrs, init)
 
-translateVarInit :: CompilationUnit' -> VarInit' -> Maybe CInit
-translateVarInit unit (InitExp' exp')
-    = let exp = translateExp unit exp'
+translateVarInit :: CompilationUnit' -> LocalDeclarations -> VarInit' -> Maybe CInit
+translateVarInit unit locals (InitExp' exp')
+    = let exp = translateExp unit locals exp'
        in Just $ cExpInit exp
 
-translateVarInit _ (InitArray' Nothing)
+translateVarInit _ _ (InitArray' Nothing)
     = Nothing
 
-translateVarInit unit (InitArray' (Just inits'))
-    = cArrayInit <$> mapM (translateVarInit unit) inits'
+translateVarInit unit locals (InitArray' (Just inits'))
+    = cArrayInit <$> mapM (translateVarInit unit locals) inits'
 
 --------------------------------------------------------------------------------
 -- Types
@@ -241,8 +252,8 @@ translateRefType _ (ClassRefType' (ClassType' [name']))
 -- Expressions
 --------------------------------------------------------------------------------
 
-translateExp :: CompilationUnit' -> Exp' -> CExpr
-translateExp _ (Lit' lit') 
+translateExp :: CompilationUnit' -> LocalDeclarations -> Exp' -> CExpr
+translateExp _ _ (Lit' lit') 
     = case lit' of
         Int'     value -> cConst (cIntConst    (cInteger value))
         Float'   value -> cConst (cFloatConst  (cFloat value))
@@ -253,64 +264,80 @@ translateExp _ (Lit' lit')
         String'  value -> cConst (cStringConst (cString value))
         Null'          -> cNull
 
-translateExp _ This'
+translateExp _ _ This'
     = cThis
 
-translateExp unit (InstanceCreation' (ClassType' name') args') 
+translateExp unit locals (InstanceCreation' (ClassType' name') args') 
     = let name = cIdent (head name')
-          args = map (translateExp unit) args'
+          args = map (translateExp unit locals) args'
        in cCall name args
 
-translateExp unit (ArrayCreate' _ _ _) 
+translateExp unit _ (ArrayCreate' _ _ _) 
     = trace "array creation in expression unsupported." undefined
 
-translateExp unit (MethodInv' (MethodCall' name' args')) 
-    = let name = cIdent (head name')
-          args = map (translateExp unit) args'
+translateExp unit locals (MethodInv' (MethodCall' (pre':[name']) args'))
+    | (Just _) <- findClass pre' unit
+        = undefined
+    | otherwise
+        = let name    = cIdent name'
+              thisArg = cVar (cIdent pre')
+              args    = thisArg : map (translateExp unit locals) args'
+           in cCall name args 
+
+translateExp unit locals (MethodInv' (MethodCall' [name'] args')) 
+    = let name = cIdent name'
+          args = map (translateExp unit locals) args'
        in cCall name args
 
-translateExp unit (ArrayAccess' name' [index'])
+translateExp unit locals (ArrayAccess' name' [index'])
     = let name  = cIdent name'
-          index = translateExp unit index'
+          index = translateExp unit locals index'
        in cIndex name index
 
-translateExp unit (ExpName' [name'])
-    = let name = cIdent name'
-       in cVar name
+-- TODO: implement the static field case.
+translateExp unit locals (ExpName' [name'])
+-- Case: the variable is a local variable.
+    | (name' `elem` locals) = cVar (cIdent name') 
+    
+-- Case: the variable is a non-static field of the class.
+    | True = cMember cThis (cIdent name')
 
-translateExp unit (PostIncrement' exp')
-    = let exp = translateExp unit exp'
+-- Case: the variable is a static field of the class.
+    | False = undefined
+
+translateExp unit locals (PostIncrement' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CPostIncOp exp
 
-translateExp unit (PostDecrement' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PostDecrement' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CPreDecOp exp
 
-translateExp unit (PreIncrement' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PreIncrement' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CPreIncOp exp
 
-translateExp unit (PreDecrement' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PreDecrement' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CPostDecOp exp
 
-translateExp unit (PrePlus' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PrePlus' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CPlusOp exp
 
-translateExp unit (PreMinus' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PreMinus' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CMinOp exp
 
-translateExp unit (PreBitCompl' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PreBitCompl' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CCompOp exp
 
-translateExp unit (PreNot' exp')
-    = let exp = translateExp unit exp'
+translateExp unit locals (PreNot' exp')
+    = let exp = translateExp unit locals exp'
        in cUnary CNegOp exp
 
-translateExp unit (BinOp' exp1' op' exp2')
+translateExp unit locals (BinOp' exp1' op' exp2')
     = let op   = case op' of
                     Mult'   -> CMulOp; Div'     -> CDivOp; Rem'    -> CRmdOp
                     Add'    -> CAddOp; Sub'     -> CSubOp; LShift' -> CShlOp
@@ -319,17 +346,17 @@ translateExp unit (BinOp' exp1' op' exp2')
                     Equal'  -> CEqOp ; NotEq'   -> CNeqOp; And'    -> CAndOp
                     Or'     -> COrOp ; Xor'     -> CXorOp; CAnd'   -> CLndOp
                     COr'    -> CLorOp
-          exp1 = translateExp unit exp1'
-          exp2 = translateExp unit exp2'
+          exp1 = translateExp unit locals exp1'
+          exp2 = translateExp unit locals exp2'
        in cBinary op exp1 exp2 
 
-translateExp unit (Cond' guard' exp1' exp2')
-    = let guard = translateExp unit guard'
-          exp1  = translateExp unit exp1'
-          exp2  = translateExp unit exp2'
+translateExp unit locals (Cond' guard' exp1' exp2')
+    = let guard = translateExp unit locals guard'
+          exp1  = translateExp unit locals exp1'
+          exp2  = translateExp unit locals exp2'
        in cCond guard exp1 exp2 
 
-translateExp unit (Assign' lhs' op' exp') 
+translateExp unit locals (Assign' lhs' op' exp') 
     = let op  = case op' of 
                     EqualA'   -> CAssignOp; MultA'   -> CMulAssOp
                     DivA'     -> CDivAssOp; RemA'    -> CRmdAssOp
@@ -337,16 +364,16 @@ translateExp unit (Assign' lhs' op' exp')
                     LShiftA'  -> CShlAssOp; RShiftA' -> CShrAssOp
                     RRShiftA' -> CShrAssOp; AndA'    -> CAndAssOp
                     XorA'     -> CXorAssOp; OrA'     -> COrAssOp
-          lhs = translateLhs unit lhs'
-          exp = translateExp unit exp'
+          lhs = translateLhs unit locals lhs'
+          exp = translateExp unit locals exp'
        in cAssign op lhs exp
 
-translateLhs :: CompilationUnit' -> Lhs' -> CExpr
-translateLhs _ (Name' [name'])
+translateLhs :: CompilationUnit' -> LocalDeclarations -> Lhs' -> CExpr
+translateLhs _ _ (Name' [name'])
     = cVar (cIdent name')
 
-translateLhs unit (Field' (PrimaryFieldAccess' exp' field'))
-    = let exp   = translateExp unit exp'
+translateLhs unit locals (Field' (PrimaryFieldAccess' exp' field'))
+    = let exp   = translateExp unit locals exp'
           field = cIdent field'
        in cMember exp field
 

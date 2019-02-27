@@ -4,7 +4,6 @@ import Text.PrettyPrint
 import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
-import Analysis.CFG     (Scope)
 
 --type ScopedStmt = (Name', Stmt')
 

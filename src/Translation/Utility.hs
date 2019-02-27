@@ -90,6 +90,11 @@ cCompoundStat :: [CBlockItem] -> CStat
 cCompoundStat stats
     = CCompound [] stats noInfo
 
+-- | Construct a C block statement from a statement.
+cBlockStat :: CStat -> CBlockItem
+cBlockStat 
+    = CBlockStmt
+
 -- | Create a C variable declaration statement.
 cVarDeclStat :: CDecl -> CBlockItem
 cVarDeclStat 

@@ -1,20 +1,19 @@
 class Main {
     public static void main() {
-        Test x = new Test(10);
+        Test obj = new Test();
 
-        assert x.getX() == 10;
-    }
-
-    public static int id(int x) {
-        return x;
+        for (int i = 0; i < 3; i++) {
+            obj.setX(i);
+            assert obj.getX() == i;
+        }
     }
 }
 
 class Test {
     private int x;
 
-    public Test(int x) {
-        this.x = x;
+    public Test() {
+        
     }
     
     public int getX() {

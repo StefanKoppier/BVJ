@@ -16,15 +16,11 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 -- Control Flow Graph
 --------------------------------------------------------------------------------
 
-data Scope = Scope {
-       scopePackage :: Maybe Name'
-     , scopeClass   :: String
-     , scopeMember  :: String
-     } deriving (Show, Eq, Ord)
-
 data CFGNodeValue 
-    = Block CompoundStmt'
-    | Call  Scope        
+    = Block CompoundStmt' -- ^ THe statement of the node.
+    | Call  Scope         -- ^ The method that is being called.
+            Node          -- ^ The node containing the statement this call belongs to
+            Name'         -- ^ The method invocation this call belongs to.
     | Entry Scope
     | Exit  Scope
     deriving (Show, Eq)

@@ -1,12 +1,11 @@
 module Auxiliary.Arguments(
-      module Analysis.CFG
+      module Parsing.Syntax
     , Arguments(..)
     , defaultArgs
 ) where
     
 import Auxiliary.Verbosity
-import Parsing.Syntax
-import Analysis.CFG (Scope(..))
+import Parsing.Syntax      (Scope(..))
 
 data Arguments = Arguments {
       method                   :: Scope
