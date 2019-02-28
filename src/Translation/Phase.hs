@@ -290,29 +290,19 @@ translateExp unit locals (MethodInv' (MethodCall' [name'] args'))
           args = map (translateExp unit locals) args'
        in cCall name args
 
+translateExp unit locals (MethodInv' (PrimaryMethodCall' exp' name' args'))
+    = let exp  = translateExp unit locals exp'
+          args = exp : map (translateExp unit locals) args'
+          name = cIdent name'
+       in cCall name args
+
 translateExp unit locals (ArrayAccess' name' [index'])
     = let name  = cIdent name'
           index = translateExp unit locals index'
        in cIndex name index
 
--- TODO: implement the static field case.
 translateExp unit locals (ExpName' name')
     = translateExpName unit locals name'
-{-
--- Case: the variable is a local variable.
-    | name' `elem` locals = cVar (cIdent name') 
-    
--- Case: the variable is a non-static field of the class.
---    | True = cMember cThis (cIdent name')
-
--- Case: the variable is a static field of the class.
-    | False = undefined
-
--- ["obj", "var"]
-translateExp unit locals (ExpName' (var':names'))
-    | var' `elem` locals 
-        = undefined
--}
 
 translateExp unit locals (PostIncrement' exp')
     = let exp = translateExp unit locals exp'

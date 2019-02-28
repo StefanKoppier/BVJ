@@ -4,6 +4,8 @@ import           Analysis.CFG
 import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Parsing.Utility
+
+import Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
@@ -465,10 +467,18 @@ getScopeOfCreation _ package _ _ (InstanceCreation' (ClassType' [name]) args)
 
 getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> String
 getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args))
-    = let scope            = getScopeOfInvocation unit package className types name
-          (Just method)    = getMethod unit scope
-          (Just (Just ty)) = getReturnTypeOfMethod method
-          (RefType' (ClassRefType' (ClassType' [resultName]))) = ty
+    = let scope                       = getScopeOfInvocation unit package className types name
+          (Just method)               = getMethod unit scope
+          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
+          [resultName]                = nameOfRefType ty
+       in resultName
+
+getResultClassNameOfInvocation unit package className types (MethodInv' (PrimaryMethodCall' e name args))
+    = let innerclassName              = getResultClassNameOfInvocation unit package className types e
+          innerScope                  = Scope Nothing innerclassName name
+          (Just method)               = trace (show innerScope) (getMethod unit innerScope)
+          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
+          [resultName]                = nameOfRefType ty
        in resultName
 
 getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope

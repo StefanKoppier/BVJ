@@ -69,7 +69,6 @@ paths (history, manipulations, callStack, ps, k) graph@CFG{cfg} (_,node, Call me
     = let callNumber     = history M.! method
           history'       = M.insert method (callNumber + 1) history
           newName        = renameMethodName method callNumber
-          -- TODO: implement the undefined
           manipulations' = insertManipulation statNode name (method, callNumber) manipulations
           callStack'     = S.push (method, newName, node + 1) callStack
           acc'           = (history', manipulations', callStack', ps, k)

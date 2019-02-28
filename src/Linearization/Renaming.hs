@@ -13,6 +13,8 @@ import           Parsing.Syntax
 import           Analysis.Pretty                 ()
 import           Auxiliary.Pretty 
 
+import Debug.Trace
+
 type StmtManipulations = M.Map G.Node RenamingOperations
 
 type RenamingOperations = M.Map Name' (Scope, Int)
@@ -125,12 +127,25 @@ renameExp ops (InstanceCreation' (ClassType' name) args)
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, InstanceCreation' (ClassType' name') args')
 
-renameExp ops (MethodInv' (MethodCall' name args))
+renameExp ops (MethodInv' inv)
+    = let (ops1, inv') = renameInvocation ops inv
+       in (ops1, MethodInv' inv')
+
+renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
+renameInvocation ops (MethodCall' name args) 
     = let (scope, callNumber) = ops M.! name
           ops1                = M.delete name ops
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
-       in (ops2, MethodInv' (MethodCall' name' args'))
+       in (ops2, MethodCall' name' args')
+
+renameInvocation ops (PrimaryMethodCall' exp name args)
+    = let (scope, callNumber) = ops M.! [name]
+          ops1                = M.delete [name] ops
+          [name']             = renameMethodCall [name] scope callNumber
+          (ops2, args')       = mapAccumL renameExp ops1 args
+          (ops3, exp')        = renameExp ops2 exp
+       in (ops3, PrimaryMethodCall' exp' name' args')
 
 renameLhs :: RenamingOperations -> Lhs' -> (RenamingOperations, Lhs')
 renameLhs ops name@(Name' _) = (ops, name)

@@ -1,28 +1,28 @@
 class Main {
     public static void main() {
-        Test obj = new Test();
-        int x = obj.getVar().getX();
+        A obj = null;
+        int x = obj.getB().getC().getInt();
     }
 }
 
-class Test2 {
-    public Test2() {
+class A {
+    private B value;
 
+    public B getB() {
+        return value;
     }
+}
 
-    public int getX() {
+class B {
+    private C value;
+
+    public C getC() {
+        return value;
+    }
+}
+
+class C {
+    public int getInt() {
         return 0;
-    }
-}
-
-class Test {
-    public Test2 var;
-
-    public Test() {
-        
-    }
-
-    public Test2 getVar() {
-        return var;
     }
 }

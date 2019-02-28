@@ -45,6 +45,9 @@ nameOfParam (FormalParam' _ _ (VarId' name)) = name
 namesOfDecls :: VarDecls' -> [String]
 namesOfDecls = map nameOfDecl
 
+nameOfRefType :: RefType' -> Name'
+nameOfRefType (ClassRefType' ty) = nameOfClassType ty
+
 nameOfClassType :: ClassType' -> Name'
 nameOfClassType (ClassType' name) = name
 
