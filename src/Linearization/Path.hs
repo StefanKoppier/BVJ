@@ -5,8 +5,6 @@ import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
 
---type ScopedStmt = (Name', Stmt')
-
 type PathStmt = (Stmt', PathStmtInfo)
 
 data PathStmtInfo = PathStmtInfo {
@@ -18,9 +16,6 @@ data PathStmtInfo = PathStmtInfo {
 type ProgramPath = [PathStmt]
 
 type ProgramPaths = [ProgramPath]
-
---instance Pretty ScopedStmt where
---    pretty (scope, stmt) = parens (dots scope <> comma <> pretty stmt)
 
 instance Pretty PathStmt where
     pretty (s,_) = pretty s

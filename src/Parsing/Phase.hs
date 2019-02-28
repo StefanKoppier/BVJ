@@ -9,6 +9,8 @@ import Parsing.Utility
 import Auxiliary.Phase
 import Auxiliary.Pretty
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- Parsing phase
 --------------------------------------------------------------------------------
@@ -33,7 +35,7 @@ transformCompilationUnit (CompilationUnit p _ dls)
     = CompilationUnit' <$> transformPackageDecl p <*> mapM transformTypeDecl dls
 
 transformPackageDecl :: Maybe PackageDecl -> PhaseResult (Maybe Name')
-transformPackageDecl Nothing                = return Nothing
+transformPackageDecl Nothing                = pure Nothing
 transformPackageDecl (Just (PackageDecl n)) = Just <$> transformName n
 
 transformTypeDecl :: TypeDecl -> PhaseResult TypeDecl'
@@ -42,7 +44,7 @@ transformTypeDecl (InterfaceTypeDecl _) = syntacticalError "interface declaratio
     
 transformClassDecl :: ClassDecl -> PhaseResult ClassDecl'
 transformClassDecl (ClassDecl ms (Ident n) [] Nothing [] (ClassBody ds)) 
-    = ClassDecl' <$> transformModifiers ms <*> return n <*> mapM transformDecl ds
+    = ClassDecl' <$> transformModifiers ms <*> pure n <*> mapM transformDecl ds
 transformClassDecl ClassDecl{}                              
     = syntacticalError "inheritance or generics"
 transformClassDecl EnumDecl{}
@@ -56,11 +58,11 @@ transformMemberDecl :: MemberDecl -> PhaseResult MemberDecl'
 transformMemberDecl (FieldDecl ms ty vs) 
     = FieldDecl' <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty vs
 transformMemberDecl (MethodDecl ms [] ty (Ident n) ps [] _ b)
-    = MethodDecl' <$> transformModifiers ms <*> transformMaybeType ty <*> return n <*> transformParams ps <*> transformMethodBody b
+    = MethodDecl' <$> transformModifiers ms <*> transformMaybeType ty <*> pure n <*> transformParams ps <*> transformMethodBody b
 transformMemberDecl MethodDecl{}
     = syntacticalError "generics or exception"
 transformMemberDecl (ConstructorDecl ms [] (Ident n) ps [] b)
-    = ConstructorDecl' <$> transformModifiers ms <*> return n <*> transformParams ps <*> transformConstructorBody b
+    = ConstructorDecl' <$> transformModifiers ms <*> pure n <*> transformParams ps <*> transformConstructorBody b
 transformMemberDecl ConstructorDecl{}
     = syntacticalError "generics or exception"
 transformMemberDecl (MemberClassDecl _)
@@ -90,7 +92,7 @@ transformMethodBody (MethodBody Nothing)
     = syntacticalError "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
-transformBlock (Block [])     = return emptyStmt
+transformBlock (Block [])     = pure emptyStmt
 transformBlock (Block [s])    = transformBlockStmt s
 transformBlock (Block (s:ss)) = Seq' <$> transformBlockStmt s <*> transformBlock (Block ss)
 
@@ -106,12 +108,12 @@ transformModifiers :: [Modifier] -> PhaseResult [Modifier']
 transformModifiers = mapM transformModifier
 
 transformModifier :: Modifier -> PhaseResult Modifier'
-transformModifier Public        = return Public'
-transformModifier Private       = return Private'
-transformModifier Protected     = return Protected'
+transformModifier Public        = pure Public'
+transformModifier Private       = pure Private'
+transformModifier Protected     = pure Protected'
 transformModifier Abstract      = syntacticalError "abstract modifier"
-transformModifier Final         = return Final'
-transformModifier Static        = return Static'
+transformModifier Final         = pure Final'
+transformModifier Static        = pure Static'
 transformModifier StrictFP      = syntacticalError "strictfp modifier"
 transformModifier Transient     = syntacticalError "transient modifier"
 transformModifier Volatile      = syntacticalError "volatile modifier"
@@ -120,17 +122,17 @@ transformModifier Synchronized_ = syntacticalError "synchronized modifier"
 
 transformMaybeType :: Maybe Type -> PhaseResult (Maybe Type')
 transformMaybeType (Just ty) = Just <$> transformType ty
-transformMaybeType Nothing   = return Nothing
+transformMaybeType Nothing   = pure Nothing
 
 transformType :: Type -> PhaseResult Type'
-transformType (PrimType BooleanT) = return $ PrimType' BooleanT'
-transformType (PrimType ByteT)    = return $ PrimType' ByteT'
-transformType (PrimType ShortT)   = return $ PrimType' ShortT'
-transformType (PrimType IntT)     = return $ PrimType' IntT'
-transformType (PrimType LongT)    = return $ PrimType' LongT'
-transformType (PrimType CharT)    = return $ PrimType' CharT'
-transformType (PrimType FloatT)   = return $ PrimType' FloatT'
-transformType (PrimType DoubleT)  = return $ PrimType' DoubleT'
+transformType (PrimType BooleanT) = pure $ PrimType' BooleanT'
+transformType (PrimType ByteT)    = pure $ PrimType' ByteT'
+transformType (PrimType ShortT)   = pure $ PrimType' ShortT'
+transformType (PrimType IntT)     = pure $ PrimType' IntT'
+transformType (PrimType LongT)    = pure $ PrimType' LongT'
+transformType (PrimType CharT)    = pure $ PrimType' CharT'
+transformType (PrimType FloatT)   = pure $ PrimType' FloatT'
+transformType (PrimType DoubleT)  = pure $ PrimType' DoubleT'
 transformType (RefType ty)        = RefType' <$> transformRefType ty
 
 transformRefType :: RefType -> PhaseResult RefType'
@@ -138,7 +140,7 @@ transformRefType (ClassRefType ty) = ClassRefType' <$> transformClassType ty
 transformRefType (ArrayType ty)    = ArrayType'    <$> transformType ty
 
 transformClassType :: ClassType -> PhaseResult ClassType'
-transformClassType (ClassType tys) = ClassType' <$> return [i | (Ident i) <- map fst tys]
+transformClassType (ClassType tys) = ClassType' <$> pure [i | (Ident i) <- map fst tys]
 
 transformVarDecls :: Type -> [VarDecl] -> PhaseResult [VarDecl']
 transformVarDecls ty = mapM (transformVarDecl ty)
@@ -148,7 +150,7 @@ transformVarDecl ty (VarDecl id Nothing)     = VarDecl' <$> transformVarDeclId i
 transformVarDecl _  (VarDecl id (Just init)) = VarDecl' <$> transformVarDeclId id <*> transformVarInit init
 
 transformVarDeclId :: VarDeclId -> PhaseResult VarDeclId'
-transformVarDeclId (VarId (Ident n)) = return $ VarId' n
+transformVarDeclId (VarId (Ident n)) = pure $ VarId' n
 transformVarDeclId (VarDeclArray _)  = syntacticalError "array typed declaration"
 
 transformVarInit :: VarInit -> PhaseResult VarInit'
@@ -156,19 +158,19 @@ transformVarInit (InitExp e)                = InitExp' <$> transformExp e
 transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just <$> mapM transformVarInit is
 
 defaultInit :: Type -> PhaseResult VarInit'
-defaultInit (PrimType BooleanT) = (return . InitExp' . Lit' . Boolean') False
-defaultInit (PrimType ByteT)    = (return . InitExp' . Lit' . Int') 0 
-defaultInit (PrimType ShortT)   = (return . InitExp' . Lit' . Int') 0 
-defaultInit (PrimType IntT)     = (return . InitExp' . Lit' . Int') 0 
-defaultInit (PrimType LongT)    = (return . InitExp' . Lit' . Int') 0 
-defaultInit (PrimType CharT)    = (return . InitExp' . Lit' . Char') '\0'
-defaultInit (PrimType FloatT)   = (return . InitExp' . Lit' . Float') 0.0
-defaultInit (PrimType DoubleT)  = (return . InitExp' . Lit' . Double') 0.0
+defaultInit (PrimType BooleanT) = (pure . InitExp' . Lit' . Boolean') False
+defaultInit (PrimType ByteT)    = (pure . InitExp' . Lit' . Int') 0 
+defaultInit (PrimType ShortT)   = (pure . InitExp' . Lit' . Int') 0 
+defaultInit (PrimType IntT)     = (pure . InitExp' . Lit' . Int') 0 
+defaultInit (PrimType LongT)    = (pure . InitExp' . Lit' . Int') 0 
+defaultInit (PrimType CharT)    = (pure . InitExp' . Lit' . Char') '\0'
+defaultInit (PrimType FloatT)   = (pure . InitExp' . Lit' . Float') 0.0
+defaultInit (PrimType DoubleT)  = (pure . InitExp' . Lit' . Double') 0.0
 defaultInit (RefType ty)        = defaultRefInit ty
 
 defaultRefInit :: RefType -> PhaseResult VarInit'
-defaultRefInit (ArrayType    _) = (return . InitArray') Nothing
-defaultRefInit (ClassRefType _) = syntacticalError "default class type init"
+defaultRefInit (ArrayType    _) = (pure . InitArray') Nothing
+defaultRefInit (ClassRefType _) = pure (InitExp' (Lit' Null'))
 
 transformMaybeIdent :: Maybe Ident -> Maybe String
 transformMaybeIdent (Just (Ident x)) = Just x
@@ -184,22 +186,22 @@ transformStmt = foldStmt alg
               , \ g s       -> While' Nothing <$> transformExp g <*> s
               , \ i g u s   -> do
                     s' <- s
-                    i' <- maybe (return emptyStmt) (\ (ForLocalVars ms ty ds) -> (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds) i
-                    u' <- maybe (return emptyStmt) (fmap (foldr (\ e -> Seq' (Stmt' $ ExpStmt' e)) emptyStmt) . mapM transformExp) u
-                    g' <- maybe ((return . Lit' . Boolean') True) transformExp g
+                    i' <- maybe (pure emptyStmt) (\ (ForLocalVars ms ty ds) -> (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds) i
+                    u' <- maybe (pure emptyStmt) (fmap (foldr (\ e -> Seq' (Stmt' $ ExpStmt' e)) emptyStmt) . mapM transformExp) u
+                    g' <- maybe ((pure . Lit' . Boolean') True) transformExp g
                     let while = While' Nothing g' (Seq' s' u')
-                    return $ Block' $ Seq' i' (Seq' while emptyStmt)
+                    pure $ Block' $ Seq' i' (Seq' while emptyStmt)
               , \ m t i g s -> syntacticalError "for (iterator)"
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp
               , \ g -> \case Just m  -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformExpToString m --transformExp m
-                             Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> return ""
+                             Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> pure ""
               , \ e bs      -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
               , \ s e       -> syntacticalError "do"
               ,                compound . Break' . transformMaybeIdent
               ,                compound . Continue' . transformMaybeIdent
               , \case (Just e) -> Stmt' . ReturnExp' <$> transformExp e
-                      Nothing  -> return (Stmt' Return')
+                      Nothing  -> pure (Stmt' Return')
               , \ e s       -> syntacticalError "synchronized"
               , \ e         -> syntacticalError "throw"
               , \ b c f     -> syntacticalError "try catch (finally)"
@@ -215,8 +217,8 @@ transformSwitchBlock (SwitchBlock Default s)
     = SwitchBlock' Nothing <$> transformBlock (Block s)
 
 transformExpToString :: Exp -> PhaseResult String
-transformExpToString (Lit (String string)) = return string
-transformExpToString e                     = (return . prettyPrint) e
+transformExpToString (Lit (String string)) = pure string
+transformExpToString e                     = pure (prettyPrint e)
 
 transformExps :: [Exp] -> PhaseResult [Exp']
 transformExps = mapM transformExp
@@ -227,21 +229,19 @@ transformExp = foldExp alg
         alg :: ExpAlgebra (PhaseResult Exp')
         alg = ExpAlgebra {
           lit  = fmap Lit' . transformLiteral
-        , this = return This'
+        , this = pure This'
         , thisClass = \ _
             -> syntacticalError "this class"
         , instanceCreation = transformInstanceCreation
         , qualInstanceCreation = \ _ _ _ _ _ 
             -> syntacticalError "qual instance creation"
         , arrayCreate = \ ty es 0
-            -> ArrayCreate' <$> transformType ty <*> sequence es <*> return 0
+            -> ArrayCreate' <$> transformType ty <*> sequence es <*> pure 0
         , arrayCreateInit = \ _ _ _
             -> syntacticalError "array creation"
         , fieldAccess = \ _
             -> syntacticalError "field access"
-        , methodInv = \case
-            (MethodCall n as) -> (\ n' -> MethodInv' . MethodCall' n') <$> transformName n <*> transformExps as
-            _                 -> syntacticalError "method invocation"
+        , methodInv = fmap MethodInv' . transformMethodInvocation
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
             -> ArrayAccess' n <$> mapM transformExp es
         , expName = fmap ExpName' . transformName
@@ -277,15 +277,22 @@ transformExp = foldExp alg
             -> syntacticalError "method ref"
         }
 
+transformMethodInvocation :: MethodInvocation -> PhaseResult MethodInvocation'
+transformMethodInvocation (MethodCall n args) 
+    = MethodCall' <$> transformName n <*> transformExps args
+transformMethodInvocation (PrimaryMethodCall e [] (Ident name) args)
+    = PrimaryMethodCall' <$> transformExp e <*> pure name <*> transformExps args
+transformMethodInvocation PrimaryMethodCall{} = syntacticalError "generics"
+
 transformName :: Name -> PhaseResult Name'
-transformName (Name ns) = return [n | (Ident n) <- ns]
+transformName (Name ns) = pure [n | (Ident n) <- ns]
 
 transformLhs :: Lhs -> PhaseResult Lhs'
 transformLhs (NameLhs name) = Name' <$> transformName name
 transformLhs (FieldLhs (PrimaryFieldAccess e (Ident field)))
-    = (\ e' -> Field' . PrimaryFieldAccess' e') <$> transformExp e <*> return field
+    = (\ e' -> Field' . PrimaryFieldAccess' e') <$> transformExp e <*> pure field
 transformLhs (FieldLhs (ClassFieldAccess ty (Ident name)))
-    = (\ ty' -> Field' . ClassFieldAccess' ty') <$> transformName ty <*> return name
+    = (\ ty' -> Field' . ClassFieldAccess' ty') <$> transformName ty <*> pure name
 transformLhs (FieldLhs (SuperFieldAccess _))
     = syntacticalError "field access of super class"
 transformLhs (ArrayLhs _)   = syntacticalError "array lhs"
@@ -298,51 +305,51 @@ transformInstanceCreation [] (TypeDeclSpecifier ty) args Nothing
 transformInstanceCreation _ s _ _ = syntacticalError "generics"
 
 transformOp:: Op -> PhaseResult Op'
-transformOp Mult    = return Mult'
-transformOp Div     = return Div'
-transformOp Rem     = return Rem'
-transformOp Add     = return Add'
-transformOp Sub     = return Sub'
-transformOp LShift  = return LShift'
-transformOp RShift  = return RShift'
-transformOp RRShift = return RRShift'
-transformOp LThan   = return LThan'
-transformOp GThan   = return GThan'
-transformOp LThanE  = return LThanE'
-transformOp GThanE  = return GThanE'
-transformOp Equal   = return Equal'
-transformOp NotEq   = return NotEq'
-transformOp And     = return And'
-transformOp Or      = return Or'
-transformOp Xor     = return Xor'
-transformOp CAnd    = return CAnd'
-transformOp COr     = return COr'
+transformOp Mult    = pure Mult'
+transformOp Div     = pure Div'
+transformOp Rem     = pure Rem'
+transformOp Add     = pure Add'
+transformOp Sub     = pure Sub'
+transformOp LShift  = pure LShift'
+transformOp RShift  = pure RShift'
+transformOp RRShift = pure RRShift'
+transformOp LThan   = pure LThan'
+transformOp GThan   = pure GThan'
+transformOp LThanE  = pure LThanE'
+transformOp GThanE  = pure GThanE'
+transformOp Equal   = pure Equal'
+transformOp NotEq   = pure NotEq'
+transformOp And     = pure And'
+transformOp Or      = pure Or'
+transformOp Xor     = pure Xor'
+transformOp CAnd    = pure CAnd'
+transformOp COr     = pure COr'
 
 transformAssignOp:: AssignOp -> PhaseResult AssignOp'
-transformAssignOp EqualA   = return EqualA'
-transformAssignOp MultA    = return MultA'
-transformAssignOp DivA     = return DivA'
-transformAssignOp RemA     = return RemA'
-transformAssignOp AddA     = return AddA'
-transformAssignOp SubA     = return SubA'
-transformAssignOp LShiftA  = return LShiftA'
-transformAssignOp RShiftA  = return RShiftA'
-transformAssignOp RRShiftA = return RRShiftA'
-transformAssignOp AndA     = return AndA'
-transformAssignOp XorA     = return XorA'
-transformAssignOp OrA      = return OrA'
+transformAssignOp EqualA   = pure EqualA'
+transformAssignOp MultA    = pure MultA'
+transformAssignOp DivA     = pure DivA'
+transformAssignOp RemA     = pure RemA'
+transformAssignOp AddA     = pure AddA'
+transformAssignOp SubA     = pure SubA'
+transformAssignOp LShiftA  = pure LShiftA'
+transformAssignOp RShiftA  = pure RShiftA'
+transformAssignOp RRShiftA = pure RRShiftA'
+transformAssignOp AndA     = pure AndA'
+transformAssignOp XorA     = pure XorA'
+transformAssignOp OrA      = pure OrA'
 
 transformLiteral :: Literal -> PhaseResult Literal'
-transformLiteral (Int     v) = return $ Int'     v
-transformLiteral (Float   v) = return $ Float'   (realToFrac v)
-transformLiteral (Double  v) = return $ Double'  (realToFrac v)
-transformLiteral (Boolean v) = return $ Boolean' v
-transformLiteral (Char    v) = return $ Char'    v
-transformLiteral (String  v) = return $ String'  v
-transformLiteral Null        = return Null'
+transformLiteral (Int     v) = pure $ Int'     v
+transformLiteral (Float   v) = pure $ Float'   (realToFrac v)
+transformLiteral (Double  v) = pure $ Double'  (realToFrac v)
+transformLiteral (Boolean v) = pure $ Boolean' v
+transformLiteral (Char    v) = pure $ Char'    v
+transformLiteral (String  v) = pure $ String'  v
+transformLiteral Null        = pure Null'
 
 emptyStmt :: CompoundStmt'
 emptyStmt = Stmt' Empty'
 
 compound :: Stmt' -> PhaseResult CompoundStmt'
-compound = return . Stmt'
+compound = pure . Stmt'

@@ -8,9 +8,9 @@ import Control.Concurrent.Async
 import System.Directory
 import System.IO
 import Auxiliary.Phase
-import Translation.Phase
 import Translation.Program
 import Verification.Result
+import Translation.Pretty
 
 verificationPhase :: Phase Programs VerificationResults
 verificationPhase args@Arguments{keepOutputFiles} programs = do

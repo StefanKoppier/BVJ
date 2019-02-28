@@ -267,13 +267,18 @@ deriving Lhs' : Eq, Show
 data FieldAccess'
     | PrimaryFieldAccess'   exp   :: Exp'
                             field :: {String}
+                            
     | ClassFieldAccess'     ty    :: Name'
                             field :: {String}
 deriving FieldAccess' : Eq, Show
 
 data MethodInvocation'
-    | MethodCall'   name :: Name'
-                    args :: Exps'
+    | MethodCall'        name :: Name'
+                         args :: Exps'
+
+    | PrimaryMethodCall' exp  :: Exp'
+                         name :: {String}
+                         args :: Exps'
 deriving MethodInvocation' : Eq, Show
 
 --------------------------------------------------------------------------------

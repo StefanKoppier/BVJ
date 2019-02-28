@@ -15,8 +15,6 @@ import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-import Debug.Trace
-
 linearizationPhase :: Phase CFG ProgramPaths
 linearizationPhase Arguments{maximumDepth, method} graph@CFG{cfg} = do
     newEitherT $ printHeader "3. LINEARIZATION"

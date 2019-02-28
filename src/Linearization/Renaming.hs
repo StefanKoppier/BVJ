@@ -13,8 +13,6 @@ import           Parsing.Syntax
 import           Analysis.Pretty                 ()
 import           Auxiliary.Pretty 
 
-import Debug.Trace
-
 type StmtManipulations = M.Map G.Node RenamingOperations
 
 type RenamingOperations = M.Map Name' (Scope, Int)
@@ -38,8 +36,7 @@ renameMethodName (Scope scopePackage scopeClass scopeMember) callNumber
 -- TODO: add package name to newCallName.
 renameMethodCall :: Name' -> Scope -> Int -> Name'
 renameMethodCall name s@(Scope scopePackage scopeClass scopeMember) callNumber
-    = trace (show name ++ "--" ++ show s ++ "--" ++ show callNumber) 
-        changeLast newCallName name
+    = changeLast newCallName name
     where
         newCallName = scopeClass ++ "_" ++ scopeMember ++ "$" ++ show callNumber
 
@@ -48,7 +45,6 @@ changeLast x [_]    = [x]
 changeLast x (v:xs) = v : changeLast x xs 
 
 renameStmt :: RenamingOperations -> Stmt' -> (RenamingOperations, Stmt')
---renameStmt [] s = ([], s)
 renameStmt ops (Decl' ms ty vars)
     = let (ops1, vars') = mapAccumL renameVarDecl ops vars
        in (ops1, Decl' ms ty vars')

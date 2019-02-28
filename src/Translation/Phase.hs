@@ -53,14 +53,14 @@ translateCall unit path
 
 translateConstructorCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
 translateConstructorCall unit callName methodDecl path
-    = let returns   = translateType unit methodType
-          name      = cIdent callName
-          params    = translateParams unit methodParams
-          preStats  = cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
-          postStats = cReturnStat (Just cThis)
-          stats     = cBlockStat $ translateStmts unit paramNames (map (transformReturnToReturnThis . fst) path)
-          body      = cCompoundStat [preStats, stats, postStats]
-       in cFunction returns name [params, cPointer] body
+    = let (returns, declrs) = translateType unit methodType
+          name              = cIdent callName
+          params            = translateParams unit methodParams
+          preStats          = cVarDeclStat (cDecl returns [(cDeclr cThisIdent [cPointer], Just (cExpInit (cCall (cIdent ("allocator_" ++ methodName)) [])))])
+          postStats         = cReturnStat (Just cThis)
+          stats             = cBlockStat $ translateStmts unit paramNames (map (transformReturnToReturnThis . fst) path)
+          body              = cCompoundStat [preStats, stats, postStats]
+       in cFunction returns name (params : declrs) body
     where
         (PathStmtInfo callName scope@(Scope _ _ scopeMember)) = snd . head $ path
         methodName   = scopeMember
@@ -74,12 +74,11 @@ transformReturnToReturnThis s       = s
 
 translateMethodCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
 translateMethodCall unit callName methodDecl path
-    = let returns = translateType unit methodType
-          name    = cIdent callName
-          params  = translateParams unit methodParams
-          body    = translateStmts unit paramNames (map fst path)
-          declr   = params : [cPointer | isRefType methodType]
-      in cFunction returns name declr body
+    = let (returns, declrs) = translateType unit methodType
+          name              = cIdent callName
+          params            = translateParams unit methodParams
+          body              = translateStmts unit paramNames (map fst path)
+      in cFunction returns name (params : declrs) body
     where
         (PathStmtInfo callName scope) = snd . head $ path
         (Scope _ scopeClass scopeMember) = scope
@@ -98,9 +97,8 @@ translateParams unit params
 
 translateParam :: CompilationUnit' -> FormalParam' -> CDecl
 translateParam unit (FormalParam' _ ty' (VarId' name)) 
-    = let ty     = translateType unit (Just ty')
-          declrs = [cPointer | isRefType (Just ty')]
-          var    = (cDeclr (cIdent name) declrs, Nothing)
+    = let (ty, declrs) = translateType unit (Just ty')
+          var          = (cDeclr (cIdent name) declrs, Nothing)
        in cDecl ty [var]
 
 translateClass :: CompilationUnit' -> ClassDecl' -> [CExtDecl]
@@ -121,9 +119,9 @@ translateField unit (FieldDecl' _ ty' vars')
           decls = map (translateFieldDecl unit ty) vars'
        in decls
 
-translateFieldDecl :: CompilationUnit' -> CTypeSpec -> VarDecl' -> CDecl
-translateFieldDecl _ ty (VarDecl' (VarId' name') _)
-    = cDecl ty [(cDeclr (cIdent name') [], Nothing)]
+translateFieldDecl :: CompilationUnit' -> (CTypeSpec, [CDerivedDeclr]) -> VarDecl' -> CDecl
+translateFieldDecl _ (ty, declrs) (VarDecl' (VarId' name') _)
+    = cDecl ty [(cDeclr (cIdent name') declrs, Nothing)]
 
 translateStaticField :: CompilationUnit' -> ClassDecl' -> MemberDecl' -> [CExtDecl]
 translateStaticField unit classDecl (FieldDecl' _ ty' vars')
@@ -131,20 +129,20 @@ translateStaticField unit classDecl (FieldDecl' _ ty' vars')
        
 translateStaticFieldDecl :: CompilationUnit' -> Type' -> ClassDecl' -> VarDecl' -> CExtDecl
 translateStaticFieldDecl unit ty' (ClassDecl' _ name _) (VarDecl' (VarId' id) init')
-    = let ty      = translateType unit (Just ty')
-          renamed = VarDecl' (VarId' (name ++ "_" ++ id)) init'
-          decl    = translateVarDecl unit [] [cPointer | isRefType (Just ty')] renamed
+    = let (ty, declrs) = translateType unit (Just ty')
+          renamed      = VarDecl' (VarId' (name ++ "_" ++ id)) init'
+          decl         = translateVarDecl unit [] declrs renamed
        in cDeclExt (cDecl ty [decl])
 
 translateStructAllocator :: CompilationUnit' -> ClassDecl' -> CExtDecl
 translateStructAllocator unit classDecl@(ClassDecl' _ name' _)
-    = let ty     = translateRefType unit (ClassRefType' (ClassType' [name']))
-          name   = cIdent ("allocator_" ++ name')
-          alloc  = cVarDeclStat (cDecl ty [(cDeclr cThisIdent [cPointer], Just (cExpInit (cMalloc (cSizeofType ty))))])
-          inits  = concatMap (translateFieldInitializer unit) nonStaticFields'
-          return = cReturnStat (Just cThis)
-          body   = cCompoundStat ([alloc] ++ inits ++ [return])
-       in cFunction ty name [cParams [], cPointer] body
+    = let (ty, declrs) = translateRefType unit (ClassRefType' (ClassType' [name']))
+          name         = cIdent ("allocator_" ++ name')
+          alloc        = cVarDeclStat (cDecl ty [(cDeclr cThisIdent [cPointer], Just (cExpInit (cMalloc (cSizeofType ty))))])
+          inits        = concatMap (translateFieldInitializer unit) nonStaticFields'
+          return       = cReturnStat (Just cThis)
+          body         = cCompoundStat ([alloc] ++ inits ++ [return])
+       in cFunction ty name (cParams [] : declrs) body
     where
         classFields'     = getFields classDecl
         nonStaticFields' = filter (not . isStatic) classFields'
@@ -175,8 +173,8 @@ translateStmts unit locals
 
 translateStmtAcc :: CompilationUnit' -> LocalDeclarations -> Stmt' -> (LocalDeclarations, CBlockItem)
 translateStmtAcc unit locals (Decl' _ ty' vars') 
-    = let ty   = translateType unit (Just ty')
-          vars = map (translateVarDecl unit locals [cPointer | isRefType (Just ty')]) vars'
+    = let (ty, declrs) = translateType unit (Just ty')
+          vars         = map (translateVarDecl unit locals declrs) vars'
        in (newLocals ++ locals, cVarDeclStat (cDecl ty vars))
     where
         newLocals = namesOfDecls vars'
@@ -231,22 +229,25 @@ translateVarInit unit locals (InitArray' (Just inits'))
 -- Types
 --------------------------------------------------------------------------------
 
-translateType :: CompilationUnit' -> Maybe Type' -> CTypeSpec
-translateType _ Nothing = cVoidType
+translateType :: CompilationUnit' -> Maybe Type' -> (CTypeSpec, [CDerivedDeclr])
+translateType _ Nothing = (cVoidType, [])
 
-translateType _ (Just (PrimType' ty))
-    = case ty of
-        BooleanT' -> cBoolType ; ByteT'   -> cByteType  ; ShortT' -> cShortType
-        IntT'     -> cIntType  ; LongT'   -> cLongType  ; CharT'  -> cCharType
-        FloatT'   -> cFloatType; DoubleT' -> cDoubleType
+translateType _ (Just (PrimType' ty'))
+    = (ty, [])
+    where
+        ty = case ty' of
+                BooleanT' -> cBoolType ; ByteT'   -> cByteType  
+                ShortT'   -> cShortType; IntT'    -> cIntType   
+                LongT'    -> cLongType ; CharT'   -> cCharType
+                FloatT'   -> cFloatType; DoubleT' -> cDoubleType
 
 translateType unit (Just (RefType' ty))
     = translateRefType unit ty
     
-translateRefType :: CompilationUnit' -> RefType' -> CTypeSpec
+translateRefType :: CompilationUnit' -> RefType' -> (CTypeSpec, [CDerivedDeclr])
 translateRefType _ (ClassRefType' (ClassType' [name']))
     = let name = cIdent name'
-       in cStructType name
+       in (cStructType name, [cPointer])
         
 --------------------------------------------------------------------------------
 -- Expressions
@@ -295,15 +296,23 @@ translateExp unit locals (ArrayAccess' name' [index'])
        in cIndex name index
 
 -- TODO: implement the static field case.
-translateExp unit locals (ExpName' [name'])
+translateExp unit locals (ExpName' name')
+    = translateExpName unit locals name'
+{-
 -- Case: the variable is a local variable.
-    | (name' `elem` locals) = cVar (cIdent name') 
+    | name' `elem` locals = cVar (cIdent name') 
     
 -- Case: the variable is a non-static field of the class.
-    | True = cMember cThis (cIdent name')
+--    | True = cMember cThis (cIdent name')
 
 -- Case: the variable is a static field of the class.
     | False = undefined
+
+-- ["obj", "var"]
+translateExp unit locals (ExpName' (var':names'))
+    | var' `elem` locals 
+        = undefined
+-}
 
 translateExp unit locals (PostIncrement' exp')
     = let exp = translateExp unit locals exp'
@@ -367,6 +376,17 @@ translateExp unit locals (Assign' lhs' op' exp')
           lhs = translateLhs unit locals lhs'
           exp = translateExp unit locals exp'
        in cAssign op lhs exp
+
+translateExpName :: CompilationUnit' -> LocalDeclarations -> Name' -> CExpr
+translateExpName unit locals [name']
+    -- Case: the name is a local variable.
+    | name' `elem` locals = cVar (cIdent name')
+
+    -- Case: the name is a field.
+    | otherwise = cMember cThis (cIdent name')
+
+--translateExpName unit locals names'
+--    = translateExpNames unit locals names'
 
 translateLhs :: CompilationUnit' -> LocalDeclarations -> Lhs' -> CExpr
 translateLhs _ _ (Name' [name'])

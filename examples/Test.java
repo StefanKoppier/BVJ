@@ -1,26 +1,28 @@
 class Main {
     public static void main() {
         Test obj = new Test();
+        int x = obj.getVar().getX();
+    }
+}
 
-        for (int i = 0; i < 3; i++) {
-            obj.setX(i);
-            assert obj.getX() == i;
-        }
+class Test2 {
+    public Test2() {
+
+    }
+
+    public int getX() {
+        return 0;
     }
 }
 
 class Test {
-    private int x;
+    public Test2 var;
 
     public Test() {
         
     }
-    
-    public int getX() {
-        return x;
-    }
 
-    public void setX(int x) {
-        this.x = x;
+    public Test2 getVar() {
+        return var;
     }
 }

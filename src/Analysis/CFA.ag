@@ -4,8 +4,6 @@ import           Analysis.CFG
 import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Parsing.Utility
-
-import Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
@@ -284,7 +282,6 @@ sem Stmt'
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
                     .continues = [block (new @lhs.label) (Stmt' @self)]
 
-    -- TODO: return calls not implemented yet.
     | ReturnExp'    lhs .label   = new @exp.label
                         .init    = if noNode == @exp.init
                                       then (block (new @exp.label) (Stmt' @self))
@@ -315,7 +312,8 @@ attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation'
     syn numberOfCalls use {+} {0}   :: {Int}
 
 sem MethodInvocation'
-    | MethodCall' lhs.numberOfCalls = 1 + @args.numberOfCalls
+    | MethodCall'        lhs.numberOfCalls = 1 + @args.numberOfCalls
+    | PrimaryMethodCall' lhs.numberOfCalls = 1 + @exp.numberOfCalls + @args.numberOfCalls
 
 sem Exp'
     | InstanceCreation' lhs.numberOfCalls = 1 + @args.numberOfCalls
@@ -387,15 +385,15 @@ sem Exp'
 
 sem MethodInvocation'
     | MethodCall' lhs.label  = new @args.label
-                     .init   = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                     .init   = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
                                     if noNode == @args.init
-                                        then call (new @args.label) scope @lhs.statNode @name
+                                        then call (new @args.label) scope @lhs.statNode @name.self
                                         else @args.init
-                     .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
-                                    [call (new @args.label) scope @lhs.statNode @name]
-                     .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
-                                    call (new @args.label) scope @lhs.statNode @name : @args.nodes
-                     .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name in
+                     .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
+                                    [call (new @args.label) scope @lhs.statNode @name.self]
+                     .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
+                                    call (new @args.label) scope @lhs.statNode @name.self : @args.nodes
+                     .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
                                     -- Inter edge from the call to the entry
                                     callEdge (new @args.label, scope) @lhs.methods
                                     : -- Inter edge from the exit to the next node
@@ -403,6 +401,32 @@ sem MethodInvocation'
                                     -- The edges of the call arguments.
                                     : @args.edges
                   args.label = @lhs.label
+
+    | PrimaryMethodCall' lhs .label = new @args.label
+                             .init  = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+                                          scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
+                                            if noNode == @exp.init
+                                                then if noNode == @args.init
+                                                        then call (new @args.label) scope @lhs.statNode [@name]
+                                                        else @args.init
+                                                else @exp.init
+                             .final = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+                                          scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
+                                            [call (new @args.label) scope @lhs.statNode [@name]]
+                             .nodes = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+                                          scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
+                                            call (new @args.label) scope @lhs.statNode [@name]
+                                            : @exp.nodes ++ @args.nodes
+                             .edges =  let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
+                                            -- Inter edge from the call to the entry
+                                            callEdge (new @args.label, scope) @lhs.methods
+                                            : -- Inter edge from the exit to the next node
+                                            returnEdge (scope, new (new @args.label)) @lhs.methods
+                                            -- The edges of the exp and call arguments.
+                                            : @exp.edges ++ @args.edges
+                         exp .label = @lhs.label
+                         args.label = @exp.label 
 
 sem VarDecls'
     | Cons      lhs.init  = if noNode == @hd.init then @tl.init else @hd.init
@@ -439,8 +463,16 @@ getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironme
 getScopeOfCreation _ package _ _ (InstanceCreation' (ClassType' [name]) args)
     = Scope package name name
 
+getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> String
+getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args))
+    = let scope            = getScopeOfInvocation unit package className types name
+          (Just method)    = getMethod unit scope
+          (Just (Just ty)) = getReturnTypeOfMethod method
+          (RefType' (ClassRefType' (ClassType' [resultName]))) = ty
+       in resultName
+
 getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope
-getScopeOfInvocation _ package className types [name]
+getScopeOfInvocation _ package className _ [name]
     = Scope package className name
 
 getScopeOfInvocation ast package className types (name:names)

@@ -224,6 +224,12 @@ instance Pretty MethodInvocation' where
             name' = dots name
             args' = commas args
 
+    pretty (PrimaryMethodCall' exp name args) 
+        = exp' <> dot <> text name <> parens args'
+        where
+            exp'  = pretty exp
+            args' = commas args
+
 --------------------------------------------------------------------------------
 -- Miscellaneous
 --------------------------------------------------------------------------------
