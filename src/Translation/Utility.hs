@@ -178,6 +178,11 @@ cMember :: CExpr -> Ident -> CExpr
 cMember expression member
     = CMember expression member True noInfo
 
+-- | Create a C member access (->) from an expression and a variable.
+cMemberVar :: CExpr -> CExpr -> CExpr
+cMemberVar expression (CVar name noInfo)
+    = cMember expression name
+
 -- | Create a C sizeof from a type.
 cSizeofType :: CTypeSpec -> CExpr
 cSizeofType ty

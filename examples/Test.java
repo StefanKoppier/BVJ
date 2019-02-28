@@ -1,28 +1,20 @@
 class Main {
+    static Test obj;
+
     public static void main() {
-        A obj = null;
-        int x = obj.getB().getC().getInt();
+        assert Main.obj.x == 1;
     }
 }
 
-class A {
-    private B value;
+class Test {
+    public int x;
+    public static int y = 1;
 
-    public B getB() {
-        return value;
+    public Test(int x) {
+        this.x = x;
     }
-}
 
-class B {
-    private C value;
-
-    public C getC() {
-        return value;
-    }
-}
-
-class C {
-    public int getInt() {
-        return 0;
+    public int getX() {
+        return y;
     }
 }
