@@ -2,10 +2,8 @@ class Main {
     public static void main() {
         Integer value = new Integer(0);
 
-        for (int i = 0; i < 3; i++) {
-            value.setInt(i);
-            assert value.getInt() == i;
-        }
+        value.setInt(1);
+        assert value.getInt() == 1 : "value.getInt() != 1";
     }
 }
 
@@ -17,7 +15,7 @@ class Integer {
     }
 
     public int getInt() {
-        return value;
+        return this.value;
     }
 
     public void setInt(int value) {

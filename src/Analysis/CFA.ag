@@ -305,7 +305,7 @@ sem Stmt'
 -- Expressions and variable declarations
 --------------------------------------------------------------------------------
 
-attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation'
+attr Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInit' MethodInvocation'
     chn label                       :: {Node}
     syn init                        :: {CFGNode}
     syn final                       :: {CFGNodes}
@@ -336,6 +336,9 @@ sem Exps'
 sem Exp'
     | Lit'              lhs .label  = @lhs.label
                             .init   = noNode
+                            .final  = []
+                        
+    | This'             lhs .init   = noNode
                             .final  = []
 
     | InstanceCreation' lhs .label = new @args.label

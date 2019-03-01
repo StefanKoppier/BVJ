@@ -176,6 +176,8 @@ data Exp'
                         sizes       :: Exps'
                         unspecified :: {Int}
 
+    | FieldAccess'      access      :: FieldAccess'
+
     | MethodInv'        invocation  :: MethodInvocation'
 
     | ArrayAccess'      ident       :: {String}

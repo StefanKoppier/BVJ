@@ -148,6 +148,7 @@ instance Pretty Exp' where
     pretty This'                       = text "this"
     pretty (InstanceCreation' ty args) = text "new" <+> pretty ty <> parens (commas args)
     pretty (ArrayCreate' ty ss n)      = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
+    pretty (FieldAccess' access)       = pretty access
     pretty (MethodInv' inv)            = pretty inv
     pretty (ArrayAccess' n es)         = text n <> (hcat . map (brackets . pretty)) es
     pretty (ExpName' n)                = (hcat . punctuate dot . map text) n

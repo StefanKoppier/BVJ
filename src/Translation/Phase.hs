@@ -279,6 +279,9 @@ translateExp unit locals (InstanceCreation' (ClassType' name') args')
 translateExp unit _ (ArrayCreate' _ _ _) 
     = trace "array creation in expression unsupported." undefined
 
+translateExp unit locals (FieldAccess' access)
+    = translateFieldAccess unit locals access
+
 translateExp unit locals (MethodInv' (MethodCall' (pre':[name']) args'))
     | (Just _) <- findClass pre' unit
         = undefined
@@ -401,16 +404,12 @@ translateLhs :: CompilationUnit' -> LocalInformation -> Lhs' -> CExpr
 translateLhs _ _ (Name' [name'])
     = cVar (cIdent name')
 
-translateLhs unit locals (Field' (PrimaryFieldAccess' exp' field'))
-    = let exp   = translateExp unit locals exp'
-          field = cIdent field'
-       in cMember exp field
+translateLhs unit locals (Field' access')
+    = translateFieldAccess unit locals access'
 
-{-translateLhs unit (Field' (ClassFieldAccess' [ty'] field'))
-    = cVar (cIdent (ty' ++ "_" ++ field'))
-
-translateLhs _ (Field' (ClassFieldAccess' ty' field'))
-    = trace (show ty' ++ "---" ++ show field') undefined-}
+translateFieldAccess :: CompilationUnit' -> LocalInformation -> FieldAccess' -> CExpr
+translateFieldAccess unit locals (PrimaryFieldAccess' exp' field')
+    = cMember (translateExp unit locals exp') (cIdent field')
 
 --------------------------------------------------------------------------------
 -- Auxiliary

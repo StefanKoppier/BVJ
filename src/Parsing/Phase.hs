@@ -239,8 +239,7 @@ transformExp = foldExp alg
             -> ArrayCreate' <$> transformType ty <*> sequence es <*> pure 0
         , arrayCreateInit = \ _ _ _
             -> syntacticalError "array creation"
-        , fieldAccess = \ _
-            -> syntacticalError "field access"
+        , fieldAccess = fmap FieldAccess' . transformFieldAccess
         , methodInv = fmap MethodInv' . transformMethodInvocation
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
             -> ArrayAccess' n <$> mapM transformExp es
@@ -288,14 +287,19 @@ transformName :: Name -> PhaseResult Name'
 transformName (Name ns) = pure [n | (Ident n) <- ns]
 
 transformLhs :: Lhs -> PhaseResult Lhs'
-transformLhs (NameLhs name) = Name' <$> transformName name
-transformLhs (FieldLhs (PrimaryFieldAccess e (Ident field)))
-    = (\ e' -> Field' . PrimaryFieldAccess' e') <$> transformExp e <*> pure field
-transformLhs (FieldLhs (ClassFieldAccess ty (Ident name)))
-    = (\ ty' -> Field' . ClassFieldAccess' ty') <$> transformName ty <*> pure name
-transformLhs (FieldLhs (SuperFieldAccess _))
+transformLhs (NameLhs name)    = Name' <$> transformName name
+transformLhs (FieldLhs access) = Field' <$> transformFieldAccess access
+transformLhs (ArrayLhs _)      = syntacticalError "array lhs"
+
+transformFieldAccess :: FieldAccess -> PhaseResult FieldAccess'
+transformFieldAccess (PrimaryFieldAccess e (Ident field))
+    = PrimaryFieldAccess' <$> transformExp e <*> pure field
+    
+transformFieldAccess (ClassFieldAccess ty (Ident name))
+    = ClassFieldAccess' <$> transformName ty <*> pure name
+
+transformFieldAccess (SuperFieldAccess _)
     = syntacticalError "field access of super class"
-transformLhs (ArrayLhs _)   = syntacticalError "array lhs"
 
 transformInstanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> PhaseResult Exp'
 transformInstanceCreation (ty:tys) _ _ _ = syntacticalError "generics"
