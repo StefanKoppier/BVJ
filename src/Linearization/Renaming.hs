@@ -17,21 +17,16 @@ import Debug.Trace
 
 type StmtManipulations = M.Map G.Node RenamingOperations
 
--- A more suitable data structure would be a queue.
-type RenamingOperations = [(Scope, Int)]
-
---type RenamingOperations = M.Map Name' [(Scope, Int)]
+type RenamingOperations = M.Map Name' [(Scope, Int)]
 
 insertManipulation :: G.Node -> Name' -> (Scope, Int) -> StmtManipulations -> StmtManipulations
 insertManipulation node name value manipulations
-  --  | Just oldValue' <- oldValue
-    = M.insertWith (flip (++)) node [value] manipulations
-        -- = M.insert node (M.insertWith (flip (++)) name [value] oldValue') manipulations
-   -- | Nothing <- oldValue
-     --   M.insert node [value] manipulations
-       -- = M.insert node (M.singleton name [value]) manipulations
-    --where
-      --  oldValue  = manipulations M.!? node
+    | Just oldValue' <- oldValue
+         = M.insert node (M.insertWith (flip (++)) name [value] oldValue') manipulations
+    | Nothing <- oldValue
+        = M.insert node (M.singleton name [value]) manipulations
+    where
+        oldValue  = manipulations M.!? node
 
 -- TODO: add package name to newCallName.
 renameMethodName :: Scope -> Int -> String
@@ -55,18 +50,26 @@ renameStmt :: RenamingOperations -> Stmt' -> (RenamingOperations, Stmt')
 renameStmt ops (Decl' ms ty vars)
     = let (ops1, vars') = mapAccumL renameVarDecl ops vars
        in (ops1, Decl' ms ty vars')
+renameStmt ops Empty' 
+    = (ops, Empty')
+renameStmt ops (ExpStmt' e) 
+    = let (ops1, e') = renameExp ops e
+       in (ops1, ExpStmt' e')
 renameStmt ops (Assert' e mssg)
     = let (ops1, e') = renameExp ops e 
        in (ops1, Assert' e' mssg)
 renameStmt ops (Assume' e) 
     = let (ops1, e') = renameExp ops e
        in (ops1, Assume' e')
+renameStmt ops s@(Break' _)
+    = (ops, s)
+renameStmt ops s@(Continue' _)
+    = (ops, s)
 renameStmt ops (ReturnExp' e) = 
     let (ops1, e') = renameExp ops e
      in (ops1, ReturnExp' e')
-renameStmt ops (ExpStmt' e) 
-    = let (ops1, e') = renameExp ops e
-       in (ops1, ExpStmt' e')
+renameStmt ops Return' 
+    = (ops, Return')
 
 renameVarDecl :: RenamingOperations -> VarDecl' -> (RenamingOperations, VarDecl')
 renameVarDecl ops (VarDecl' id init) 
@@ -126,12 +129,8 @@ renameExp ops (Assign' lhs op exp)
        in (ops2, Assign' lhs' op exp')
 
 renameExp ops (InstanceCreation' (ClassType' name) args)
-    = let --(scope, callNumber) = ops M.! name
-          --ops1                = M.delete name ops
-        --  ((scope, callNumber):renames) = ops M.! name
-          (scope, callNumber) = head ops
-          ops1                = tail ops
-          --ops1                = M.insert name renames ops
+    = let ((scope, callNumber):renames) = ops M.! name
+          ops1                = M.insert name renames ops
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, InstanceCreation' (ClassType' name') args')
@@ -142,23 +141,15 @@ renameExp ops (MethodInv' inv)
 
 renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
 renameInvocation ops (MethodCall' name args) 
-    = let --(scope, callNumber) = ops M.! name
-          --ops1                = M.delete name ops
-          --((scope, callNumber):renames) = ops M.! name
-          --ops1                = M.insert name renames ops
-          (scope, callNumber) = head ops
-          ops1                = tail ops
+    = let ((scope, callNumber):renames) = ops M.! name
+          ops1                = M.insert name renames ops
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, MethodCall' name' args')
 
 renameInvocation ops (PrimaryMethodCall' exp name args)
-    = let --(scope, callNumber) = ops M.! [name]
-          --ops1                = M.delete [name] ops
-          --((scope, callNumber):renames) = ops M.! [name]
-          --ops1                = M.insert [name] renames ops
-          (scope, callNumber) = head ops
-          ops1                = tail ops
+    = let ((scope, callNumber):renames) = ops M.! [name]
+          ops1                = M.insert [name] renames ops
           [name']             = renameMethodCall [name] scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
           (ops3, exp')        = renameExp ops2 exp

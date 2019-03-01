@@ -1,14 +1,26 @@
 class Main {
     public static void main() {
-        int a = id(1) + id(2);
-        assert a == 3;
+        Integer value = new Integer(0);
+
+        for (int i = 0; i < 3; i++) {
+            value.setInt(i);
+            assert value.getInt() == i;
+        }
+    }
+}
+
+class Integer {
+    private int value;
+
+    public Integer(int value) {
+        this.value = value;
     }
 
-    public static int id2(int x) {
-        return x;
+    public int getInt() {
+        return value;
     }
 
-    public static int id(int x) {
-        return id2(x) + id2(0);
+    public void setInt(int value) {
+        this.value = value;
     }
 }

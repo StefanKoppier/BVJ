@@ -377,6 +377,12 @@ translateExpName unit (className, locals) names'
         = let names = map (cVar . cIdent) names'
            in foldl1 cMemberVar names
 
+    -- Case: the name is a field of the class.
+    | Just thisClass <- findClass className unit
+    , containsNonStaticFieldWithName thisClass (head names')
+        = let names = map (cVar . cIdent) names'
+           in foldl cMemberVar cThis names
+
     -- Case: the name is a class, thus the tail must be a static member.
     | Just classDecl <- findClass (head names') unit
         = translateFieldName unit classDecl (tail names')

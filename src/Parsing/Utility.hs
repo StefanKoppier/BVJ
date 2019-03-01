@@ -24,6 +24,12 @@ getMethod unit (Scope _ scopeClass scopeMember)
     | otherwise
         = findMethod scopeMember (fromJust $ findClass scopeClass unit)
 
+containsNonStaticFieldWithName :: ClassDecl' -> String -> Bool
+containsNonStaticFieldWithName classDecl field
+    = let fields          = getFields classDecl
+          nonStaticFields = filter (not . isStatic) fields
+       in any (containsFieldWithName field) nonStaticFields 
+
 getParams :: MemberDecl' -> [FormalParam']
 getParams (MethodDecl' _ _ _ params _)    = params
 getParams (ConstructorDecl' _ _ params _) = params
@@ -54,6 +60,9 @@ nameOfClassType (ClassType' name) = name
 nameOfDecl :: VarDecl' -> String
 nameOfDecl (VarDecl' (VarId' name) _) = name
 
+namesOfField :: MemberDecl' -> [String]
+namesOfField (FieldDecl' _ _ var) = map nameOfDecl var
+
 findClass :: String -> CompilationUnit' -> Maybe ClassDecl'
 findClass name (CompilationUnit' _ decls) 
     | [c] <- filter (hasClassName name) classes 
@@ -72,6 +81,10 @@ getClasses ds = [c | (ClassTypeDecl' c) <- ds]
 
 hasClassName :: String -> ClassDecl' -> Bool
 hasClassName name (ClassDecl' _ name' _) = name == name'
+
+containsFieldWithName :: String -> MemberDecl' -> Bool
+containsFieldWithName name field
+    = name `elem` namesOfField field
 
 findConstructor :: ClassDecl' -> Maybe MemberDecl'
 findConstructor (ClassDecl' _ _ body)
