@@ -17,16 +17,21 @@ import Debug.Trace
 
 type StmtManipulations = M.Map G.Node RenamingOperations
 
-type RenamingOperations = M.Map Name' (Scope, Int)
+-- A more suitable data structure would be a queue.
+type RenamingOperations = [(Scope, Int)]
+
+--type RenamingOperations = M.Map Name' [(Scope, Int)]
 
 insertManipulation :: G.Node -> Name' -> (Scope, Int) -> StmtManipulations -> StmtManipulations
 insertManipulation node name value manipulations
-    | Just oldValue' <- oldValue
-        = M.insert node (M.insert name value oldValue') manipulations
-    | Nothing <- oldValue
-        = M.insert node (M.singleton name value) manipulations
-    where
-        oldValue  = manipulations M.!? node
+  --  | Just oldValue' <- oldValue
+    = M.insertWith (flip (++)) node [value] manipulations
+        -- = M.insert node (M.insertWith (flip (++)) name [value] oldValue') manipulations
+   -- | Nothing <- oldValue
+     --   M.insert node [value] manipulations
+       -- = M.insert node (M.singleton name [value]) manipulations
+    --where
+      --  oldValue  = manipulations M.!? node
 
 -- TODO: add package name to newCallName.
 renameMethodName :: Scope -> Int -> String
@@ -108,12 +113,12 @@ renameExp ops (PreNot' exp)
        in (ops1, PreNot' exp')
 renameExp ops (BinOp' exp1 op exp2)
     = let (ops1, exp1') = renameExp ops exp1
-          (ops2, exp2') = renameExp ops exp2
+          (ops2, exp2') = renameExp ops1 exp2
        in (ops2, BinOp' exp1' op exp2')
 renameExp ops (Cond' guard exp1 exp2)
        = let (ops1, guard') = renameExp ops guard
-             (ops2, exp1') = renameExp ops exp1
-             (ops3, exp2') = renameExp ops exp2
+             (ops2, exp1')  = renameExp ops1 exp1
+             (ops3, exp2')  = renameExp ops2 exp2
           in (ops3, Cond' guard' exp1' exp2')
 renameExp ops (Assign' lhs op exp)
     = let (ops1, lhs') = renameLhs ops lhs
@@ -121,8 +126,12 @@ renameExp ops (Assign' lhs op exp)
        in (ops2, Assign' lhs' op exp')
 
 renameExp ops (InstanceCreation' (ClassType' name) args)
-    = let (scope, callNumber) = ops M.! name
-          ops1                = M.delete name ops
+    = let --(scope, callNumber) = ops M.! name
+          --ops1                = M.delete name ops
+        --  ((scope, callNumber):renames) = ops M.! name
+          (scope, callNumber) = head ops
+          ops1                = tail ops
+          --ops1                = M.insert name renames ops
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, InstanceCreation' (ClassType' name') args')
@@ -133,15 +142,23 @@ renameExp ops (MethodInv' inv)
 
 renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
 renameInvocation ops (MethodCall' name args) 
-    = let (scope, callNumber) = ops M.! name
-          ops1                = M.delete name ops
+    = let --(scope, callNumber) = ops M.! name
+          --ops1                = M.delete name ops
+          --((scope, callNumber):renames) = ops M.! name
+          --ops1                = M.insert name renames ops
+          (scope, callNumber) = head ops
+          ops1                = tail ops
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, MethodCall' name' args')
 
 renameInvocation ops (PrimaryMethodCall' exp name args)
-    = let (scope, callNumber) = ops M.! [name]
-          ops1                = M.delete [name] ops
+    = let --(scope, callNumber) = ops M.! [name]
+          --ops1                = M.delete [name] ops
+          --((scope, callNumber):renames) = ops M.! [name]
+          --ops1                = M.insert [name] renames ops
+          (scope, callNumber) = head ops
+          ops1                = tail ops
           [name']             = renameMethodCall [name] scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
           (ops3, exp')        = renameExp ops2 exp
@@ -159,22 +176,3 @@ renameFieldAccess ops (PrimaryFieldAccess' exp field)
        in (ops1, PrimaryFieldAccess' exp' field)
 renameFieldAccess ops f@(ClassFieldAccess' _ _)
     = (ops, f)
-
-{-
--- TODO: the package and class name should be included in the method call to
--- avoid duplicate method name generation.
-
-renameMethodCall :: Scope -> Name' -> Int -> Name'
-renameMethodCall _ name numberOfCallsMade
-    = changeLast newName name
-    where 
-        newName  = last name ++ "$" ++ show numberOfCallsMade
-    
-renameMethodName :: Scope -> Int -> String
-renameMethodName (Scope package className methodName) numberOfCallsMade
-    = methodName ++ "$" ++ show numberOfCallsMade
-        
-changeLast :: a -> [a] -> [a]
-changeLast x [_]    = [x]
-changeLast x (v:xs) = v : changeLast x xs 
--}

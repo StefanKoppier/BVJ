@@ -1,20 +1,14 @@
 class Main {
-    static Test obj;
-
     public static void main() {
-        assert Main.obj.x == 1;
-    }
-}
-
-class Test {
-    public int x;
-    public static int y = 1;
-
-    public Test(int x) {
-        this.x = x;
+        int a = id(1) + id(2);
+        assert a == 3;
     }
 
-    public int getX() {
-        return y;
+    public static int id2(int x) {
+        return x;
+    }
+
+    public static int id(int x) {
+        return id2(x) + id2(0);
     }
 }

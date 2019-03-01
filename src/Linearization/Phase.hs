@@ -85,9 +85,10 @@ next (history, manipulations, callStack, ps, k) node s graph@CFG{cfg} (edge, nei
        in paths acc' graph (G.context cfg neighbour)
     where
         renaming                           = manipulations M.!? node
-        manipulations'                     = M.delete node manipulations
+        manipulations'                     =  M.insert node renaming' manipulations
+        --manipulations'                     =  -- M.delete node manipulations
         (scope', callName', _)             = fromJust $ S.peek callStack
         stat | ConditionalEdge e <- edge   = Assume' e
              | (Stmt' s')        <- s      = s'
-        stat' = maybe stat (\ r -> snd (renameStmt r stat)) renaming
+        (renaming', stat') = maybe ([], stat) (\ r -> renameStmt r stat) renaming
            
