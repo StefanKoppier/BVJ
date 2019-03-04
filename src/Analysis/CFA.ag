@@ -18,7 +18,8 @@ attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt
 sem CompilationUnit'
     | CompilationUnit' decls.ast = @self
 
-attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
+attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' 
+     CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
     syn nodes use {++} {[]} :: {CFGNodes}
     syn edges use {++} {[]} :: {CFGEdges}
     chn label               :: {Node}
@@ -38,7 +39,8 @@ sem CompilationUnit'
 --------------------------------------------------------------------------------
 
 attr Decls' Decl' MemberDecl' CompoundStmt' Stmt' Exps' Exp' MethodInvocation'
-     VarDecls' VarDecl' VarInit'
+     VarDecls' VarDecl' VarInit' Lhs' ArrayIndex' FieldAccess' SwitchBlocks'
+     SwitchBlock'
     inh className :: {String}
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
@@ -305,7 +307,8 @@ sem Stmt'
 -- Expressions and variable declarations
 --------------------------------------------------------------------------------
 
-attr Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInit' MethodInvocation'
+attr Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInits' VarInit' 
+     MethodInvocation' ArrayIndex' Lhs' MaybeVarInits'
     chn label                       :: {Node}
     syn init                        :: {CFGNode}
     syn final                       :: {CFGNodes}
@@ -442,6 +445,11 @@ sem VarDecl'
     | VarDecl'  lhs.label = @init.label
                    .init  = @init.init
                    .final = @init.final
+
+sem VarInits'
+    | Cons      lhs.init  = if noNode == @hd.init then @tl.init else @hd.init
+    | Nil       lhs.init  = noNode
+                   .final = []
 
 --------------------------------------------------------------------------------
 -- Type environment

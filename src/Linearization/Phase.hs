@@ -16,9 +16,8 @@ import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
 linearizationPhase :: Phase CFG ProgramPaths
-linearizationPhase Arguments{maximumDepth, method} graph@CFG{cfg} = do
-    newEitherT $ printHeader "3. LINEARIZATION"
-    newEitherT $ printPretty graph
+linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = do
+    newEitherT $ printInformation verbosity graph
     case entryOfMethod method graph of
         Just (entry,_) -> do
             let (Scope _ _ scopeMember) = method
@@ -26,8 +25,24 @@ linearizationPhase Arguments{maximumDepth, method} graph@CFG{cfg} = do
             let callStack = S.singleton (method, scopeMember, -1)
             let acc       = (history, M.empty, callStack, [[]], maximumDepth)
             let ps        = paths acc graph (G.context cfg entry)
-            return . map reverse $ ps
+            return . map (clean . reverse) $ ps
         Nothing        -> semanticalError (UndefinedMethodReference method)
+
+printInformation :: Verbosity -> CFG -> IO (Either PhaseError ())
+printInformation verbosity graph = do
+    printHeader "3. LINEARIZATION"
+    case verbosity of
+        Informative 
+            -> printPretty graph
+        _
+            -> return $ Right ()
+
+clean :: ProgramPath -> ProgramPath
+clean []                   = []
+clean ((Empty'     ,_):ps) = clean ps
+clean ((Continue' _,_):ps) = clean ps
+clean ((Break' _   ,_):ps) = clean ps
+clean (s              :ps) = s : clean ps
 
 --------------------------------------------------------------------------------
 -- Program path generation
@@ -76,10 +91,10 @@ paths (history, manipulations, callStack, ps, k) graph@CFG{cfg} (_,node, Call me
 
 -- Case: a statement.
 paths acc graph (_, node, Block s, neighbours)
-    = concatMap (next acc node s graph) neighbours
+    = concatMap (\ (edge, neighbour) -> next acc s graph (node, neighbour, edge)) neighbours
 
-next :: Accumulator -> G.Node -> CompoundStmt' -> CFG -> (CFGEdgeValue, G.Node) -> ProgramPaths
-next (history, manipulations, callStack, ps, k) node s graph@CFG{cfg} (edge, neighbour) 
+next :: Accumulator -> CompoundStmt' -> CFG -> CFGEdge -> ProgramPaths
+next (history, manipulations, callStack, ps, k) s graph@CFG{cfg} (node, neighbour, edge) 
     = let pathInfo = PathStmtInfo{callName=callName', original=scope'}
           acc'     = (history, manipulations', callStack, map ((stat', pathInfo):) ps, k-1)
        in paths acc' graph (G.context cfg neighbour)

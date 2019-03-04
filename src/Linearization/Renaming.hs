@@ -80,15 +80,32 @@ renameVarInit :: RenamingOperations -> VarInit' -> (RenamingOperations, VarInit'
 renameVarInit ops (InitExp' e)
     = let (ops1, e') = renameExp ops e
        in (ops1, InitExp' e')
-renameVarInit ops (InitArray' Nothing)
-    = (ops, InitArray' Nothing)
-renameVarInit ops (InitArray' (Just is))
-    = let (ops1, is') = mapAccumL renameVarInit ops is
-       in (ops1, InitArray' (Just is'))
+renameVarInit ops (InitArray' inits)
+    = let (ops1, inits') = renameMaybeVarInits ops inits
+       in (ops1, InitArray' inits')
+
+renameMaybeVarInits :: RenamingOperations -> MaybeVarInits' -> (RenamingOperations, MaybeVarInits')
+renameMaybeVarInits ops (Just' inits)
+    = let (ops1, inits') = mapAccumL renameVarInit ops inits
+       in (ops1, Just' inits')
+renameMaybeVarInits ops Nothing' 
+    = (ops, Nothing') 
 
 renameExp :: RenamingOperations -> Exp' -> (RenamingOperations, Exp')
 renameExp ops e@(Lit' _) = (ops, e)
 renameExp ops This' = (ops, This')
+renameExp ops (InstanceCreation' (ClassType' name) args)
+    = let ((scope, callNumber):renames) = ops M.! name
+          ops1                = M.insert name renames ops
+          name'               = renameMethodCall name scope callNumber
+          (ops2, args')       = mapAccumL renameExp ops1 args
+       in (ops2, InstanceCreation' (ClassType' name') args')
+renameExp ops (MethodInv' inv)
+    = let (ops1, inv') = renameInvocation ops inv
+       in (ops1, MethodInv' inv')
+renameExp ops (ArrayAccess' name indices)
+    = let (ops1, indices') = mapAccumL renameExp ops indices
+       in (ops1, ArrayAccess' name indices')
 renameExp ops e@(ExpName' _) = (ops, e)
 renameExp ops (PostIncrement' exp)
     = let (ops1, exp') = renameExp ops exp
@@ -128,16 +145,8 @@ renameExp ops (Assign' lhs op exp)
           (ops2, exp') = renameExp ops1 exp
        in (ops2, Assign' lhs' op exp')
 
-renameExp ops (InstanceCreation' (ClassType' name) args)
-    = let ((scope, callNumber):renames) = ops M.! name
-          ops1                = M.insert name renames ops
-          name'               = renameMethodCall name scope callNumber
-          (ops2, args')       = mapAccumL renameExp ops1 args
-       in (ops2, InstanceCreation' (ClassType' name') args')
-
-renameExp ops (MethodInv' inv)
-    = let (ops1, inv') = renameInvocation ops inv
-       in (ops1, MethodInv' inv')
+renameExp ops e
+    = trace (show e) undefined
 
 renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
 renameInvocation ops (MethodCall' name args) 
@@ -160,6 +169,10 @@ renameLhs ops name@(Name' _) = (ops, name)
 renameLhs ops (Field' access) 
     = let (ops1, access') = renameFieldAccess ops access
        in (ops1, Field' access')
+renameLhs ops (Array' (ArrayIndex' array indices))
+    = let (ops1, array')   = renameExp ops array
+          (ops2, indices') = mapAccumL renameExp ops1 indices
+       in (ops2, Array' (ArrayIndex' array' indices'))
 
 renameFieldAccess :: RenamingOperations -> FieldAccess' -> (RenamingOperations, FieldAccess')
 renameFieldAccess ops (PrimaryFieldAccess' exp field)

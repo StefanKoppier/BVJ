@@ -152,10 +152,17 @@ data VarDeclId'
     | VarId'    id  :: String
 deriving VarDeclId' : Eq, Show
 
+data MaybeVarInits'
+    | Just'      inits :: VarInits'
+    | Nothing'  
+deriving MaybeVarInits' : Eq, Show
+
+type VarInits' = [VarInit']
+
 data VarInit'
     | InitExp'   exp    :: Exp'
 
-    | InitArray' inits  :: {Maybe [VarInit']}
+    | InitArray' inits  :: MaybeVarInits'
 deriving VarInit' : Eq, Show
 
 --------------------------------------------------------------------------------
@@ -175,6 +182,10 @@ data Exp'
     | ArrayCreate'      ty          :: Type'
                         sizes       :: Exps'
                         unspecified :: {Int}
+
+    | ArrayCreateInit'  ty          :: Type'
+                        dimensions  :: {Int}
+                        inits       :: VarInits'
 
     | FieldAccess'      access      :: FieldAccess'
 
@@ -213,6 +224,7 @@ data Exp'
                         op          :: AssignOp'
                         exp         :: Exp'
 deriving Exp' : Eq, Show
+
 
 data Literal'
     | Int'      value :: {Integer}
@@ -264,7 +276,13 @@ deriving AssignOp' : Eq, Show
 data Lhs'
     | Name'  name   :: Name'
     | Field' access :: FieldAccess'
+    | Array' index  :: ArrayIndex'
 deriving Lhs' : Eq, Show
+
+data ArrayIndex'
+    | ArrayIndex' array   :: Exp'
+                  indices :: Exps'
+deriving ArrayIndex' : Eq, Show
 
 data FieldAccess'
     | PrimaryFieldAccess'   exp   :: Exp'

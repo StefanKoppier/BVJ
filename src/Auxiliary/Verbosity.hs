@@ -3,8 +3,6 @@ module Auxiliary.Verbosity(
 ) where
     
 data Verbosity
-    = Quiet
-    | Phases
-    | Subphases
-    | Everything
+    = Compact
+    | Informative
     deriving (Eq, Ord)

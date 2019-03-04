@@ -1,4 +1,4 @@
-module Translation.Utility where
+module Compilation.Utility where
 
 import Language.C.Syntax.AST
 import Language.C.Data.Node
@@ -45,6 +45,13 @@ cStruct name fields
     = let struct = CStruct CStructTag (Just name) (Just fields) [] noInfo
           ty     = CTypeSpec (CSUType struct noInfo)
        in CDeclExt (CDecl [ty] [] noInfo)
+
+-- | Create a C enum declaration.
+cEnum :: Ident -> [(Ident, Maybe CExpr)] -> CExtDecl
+cEnum name members
+    = let enum = CEnum (Just name) (Just members) [] noInfo
+          ty   = CTypeSpec (CEnumType enum noInfo)
+       in CDeclExt (CDecl [ty] [] noInfo)
     
 --------------------------------------------------------------------------------
 -- Types
@@ -80,6 +87,37 @@ cDoubleType = CDoubleType noInfo
 cStructType :: Ident -> CTypeSpec
 cStructType name
     = CSUType (CStruct CStructTag (Just name) Nothing [] noInfo) noInfo
+
+cEnumType :: Ident -> CTypeSpec
+cEnumType name
+    = CEnumType (CEnum (Just name) Nothing [] noInfo) noInfo
+
+cBooleanArrayType :: CTypeSpec
+cBooleanArrayType = cStructType (cIdent "Boolean_Array")
+
+cByteArrayType :: CTypeSpec
+cByteArrayType = cStructType (cIdent "Byte_Array")
+
+cShortArrayType :: CTypeSpec
+cShortArrayType = cStructType (cIdent "Short_Array")
+
+cIntArrayType :: CTypeSpec
+cIntArrayType = cStructType (cIdent "Int_Array")
+
+cLongArrayType :: CTypeSpec
+cLongArrayType = cStructType (cIdent "Long_Array")
+
+cCharArrayType :: CTypeSpec
+cCharArrayType = cStructType (cIdent "Char_Array")
+
+cFloatArrayType :: CTypeSpec
+cFloatArrayType = cStructType (cIdent "Float_Array")
+
+cDoubleArrayType :: CTypeSpec
+cDoubleArrayType = cStructType (cIdent "Double_Array")
+
+cRefArrayType :: CTypeSpec
+cRefArrayType = cStructType (cIdent "Ref_Array")
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -149,9 +187,9 @@ cAssign op lhs exp
     = CAssign op lhs exp noInfo
 
 -- | Create a C array index.
-cIndex :: Ident -> CExpr -> CExpr
-cIndex name index
-    = CIndex (cVar name) index noInfo
+cIndex :: CExpr -> CExpr -> CExpr
+cIndex array index
+    = CIndex array index noInfo
 
 -- | Create a C method invocation from a name and list of arguments.
 cCall :: Ident -> [CExpr] -> CExpr
@@ -184,9 +222,12 @@ cMemberVar expression (CVar name noInfo)
     = cMember expression name
 
 -- | Create a C sizeof from a type.
-cSizeofType :: CTypeSpec -> CExpr
-cSizeofType ty
+cSizeofType :: CTypeSpec -> [CDerivedDeclr] -> CExpr
+cSizeofType ty []
     = CSizeofType (cDecl ty []) noInfo
+cSizeofType ty dDeclr
+    = let declr = (CDeclr Nothing dDeclr Nothing [] noInfo, Nothing)
+       in CSizeofType (cDecl ty [declr]) noInfo
 
 -- | Create a C expression from a constant.
 cConst :: CConstant NodeInfo -> CExpr
@@ -217,10 +258,6 @@ cCharConst int
 cNull :: CExpr
 cNull = cVar (cIdent "NULL")
 
--- | The C this variable.
-cThis :: CExpr
-cThis = cVar cThisIdent
-
 --------------------------------------------------------------------------------
 -- Auxiliary
 --------------------------------------------------------------------------------
@@ -233,10 +270,11 @@ cIdent string = Ident string 0 noInfo
 cMalloc :: CExpr -> CExpr
 cMalloc size
     = cCall (cIdent "malloc") [size]
-
--- | The C this identifier.
-cThisIdent :: Ident
-cThisIdent = cIdent "this"
+    
+-- | Create a C calloc statement with a given size.
+cCalloc :: CExpr -> CExpr -> CExpr
+cCalloc amount size
+    = cCall (cIdent "calloc") [amount, size]
 
 cPointer :: CDerivedDeclr
 cPointer = CPtrDeclr [] noInfo

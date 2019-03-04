@@ -5,7 +5,7 @@ import Auxiliary.Pretty
 import Parsing.Phase
 import Analysis.Phase
 import Linearization.Phase
-import Translation.Phase
+import Compilation.Phase
 import Verification.Phase
 import Verification.Result
 import Verification.Pretty
@@ -15,7 +15,7 @@ allPhases args file = do
     ast      <- parsingPhase args file
     cfg      <- analysisPhase args ast
     paths    <- linearizationPhase args cfg
-    programs <- translationPhase args (ast, paths)
+    programs <- compilationPhase args (ast, paths)
     results  <- verificationPhase args programs
     newEitherT $ printHeader "FINAL RESULT"
     newEitherT $ printPretty results

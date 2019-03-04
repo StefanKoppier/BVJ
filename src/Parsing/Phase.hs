@@ -45,10 +45,10 @@ transformTypeDecl (InterfaceTypeDecl _) = syntacticalError "interface declaratio
 transformClassDecl :: ClassDecl -> PhaseResult ClassDecl'
 transformClassDecl (ClassDecl ms (Ident n) [] Nothing [] (ClassBody ds)) 
     = ClassDecl' <$> transformModifiers ms <*> pure n <*> mapM transformDecl ds
-transformClassDecl ClassDecl{}                              
-    = syntacticalError "inheritance or generics"
 transformClassDecl EnumDecl{}
     = syntacticalError "enum declaration"
+transformClassDecl ClassDecl{}                              
+    = syntacticalError "inheritance or generics"
 
 transformDecl :: Decl -> PhaseResult Decl'
 transformDecl (MemberDecl m) = MemberDecl' <$> transformMemberDecl m
@@ -155,7 +155,7 @@ transformVarDeclId (VarDeclArray _)  = syntacticalError "array typed declaration
 
 transformVarInit :: VarInit -> PhaseResult VarInit'
 transformVarInit (InitExp e)                = InitExp' <$> transformExp e
-transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just <$> mapM transformVarInit is
+transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just' <$> mapM transformVarInit is
 
 defaultInit :: Type -> PhaseResult VarInit'
 defaultInit (PrimType BooleanT) = (pure . InitExp' . Lit' . Boolean') False
@@ -169,7 +169,7 @@ defaultInit (PrimType DoubleT)  = (pure . InitExp' . Lit' . Double') 0.0
 defaultInit (RefType ty)        = defaultRefInit ty
 
 defaultRefInit :: RefType -> PhaseResult VarInit'
-defaultRefInit (ArrayType    _) = (pure . InitArray') Nothing
+defaultRefInit (ArrayType    _) = (pure . InitArray') Nothing'
 defaultRefInit (ClassRefType _) = pure (InitExp' (Lit' Null'))
 
 transformMaybeIdent :: Maybe Ident -> Maybe String
@@ -237,8 +237,8 @@ transformExp = foldExp alg
             -> syntacticalError "qual instance creation"
         , arrayCreate = \ ty es 0
             -> ArrayCreate' <$> transformType ty <*> sequence es <*> pure 0
-        , arrayCreateInit = \ _ _ _
-            -> syntacticalError "array creation"
+        , arrayCreateInit = \ ty ds (ArrayInit is)
+            -> ArrayCreateInit' <$> transformType ty <*> pure ds <*> mapM transformVarInit is
         , fieldAccess = fmap FieldAccess' . transformFieldAccess
         , methodInv = fmap MethodInv' . transformMethodInvocation
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
@@ -287,9 +287,13 @@ transformName :: Name -> PhaseResult Name'
 transformName (Name ns) = pure [n | (Ident n) <- ns]
 
 transformLhs :: Lhs -> PhaseResult Lhs'
-transformLhs (NameLhs name)    = Name' <$> transformName name
+transformLhs (NameLhs name)    = Name'  <$> transformName name
 transformLhs (FieldLhs access) = Field' <$> transformFieldAccess access
-transformLhs (ArrayLhs _)      = syntacticalError "array lhs"
+transformLhs (ArrayLhs index)  = Array' <$> transformArrayIndex index
+
+transformArrayIndex :: ArrayIndex -> PhaseResult ArrayIndex'
+transformArrayIndex (ArrayIndex array indices)
+    = ArrayIndex' <$> transformExp array <*> transformExps indices
 
 transformFieldAccess :: FieldAccess -> PhaseResult FieldAccess'
 transformFieldAccess (PrimaryFieldAccess e (Ident field))

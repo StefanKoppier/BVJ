@@ -27,9 +27,8 @@ library
                        Analysis.Pretty
                        Linearization.Phase
                        Linearization.Path
-                       Translation.Phase
-                       Translation.Program
-                       Translation.Pretty
+                       Compilation.Phase
+                       Compilation.Pretty
                        Verification.Phase
                        Verification.Result
                        Verification.Pretty
@@ -43,7 +42,15 @@ library
                        Analysis.CFA
                        Linearization.Renaming
                        Linearization.Utility
-                       Translation.Utility
+                       Compilation.CProgram
+                       Compilation.Utility
+                       Compilation.Compiler.Path
+                       Compilation.Compiler.Statement
+                       Compilation.Compiler.Expression
+                       Compilation.Compiler.Type
+                       Compilation.Compiler.Array
+                       Compilation.Compiler.Object
+                       Compilation.Compiler.Naming
                        Data.Stack
   -- other-extensions:    
   build-tools:         

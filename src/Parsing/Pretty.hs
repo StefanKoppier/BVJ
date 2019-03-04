@@ -128,16 +128,18 @@ instance Pretty [VarDecl'] where
     pretty = hcat . punctuate (comma <> space) . map pretty
 
 instance Pretty VarDecl' where
-    pretty (VarDecl' id (InitArray' Nothing)) = pretty id
-    pretty (VarDecl' id init)                 = pretty id <> equals <> pretty init
+    pretty (VarDecl' id init) = pretty id <> equals <> pretty init
     
 instance Pretty VarDeclId' where
     pretty (VarId' id) = text id
 
 instance Pretty VarInit' where
-    pretty (InitExp' exp)         = pretty exp
-    pretty (InitArray' (Just es)) = braces $ commas es
-    pretty (InitArray' Nothing)   = empty
+    pretty (InitExp' exp)     = pretty exp
+    pretty (InitArray' inits) = pretty inits
+
+instance Pretty MaybeVarInits' where
+    pretty (Just' es) = braces . commas $ es
+    pretty Nothing'   = empty
 
 --------------------------------------------------------------------------------
 -- Expressions
@@ -148,6 +150,7 @@ instance Pretty Exp' where
     pretty This'                       = text "this"
     pretty (InstanceCreation' ty args) = text "new" <+> pretty ty <> parens (commas args)
     pretty (ArrayCreate' ty ss n)      = text "new" <+> pretty ty <> (hcat . map (brackets . pretty)) ss <> hcat (replicate n (brackets empty))
+    pretty (ArrayCreateInit' ty ds is) = text "new" <+> pretty ty <> hcat (replicate ds (brackets empty)) <+> braces (commas is)
     pretty (FieldAccess' access)       = pretty access
     pretty (MethodInv' inv)            = pretty inv
     pretty (ArrayAccess' n es)         = text n <> (hcat . map (brackets . pretty)) es
@@ -210,8 +213,15 @@ instance Pretty AssignOp' where
     pretty OrA'      = text "|="
 
 instance Pretty Lhs' where
-    pretty (Name' name)    = dots name
+    pretty (Name'  name)   = dots name
     pretty (Field' access) = pretty access
+    pretty (Array' array)  = pretty array
+
+instance Pretty ArrayIndex' where
+    pretty (ArrayIndex' array indices)
+        = pretty array <> indices'
+        where
+            indices' = foldr (\ index -> ($+$) (brackets (pretty index))) empty indices
 
 instance Pretty FieldAccess' where
     pretty (PrimaryFieldAccess' exp field)

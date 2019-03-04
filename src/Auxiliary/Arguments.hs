@@ -26,7 +26,7 @@ data Arguments = Arguments {
 defaultArgs :: Arguments
 defaultArgs = Arguments {
       method = Scope Nothing "main" "main"
-    , verbosity = Everything
+    , verbosity = Informative
     , keepOutputFiles = False
     , maximumDepth = 100
     , enableAssertions = True
