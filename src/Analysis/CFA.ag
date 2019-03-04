@@ -12,7 +12,7 @@ include "../Parsing/Syntax.ag"
 
 attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
      SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' VarDecls' VarDecl' 
-     VarInit'
+     VarInits' VarInit' MaybeVarInits' ArrayIndex' Lhs' FieldAccess'
     inh ast :: CompilationUnit'
 
 sem CompilationUnit'
@@ -39,8 +39,8 @@ sem CompilationUnit'
 --------------------------------------------------------------------------------
 
 attr Decls' Decl' MemberDecl' CompoundStmt' Stmt' Exps' Exp' MethodInvocation'
-     VarDecls' VarDecl' VarInit' Lhs' ArrayIndex' FieldAccess' SwitchBlocks'
-     SwitchBlock'
+     VarDecls' VarDecl' MaybeVarInits' VarInits' VarInit' Lhs' ArrayIndex' 
+     FieldAccess' SwitchBlocks' SwitchBlock'
     inh className :: {String}
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
@@ -99,7 +99,8 @@ sem MemberDecl'
                             .method  = [@name]
 
 attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
-     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' VarDecls' VarDecl' VarInit'
+     SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' VarDecls' VarDecl' 
+     VarInits' VarInit' MaybeVarInits' Lhs' ArrayIndex' FieldAccess'
     inh methods :: {Methods}
 
 sem CompilationUnit'
@@ -153,23 +154,24 @@ sem CompoundStmt'
                     stat1.label = @lhs.label
                     stat2.label = @stat1.label
       
-    | IfThenElse'   lhs  .label = @stat2.label
-                         .init  = if noNode == @exp.init 
-                                     then (block (new @exp.label) @self)
-                                     else @exp.init
-                         .final = @stat1.final ++ @stat2.final
-                         .nodes = block (new @exp.label) @self 
-                                  : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
-                         .edges = let self = block (new @exp.label) @self in
-                                    -- Edge from condition to init of true branch.
-                                    condEdge self @stat1.init @exp.self
-                                    : -- Edge from condition to init of false branch.
-                                    condEdge self @stat2.init (PreNot' @exp.self)
-                                    : -- Edge(s) of the branches.
-                                    @stat1.edges ++ @stat2.edges ++ @exp.edges
-                    exp  .label = @lhs.label
-                    stat1.label = new @exp.label
-                    stat2.label = @stat1.label
+    | IfThenElse'   lhs  .label    = @stat2.label
+                         .init     = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
+                         .final    = @stat1.final ++ @stat2.final
+                         .nodes    = block (new @exp.label) @self 
+                                     : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
+                         .edges    = let self = block (new @exp.label) @self in
+                                       -- Edge from condition to init of true branch.
+                                       condEdge self @stat1.init @exp.self
+                                       : -- Edge from condition to init of false branch.
+                                       condEdge self @stat2.init (PreNot' @exp.self)
+                                       : -- Edge(s) of the branches.
+                                       @stat1.edges ++ @stat2.edges ++ @exp.edges
+                    exp  .label    = @lhs.label
+                         .statNode = new @exp.label
+                    stat1.label    = new @exp.label
+                    stat2.label    = @stat1.label
 
     | While'        lhs .label     = @body.label
                         .init      = if noNode == @exp.init 
@@ -192,16 +194,21 @@ sem CompoundStmt'
                         .continues = filter (not . isLabelOfThisNode @ident) @body.continues
                         .guard     = block (new @exp.label) @self
                     exp .label     = @lhs.label
+                        .statNode  = new @exp.label
                     body.label     = new @exp.label
 
     | Switch'       lhs  .label    = @cases.label
-                         .init     = block (new @lhs.label) @self
+                         .init     = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
                          .final    = @cases.final ++ filter (isLabelOfThisNode Nothing) @cases.breaks 
-                         .nodes    = block (new @lhs.label) @self : @cases.nodes
-                         .edges    = @cases.edges
+                         .nodes    = block (new @exp.label) @self : @exp.nodes ++ @cases.nodes
+                         .edges    = @exp.edges ++ @cases.edges
                          .breaks   = filter (not . isLabelOfThisNode Nothing) @cases.breaks
-                    cases.label    = new @lhs.label
-                         .parent   = block (new @lhs.label) @self
+                    exp  .label    = @lhs.label
+                         .statNode = new @exp.label
+                    cases.label    = new @exp.label
+                         .parent   = block (new @exp.label) @self
                          .guard    = @exp.self
                          .previous = []
 
@@ -307,8 +314,8 @@ sem Stmt'
 -- Expressions and variable declarations
 --------------------------------------------------------------------------------
 
-attr Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInits' VarInit' 
-     MethodInvocation' ArrayIndex' Lhs' MaybeVarInits'
+attr Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits'
+     MethodInvocation' ArrayIndex' Lhs' 
     chn label                       :: {Node}
     syn init                        :: {CFGNode}
     syn final                       :: {CFGNodes}
@@ -323,8 +330,9 @@ sem MethodInvocation'
 sem Exp'
     | InstanceCreation' lhs.numberOfCalls = 1 + @args.numberOfCalls
 
-attr Exps' Exp' VarDecls' VarDecl' VarInit' MethodInvocation' 
-    inh statNode            :: {Node}
+attr Exps' Exp' VarDecls' VarDecl' VarInits' VarInit' MethodInvocation'
+     MaybeVarInits' ArrayIndex' Lhs'
+    inh statNode :: {Node}
 
 sem Exps'
     | Cons      lhs.init  = if noNode == @hd.init
@@ -451,6 +459,14 @@ sem VarInits'
     | Nil       lhs.init  = noNode
                    .final = []
 
+sem MaybeVarInits'
+    | Nothing'  lhs.init  = noNode
+                   .final = []
+
+sem Lhs'
+    | Name'     lhs.init  = noNode
+                   .final = []
+
 --------------------------------------------------------------------------------
 -- Type environment
 --------------------------------------------------------------------------------
@@ -514,8 +530,8 @@ sem MemberDecl'
     | FieldDecl' lhs.fieldTypes = generateTypesFromDecls Nothing @lhs.className @ty.self @var.self
 
 attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' 
-     Stmt' SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' 
-     VarInit' VarDecls' VarDecl'
+     Stmt' SwitchBlocks' SwitchBlock' Exps' Exp' MethodInvocation' FieldAccess'
+     VarInits' VarInit' MaybeVarInits' ArrayIndex' VarDecls' VarDecl' Lhs'
     inh types :: {TypeEnvironment}
 
 sem CompilationUnit'
