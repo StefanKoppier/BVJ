@@ -92,33 +92,6 @@ cEnumType :: Ident -> CTypeSpec
 cEnumType name
     = CEnumType (CEnum (Just name) Nothing [] noInfo) noInfo
 
-cBooleanArrayType :: CTypeSpec
-cBooleanArrayType = cStructType (cIdent "Boolean_Array")
-
-cByteArrayType :: CTypeSpec
-cByteArrayType = cStructType (cIdent "Byte_Array")
-
-cShortArrayType :: CTypeSpec
-cShortArrayType = cStructType (cIdent "Short_Array")
-
-cIntArrayType :: CTypeSpec
-cIntArrayType = cStructType (cIdent "Int_Array")
-
-cLongArrayType :: CTypeSpec
-cLongArrayType = cStructType (cIdent "Long_Array")
-
-cCharArrayType :: CTypeSpec
-cCharArrayType = cStructType (cIdent "Char_Array")
-
-cFloatArrayType :: CTypeSpec
-cFloatArrayType = cStructType (cIdent "Float_Array")
-
-cDoubleArrayType :: CTypeSpec
-cDoubleArrayType = cStructType (cIdent "Double_Array")
-
-cRefArrayType :: CTypeSpec
-cRefArrayType = cStructType (cIdent "Ref_Array")
-
 --------------------------------------------------------------------------------
 -- Statements
 --------------------------------------------------------------------------------

@@ -5,13 +5,13 @@ import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
 
-type PathStmt = (Stmt', PathStmtInfo)
-
 data PathStmtInfo = PathStmtInfo {
-      callName :: String -- ^ The name of the method the statement belongs to,
+     callName  :: String -- ^ The name of the method the statement belongs to,
                          --   which is unique for every method call.
     , original :: Scope  -- ^ The original scope the statement belongs to.
-    }
+}
+
+type PathStmt = (Stmt', PathStmtInfo)
 
 type ProgramPath = [PathStmt]
 

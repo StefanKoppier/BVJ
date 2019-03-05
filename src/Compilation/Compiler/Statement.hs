@@ -10,6 +10,8 @@ import Compilation.Compiler.Type
 import Parsing.Syntax
 import Parsing.Utility
 
+import Debug.Trace
+
 translateStmts :: CompilationUnit' -> LocalInformation -> [Stmt'] -> CStat
 translateStmts unit locals 
     = cCompoundStat . snd . mapAccumL (translateStmtAcc unit) locals

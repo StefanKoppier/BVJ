@@ -1,48 +1,35 @@
 module Compilation.Compiler.Array where
 
+import Data.List
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
 import Compilation.Utility
 import Compilation.Compiler.Type
 import Compilation.Compiler.Naming
 import Parsing.Syntax
+import Linearization.Path
 
-createDefaultDeclarations :: [CExtDecl]
-createDefaultDeclarations 
-    = let arrayTys = [ ("Boolean", Just BooleanT'), ("Byte"  , Just ByteT'  )
-                     , ("Short"  , Just ShortT'  ), ("Int"   , Just IntT'   )
-                     , ("Long"   , Just LongT'   ), ("Char"  , Just CharT'  )
-                     , ("Float"  , Just FloatT'  ), ("Double", Just DoubleT')
-                     , ("Ref"    , Nothing       ) ] 
-          arrayStructs    = map (uncurry createArrayDeclaration) arrayTys
-          arrayAllocators = map (uncurry createArrayAllocator) arrayTys
-       in arrayStructs ++ arrayAllocators
+import Debug.Trace
 
-createArrayDeclaration :: String -> Maybe PrimType' -> CExtDecl
-createArrayDeclaration name Nothing
-    = cStruct (cIdent (name ++ "_Array"))
-        [ cDecl cVoidType [(cDeclr arrayElementsName [cPointer, cPointer], Nothing)]
-        , cDecl cIntType  [(cDeclr arrayLengthName   []                  , Nothing)] ]
-        
-createArrayDeclaration name (Just ty')
-    = let ty = translatePrimType ty'
-       in cStruct (cIdent (name ++ "_Array"))
-            [ cDecl ty       [(cDeclr arrayElementsName [cPointer], Nothing)]
-            , cDecl cIntType [(cDeclr arrayLengthName   []        , Nothing)] ]
+createArrayStructDecl :: CompilationUnit' -> Type' -> CExtDecl
+createArrayStructDecl unit ty'
+    = let name         = cIdent (nameOfType ty' ++ "_Array")
+          (ty, dDeclr) = translateType unit (Just ty')
+       in cStruct name [ cDecl ty       [(cDeclr arrayElementsName (cPointer : dDeclr), Nothing)]
+                       , cDecl cIntType [(cDeclr arrayLengthName []                   , Nothing)] ]
 
-createArrayAllocator :: String -> Maybe PrimType' -> CExtDecl
-createArrayAllocator name' ty' 
-    = let tyName     = name' ++ "_Array"
-          name       = cIdent ("allocator_" ++ tyName)
-          ty         = cStructType (cIdent tyName)
+createArrayAllocDecl :: CompilationUnit' -> Type' -> CExtDecl
+createArrayAllocDecl unit ty'
+    = let name       = trace (show ty') (cIdent ("allocator_" ++ nameOfType ty' ++ "_Array"))
+          returnTy   = cStructType (cIdent (nameOfType ty' ++ "_Array"))
           params     = cParams [cDecl cIntType [(cDeclr arrayLengthName [], Nothing)]]
           declrs     = [params, cPointer]
-          alloc      = cVarDeclStat (cDecl ty [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType ty []))))])
-          (elemType, elemDDeclr) = maybe (cVoidType, [cPointer]) (\ ty -> (translatePrimType ty, [])) ty'
+          alloc      = cVarDeclStat (cDecl returnTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType returnTy []))))])
+          (elemType, elemDDeclr) = translateType unit (Just ty')
           calloc     = cCalloc arrayLengthVar (cSizeofType elemType elemDDeclr)
           init       = cCompoundStat
                         [ cExprStat (cAssign CAssignOp (cMember thisVar arrayLengthName)   arrayLengthVar)
                         , cExprStat (cAssign CAssignOp (cMember thisVar arrayElementsName) calloc) ] 
           return     = cReturnStat (Just thisVar)
           body       = cCompoundStat [alloc, cBlockStat init, return]
-       in cFunction ty name declrs body
+       in cFunction returnTy name declrs body

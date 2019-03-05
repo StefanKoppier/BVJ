@@ -9,6 +9,8 @@ import Compilation.Compiler.Naming
 import Parsing.Syntax
 import Parsing.Utility
 
+import Debug.Trace
+
 translateExp :: CompilationUnit' -> LocalInformation -> Exp' -> CExpr
 translateExp _ _ (Lit' lit') 
     = case lit' of
@@ -29,16 +31,18 @@ translateExp unit locals (InstanceCreation' (ClassType' name') args')
           args = map (translateExp unit locals) args'
        in cCall name args
 
-translateExp unit locals (ArrayCreate' (PrimType' ty') [size'] _) 
+{- 
+translateExp unit locals (ArrayCreate' ty' [size'] _) 
     = let size    = translateExp unit locals size'
-          name    = cIdent ("allocator_" ++ tyName ++ "_Array")
-       in cCall name [size]
-    where
-        tyName = case ty' of
-                    BooleanT' -> "Boolean"; ByteT'   -> "Byte"  
-                    ShortT'   -> "Short"  ; IntT'    -> "Int"   
-                    LongT'    -> "Long"   ; CharT'   -> "Char"
-                    FloatT'   -> "Float"  ; DoubleT' -> "Double"
+          name    = cIdent ("allocator_" ++ nameOfType ty' ++ "_Array")
+       in cCall name [size] 
+-}
+
+translateExp unit locals (ArrayCreate' ty' sizes' _)
+    = let dimensions = length sizes' 
+          name       = cIdent ("allocator_" ++ nameOfType ty' ++ concat (replicate dimensions "_Array"))
+          size'      = translateExp unit locals (head sizes')
+       in cCall name [size']
 
 translateExp unit locals (FieldAccess' access)
     = translateFieldAccess unit locals access

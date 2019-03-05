@@ -1,6 +1,7 @@
 module Compilation.Compiler.Path where
 
 import Data.Maybe                     (fromJust)
+import qualified Data.Set as S
 import Data.List                      (groupBy, sortOn, mapAccumL)
 import Data.Function                  (on)
 import Language.C.Syntax.AST
@@ -11,18 +12,25 @@ import Compilation.Compiler.Statement
 import Compilation.Compiler.Array
 import Compilation.Compiler.Object
 import Compilation.Compiler.Naming
+import Compilation.Compiler.InformationGathering
 import Linearization.Path
 import Parsing.Syntax
 import Parsing.Utility
 
+import Debug.Trace
+
 translatePath :: CompilationUnit' -> ProgramPath -> CProgram
 translatePath unit@(CompilationUnit' _ decls) path
-    = let classes      = concatMap (translateClass unit) classDecls
-          calls        = map (translateCall unit) . groupBy ((==) `on` (callName . snd)) . sortOn (callName . snd) $ path
-          declarations = createDefaultDeclarations ++ classes ++ calls
+    = let (constructedClasses, usedClasses, constructedArrays, usedArrays) 
+            = (typesInProgram unit . map fst) path
+          classStructDecls  = map (createClassStructDecl unit) usedClasses 
+          arrayStructDecls  = map (createArrayStructDecl unit) usedArrays 
+          classAllocDecls   = map (createClassAllocDecl unit) constructedClasses
+          arrayAllocDecls   = map (createArrayAllocDecl unit) constructedArrays
+          staticFieldDecls  = createStaticFields unit
+          callDecls         = map (translateCall unit) . groupBy ((==) `on` (callName . snd)) . sortOn (callName . snd) $ path
+          declarations      = classStructDecls ++ arrayStructDecls ++ classAllocDecls ++ arrayAllocDecls ++ staticFieldDecls ++ callDecls
        in cUnit declarations
-    where
-        classDecls = [c | ClassTypeDecl'(c) <- decls]
 
 translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
 translateCall unit path

@@ -3,6 +3,7 @@ module Compilation.Compiler.Type where
 import Language.C.Syntax.AST
 import Compilation.Utility
 import Parsing.Syntax
+import Debug.Trace
 
 translateType :: CompilationUnit' -> Maybe Type' -> (CTypeSpec, [CDerivedDeclr])
 translateType _ Nothing = (cVoidType, [])
@@ -28,12 +29,18 @@ translateRefType _ (ClassRefType' (ClassType' [name']))
     = let name = cIdent name'
        in (cStructType name, [cPointer])
 
--- TODO: assuming PrimType now, no multi-dimensional arrays or objects.
-translateRefType unit (ArrayType' (PrimType' ty'))
-    = (ty, [cPointer])
-    where
-        ty = case ty' of
-                BooleanT' -> cBooleanArrayType; ByteT'   -> cByteArrayType  
-                ShortT'   -> cShortArrayType  ; IntT'    -> cIntArrayType   
-                LongT'    -> cLongArrayType   ; CharT'   -> cCharArrayType
-                FloatT'   -> cFloatArrayType  ; DoubleT' -> cDoubleArrayType
+translateRefType unit ty@(ArrayType' _)
+    = let name = cIdent (nameOfType (RefType' ty))
+       in (cStructType name, [cPointer])
+
+nameOfType :: Type' -> String
+nameOfType (RefType' (ClassRefType' (ClassType' [name])))
+    = name
+nameOfType (RefType' (ArrayType' ty))
+    = nameOfType ty ++ "_Array"
+nameOfType (PrimType' ty)
+    = case ty of 
+        BooleanT' -> "Boolean"; ByteT'   -> "Byte"  
+        ShortT'   -> "Short"  ; IntT'    -> "Int"   
+        LongT'    -> "Long"   ; CharT'   -> "Char"
+        FloatT'   -> "Float"  ; DoubleT' -> "Double"

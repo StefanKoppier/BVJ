@@ -6,7 +6,6 @@ import qualified Data.Graph.Inductive  as G
 import qualified Data.Map              as M
 import           Data.Stack            as S
 import           Data.Maybe
-import           Data.List                  (mapAccumL)
 import           Analysis.CFG
 import           Analysis.Pretty()
 import           Parsing.Syntax

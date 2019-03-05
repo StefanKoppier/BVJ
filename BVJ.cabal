@@ -51,6 +51,7 @@ library
                        Compilation.Compiler.Array
                        Compilation.Compiler.Object
                        Compilation.Compiler.Naming
+                       Compilation.Compiler.InformationGathering
                        Data.Stack
   -- other-extensions:    
   build-tools:         

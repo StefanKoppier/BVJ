@@ -14,13 +14,12 @@ perform args file = do
 arguments :: Arguments
 arguments = defaultArgs {
       method          = Scope Nothing "Main" "main"
-    , verbosity       = Compact
-    , maximumDepth    = 40
+    , verbosity       = Informative -- Compact
+    , maximumDepth    = 10
     , keepOutputFiles = False
     , includePaths    = -- For PC:
                         [ "C:\\MinGW\\lib\\gcc\\mingw32\\6.3.0\\include"
-                        , "C:\\MinGW\\include"
-                        ]
+                        , "C:\\MinGW\\include" ]
     }
 
 main :: IO ()

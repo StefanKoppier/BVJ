@@ -61,7 +61,7 @@ deriving FormalParam' : Eq, Show
 data Type'
     | PrimType'     ty :: PrimType'
     | RefType'      ty :: RefType'
-deriving Type' : Eq, Show
+deriving Type' : Ord, Eq, Show
 
 data PrimType'
     | BooleanT'
@@ -72,16 +72,16 @@ data PrimType'
     | CharT'
     | FloatT'
     | DoubleT'
-deriving PrimType' : Eq, Show
+deriving PrimType' : Ord, Eq, Show
 
 data RefType'
     | ClassRefType' ty :: ClassType'
     | ArrayType'    ty :: Type'
-deriving RefType' : Eq, Show
+deriving RefType' : Ord, Eq, Show
 
 data ClassType'
     | ClassType' name :: Name'
-deriving ClassType' : Eq, Show
+deriving ClassType' : Ord, Eq, Show
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -225,7 +225,6 @@ data Exp'
                         exp         :: Exp'
 deriving Exp' : Eq, Show
 
-
 data Literal'
     | Int'      value :: {Integer}
     | Float'    value :: {Float}
@@ -322,3 +321,5 @@ data Scope
             scopeClass   :: {String}
             scopeMember  :: {String}
 deriving Scope : Show, Eq, Ord
+
+type ProgramPath' = [Stmt']
