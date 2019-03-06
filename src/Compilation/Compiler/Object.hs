@@ -71,7 +71,7 @@ translateFieldDeclInitializer unit (ClassDecl' _ className' _) (VarDecl' (VarId'
           assignment = cAssign CAssignOp (cMember thisVar name) exp
        in cExprStat assignment
     
-translateFieldDeclInitializer unit _ (VarDecl' (VarId' name') (InitArray' Nothing'))
+translateFieldDeclInitializer unit _ (VarDecl' (VarId' name') (InitArray' Nothing))
     = undefined
     
 --------------------------------------------------------------------------------

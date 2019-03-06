@@ -85,11 +85,11 @@ renameVarInit ops (InitArray' inits)
        in (ops1, InitArray' inits')
 
 renameMaybeVarInits :: RenamingOperations -> MaybeVarInits' -> (RenamingOperations, MaybeVarInits')
-renameMaybeVarInits ops (Just' inits)
+renameMaybeVarInits ops (Just inits)
     = let (ops1, inits') = mapAccumL renameVarInit ops inits
-       in (ops1, Just' inits')
-renameMaybeVarInits ops Nothing' 
-    = (ops, Nothing') 
+       in (ops1, Just inits')
+renameMaybeVarInits ops Nothing
+    = (ops, Nothing) 
 
 renameExp :: RenamingOperations -> Exp' -> (RenamingOperations, Exp')
 renameExp ops e@(Lit' _) = (ops, e)

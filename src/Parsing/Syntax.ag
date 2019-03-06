@@ -35,7 +35,7 @@ data MemberDecl'
                         var       :: VarDecls'
 
     | MethodDecl'       modifiers :: Modifiers'
-                        ty        :: {Maybe Type'}
+                        ty        :: MaybeType'
                         name      :: {String}
                         params    :: FormalParams'
                         body      :: CompoundStmt'
@@ -57,6 +57,8 @@ deriving FormalParam' : Eq, Show
 --------------------------------------------------------------------------------
 -- Types
 --------------------------------------------------------------------------------
+
+type MaybeType' = maybe Type'
 
 data Type'
     | PrimType'     ty :: PrimType'
@@ -133,7 +135,7 @@ deriving Stmt' : Eq, Show
 type SwitchBlocks' = [SwitchBlock']
 
 data SwitchBlock'
-    | SwitchBlock' exp  :: {Maybe Exp'}
+    | SwitchBlock' exp  :: MaybeExp'
                    stat :: CompoundStmt'
 deriving SwitchBlock' : Eq, Show
 
@@ -152,12 +154,9 @@ data VarDeclId'
     | VarId'    id  :: String
 deriving VarDeclId' : Eq, Show
 
-data MaybeVarInits'
-    | Just'      inits :: VarInits'
-    | Nothing'  
-deriving MaybeVarInits' : Eq, Show
-
 type VarInits' = [VarInit']
+
+type MaybeVarInits' = maybe VarInits'
 
 data VarInit'
     | InitExp'   exp    :: Exp'
@@ -170,6 +169,8 @@ deriving VarInit' : Eq, Show
 --------------------------------------------------------------------------------
 
 type Exps' = [Exp']
+
+type MaybeExp' = maybe Exp'
 
 data Exp'
     | Lit'              value       :: Literal'

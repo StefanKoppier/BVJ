@@ -14,7 +14,7 @@ include "../../Parsing/Syntax.ag"
 --------------------------------------------------------------------------------
 
 attr MemberDecl' ProgramPath' Stmt' ArrayIndex' MethodInvocation' VarDecls' VarDecl' 
-     Exps' Exp' MaybeVarInits' VarInits' VarInit' 
+     MaybeExp' Exps' Exp' MaybeVarInits' VarInits' VarInit' 
     syn constructedClassTypes use {S.union} {S.empty} :: {S.Set ClassType'}
     syn constructedArrayTypes use {S.union} {S.empty} :: {S.Set Type'}
 
@@ -25,8 +25,9 @@ sem Exp'
 
     | ArrayCreateInit'  lhs.constructedArrayTypes = S.insert @ty.self @inits.constructedArrayTypes
 
-attr MemberDecl' ProgramPath' RefType' Type' ClassType' Stmt' VarDecls' VarDecl' 
-     MaybeVarInits' VarInit' Exps' Exp' Lhs' MethodInvocation' FieldAccess'
+attr MemberDecl' ProgramPath' RefType' MaybeType' Type' ClassType' Stmt' VarDecls' 
+     VarDecl' MaybeVarInits' VarInit' MaybeExp' Exps' Exp' Lhs' MethodInvocation' 
+     FieldAccess'
     syn usedClassTypes use {S.union} {S.empty} :: {S.Set ClassType'}
     syn usedArrayTypes use {S.union} {S.empty} :: {S.Set Type'}
 

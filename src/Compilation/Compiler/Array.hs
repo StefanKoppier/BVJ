@@ -20,7 +20,7 @@ createArrayStructDecl unit ty'
 
 createArrayAllocDecl :: CompilationUnit' -> Type' -> CExtDecl
 createArrayAllocDecl unit ty'
-    = let name       = trace (show ty') (cIdent ("allocator_" ++ nameOfType ty' ++ "_Array"))
+    = let name       = cIdent ("allocator_" ++ nameOfType ty' ++ "_Array")
           returnTy   = cStructType (cIdent (nameOfType ty' ++ "_Array"))
           params     = cParams [cDecl cIntType [(cDeclr arrayLengthName [], Nothing)]]
           declrs     = [params, cPointer]

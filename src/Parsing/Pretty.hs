@@ -138,8 +138,8 @@ instance Pretty VarInit' where
     pretty (InitArray' inits) = pretty inits
 
 instance Pretty MaybeVarInits' where
-    pretty (Just' es) = braces . commas $ es
-    pretty Nothing'   = empty
+    pretty (Just es) = braces . commas $ es
+    pretty Nothing   = empty
 
 --------------------------------------------------------------------------------
 -- Expressions

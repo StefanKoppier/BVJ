@@ -155,7 +155,7 @@ transformVarDeclId (VarDeclArray _)  = syntacticalError "array typed declaration
 
 transformVarInit :: VarInit -> PhaseResult VarInit'
 transformVarInit (InitExp e)                = InitExp' <$> transformExp e
-transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just' <$> mapM transformVarInit is
+transformVarInit (InitArray (ArrayInit is)) = InitArray' . Just <$> mapM transformVarInit is
 
 defaultInit :: Type -> PhaseResult VarInit'
 defaultInit (PrimType BooleanT) = (pure . InitExp' . Lit' . Boolean') False
@@ -169,7 +169,7 @@ defaultInit (PrimType DoubleT)  = (pure . InitExp' . Lit' . Double') 0.0
 defaultInit (RefType ty)        = defaultRefInit ty
 
 defaultRefInit :: RefType -> PhaseResult VarInit'
-defaultRefInit (ArrayType    _) = (pure . InitArray') Nothing'
+defaultRefInit (ArrayType    _) = (pure . InitArray') Nothing
 defaultRefInit (ClassRefType _) = pure (InitExp' (Lit' Null'))
 
 transformMaybeIdent :: Maybe Ident -> Maybe String

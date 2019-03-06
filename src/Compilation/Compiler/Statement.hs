@@ -64,8 +64,8 @@ translateVarInit unit locals (InitExp' exp')
     = let exp = translateExp unit locals exp'
        in Just $ cExpInit exp
 
-translateVarInit _ _ (InitArray' Nothing')
+translateVarInit _ _ (InitArray' Nothing)
     = Nothing
 
-translateVarInit unit locals (InitArray' (Just' inits'))
+translateVarInit unit locals (InitArray' (Just inits'))
     = undefined --cArrayInit <$> mapM (translateVarInit unit locals) inits'
