@@ -9,12 +9,14 @@ import Compilation.Compiler.Expression
 import Compilation.Compiler.Type
 import Parsing.Syntax
 import Parsing.Utility
+import Linearization.Path
 
 import Debug.Trace
 
-translateStmts :: CompilationUnit' -> LocalInformation -> [Stmt'] -> CStat
-translateStmts unit locals 
-    = cCompoundStat . snd . mapAccumL (translateStmtAcc unit) locals
+translateStmts :: CompilationUnit' -> LocalInformation -> [(Stmt', PathStmtInfo)] -> CStat
+translateStmts unit locals stats
+    = let stats' = map fst stats
+       in (cCompoundStat . snd . mapAccumL (translateStmtAcc unit) locals) stats'
 
 translateStmtAcc :: CompilationUnit' -> LocalInformation -> Stmt' -> (LocalInformation, CBlockItem)
 translateStmtAcc unit (className, locals) (Decl' _ ty' vars') 

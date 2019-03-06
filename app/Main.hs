@@ -14,7 +14,7 @@ perform args file = do
 arguments :: Arguments
 arguments = defaultArgs {
       method          = Scope Nothing "Main" "main"
-    , verbosity       = Informative -- Compact
+    , verbosity       = Informative {-Compact-}
     , maximumDepth    = 10
     , keepOutputFiles = False
     , includePaths    = -- For PC:

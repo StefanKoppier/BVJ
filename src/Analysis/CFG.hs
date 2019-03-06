@@ -17,7 +17,7 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 --------------------------------------------------------------------------------
 
 data CFGNodeValue 
-    = Block CompoundStmt' -- ^ THe statement of the node.
+    = Block CompoundStmt' -- ^ The statement of the node.
     | Call  Scope         -- ^ The method that is being called.
             Node          -- ^ The node containing the statement this call belongs to
             Name'         -- ^ The method invocation this call belongs to.
@@ -31,8 +31,10 @@ type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
     = InterEdge       Scope
+                      Int
     | ConditionalEdge Exp'
-    | IntraEdge
+                      Int
+    | IntraEdge       Int
     deriving (Show, Eq)
 
 type CFGEdge = LEdge CFGEdgeValue
@@ -57,7 +59,8 @@ entryOfMethod scope CFG{cfg}
                                          _              -> False) cfg
          
 isIntraEdge, isInterEdge :: CFGEdgeValue -> Bool
-isIntraEdge (ConditionalEdge _) = True
-isIntraEdge IntraEdge           = True
-isIntraEdge (InterEdge _)       = False
+isIntraEdge (ConditionalEdge _ _) = True
+isIntraEdge (IntraEdge _)         = True
+isIntraEdge (InterEdge _ _)       = False
+
 isInterEdge = not . isIntraEdge

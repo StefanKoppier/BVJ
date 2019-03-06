@@ -32,7 +32,7 @@ attr CompilationUnit'
     syn cfg :: {CFG}
 
 sem CompilationUnit'
-    | CompilationUnit' lhs.cfg = constructCFG @decls.nodes @decls.edges
+    | CompilationUnit' lhs.cfg = constructCFG (unknownNode : @decls.nodes) @decls.edges
 
 --------------------------------------------------------------------------------
 -- Methods
@@ -370,7 +370,7 @@ sem Exp'
                                         callEdge (new @args.label, scope) @lhs.methods
                                         : -- Inter edge from the exit to the next node
                                         returnEdge (scope, new (new @args.label))  @lhs.methods
-                                        : @args.edges
+                                        ++ @args.edges
                         args.label = @lhs.label
 
     | ExpName'          lhs .label  = @lhs.label
@@ -419,7 +419,7 @@ sem MethodInvocation'
                                     : -- Inter edge from the exit to the next node
                                     returnEdge (scope, new (new @args.label))  @lhs.methods
                                     -- The edges of the call arguments.
-                                    : @args.edges
+                                    ++ @args.edges
                   args.label = @lhs.label
 
     | PrimaryMethodCall' lhs .label = new @args.label
@@ -444,7 +444,7 @@ sem MethodInvocation'
                                             : -- Inter edge from the exit to the next node
                                             returnEdge (scope, new (new @args.label)) @lhs.methods
                                             -- The edges of the exp and call arguments.
-                                            : @exp.edges ++ @args.edges
+                                            ++ @exp.edges ++ @args.edges
                          exp .label = @lhs.label
                          args.label = @exp.label 
 
@@ -520,8 +520,11 @@ getScopeOfInvocation ast package className types (name:names)
     | (Just _) <- findClass name ast 
         = getScopeOfInvocation ast package name types names
     | otherwise
-        = let classNameOfVar = getNameOfType (types M.! (Scope package className name))
-           in getScopeOfInvocation ast package classNameOfVar types names
+        = case types M.!? Scope package className name of
+            Just ty' ->
+                getScopeOfInvocation ast package (getNameOfType ty') types names
+            Nothing  -> 
+                unknownScope
 
 getNameOfType :: Type' -> String
 getNameOfType (RefType' (ClassRefType' (ClassType' [name]))) = name
@@ -563,8 +566,14 @@ caseCondExp e1 previous (SwitchBlock' Nothing _)
 caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
     = BinOp' e1 Equal' e2
 
+unknownScope :: Scope
+unknownScope = Scope Nothing "UNKNOWN" "UNKNOWN"
+
+unknownNode :: (Node, CFGNodeValue)
+unknownNode = (-1, Entry unknownScope)
+
 noNode :: (Node, CFGNodeValue)
-noNode = (-1, undefined)
+noNode = (-2, undefined)
 
 new :: Node -> Node
 new = (1+)
@@ -585,7 +594,7 @@ exit :: Node -> Scope -> CFGNode
 exit n scope =  (n, Exit scope)
 
 intraEdge :: CFGNode -> CFGNode -> CFGEdge
-intraEdge (x,_) (y,_) = (x, y, IntraEdge)
+intraEdge (x,_) (y,_) = (x, y, IntraEdge 0)
 
 intraEdges :: CFGNodes -> CFGNode -> CFGEdges
 intraEdges xs y 
@@ -593,15 +602,29 @@ intraEdges xs y
     | otherwise   = map (`intraEdge` y) xs
 
 callEdge :: (Node, Scope) -> Methods -> CFGEdge
-callEdge (node, scope) methods 
-    = (node, fst (methods M.! scope), InterEdge scope)
+callEdge (node, scope) methods
+    | scope == unknownScope
+        = (node, fst unknownNode, InterEdge unknownScope 0)
+    | Just method' <- method
+        = (node, fst method', InterEdge scope 0)
+    | Nothing  <- method
+        = (node, fst unknownNode, InterEdge unknownScope 0)
+    where
+        method = methods M.!? scope
 
-returnEdge :: (Scope, Node) -> Methods -> CFGEdge
-returnEdge (scope, node) methods 
-    = (snd (methods M.! scope), node, InterEdge scope)
+returnEdge :: (Scope, Node) -> Methods -> CFGEdges
+returnEdge (scope, node) methods
+    | scope == unknownScope
+        = []
+    | Just method' <- method
+        = [(snd method', node, InterEdge scope 0)]
+    | Nothing      <- method
+        = []
+    where
+        method = methods M.!? scope
 
 condEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
-condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e)
+condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e 0)
 
 isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
 isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True

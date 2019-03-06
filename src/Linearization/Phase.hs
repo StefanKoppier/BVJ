@@ -14,6 +14,8 @@ import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
+import Debug.Trace
+
 linearizationPhase :: Phase CFG ProgramPaths
 linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = do
     newEitherT $ printInformation verbosity graph
@@ -22,7 +24,7 @@ linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = d
             let (Scope _ _ scopeMember) = method
             let history   = M.fromList [(n, 0) | (_,Entry n) <- G.labNodes cfg]
             let callStack = S.singleton (method, scopeMember, -1)
-            let acc       = (history, M.empty, callStack, [[]], maximumDepth)
+            let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
             let ps        = paths acc graph (G.context cfg entry)
             return . map (clean . reverse) $ ps
         Nothing        -> semanticalError (UndefinedMethodReference method)
@@ -57,35 +59,42 @@ type StackFrame = (Scope, String, G.Node)
 -- | The stack of method calls.
 type CallStack = Stack StackFrame
 
-type Accumulator = (CallHistory, StmtManipulations, CallStack, ProgramPaths, Int)
+-- | Accumulator containing the number of calls made, the pending renamings for
+-- specific nodes, the call stack, the generated program paths thus far, the 
+-- remaining number of statements allowed, and the current scope depth.
+type Accumulator = (CallHistory, StmtManipulations, CallStack, ProgramPaths, Int, Int)
 
 paths :: Accumulator -> CFG -> CFGContext -> ProgramPaths
 -- Case: the end is not reached and the maximum path length is reached.
-paths (_,_,_,_,0) _ (_, _, _, _:_)
+paths (_,_,_,_,0,_) _ (_, _, _, _:_)
     = []
 
 -- Case: the final statement.
-paths (_,_,_,ps,_)  _ (_,_,Exit _, [])
+paths (_,_,_,ps,_,_)  _ (_,_,Exit _, [])
     = ps
+
+-- Case: the entry of the unknown method.
+paths _ _ (_,_, Entry scope, [])
+    = []
 
 -- Case: the entry of an method.
 paths acc graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
     = paths acc graph (G.context cfg neighbour)
     
 -- Case: the exit of an method.
-paths (history, manipulations, callStack, ps, k) graph@CFG{cfg} (_,_,Exit _,_)
+paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,_,Exit _,_)
     = let (_, _, destination) = fromJust $ S.peek callStack
-          acc'                = (history, manipulations, S.pop callStack, ps, k)
+          acc'                = (history, manipulations, S.pop callStack, ps, k, s)
        in paths acc' graph (G.context cfg destination)
 
 -- Case: the call of an method.
-paths (history, manipulations, callStack, ps, k) graph@CFG{cfg} (_,node, Call method statNode name, [(_,neighbour)])
+paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,node, Call method statNode name, [(_,neighbour)])
     = let callNumber     = history M.! method
           history'       = M.insert method (callNumber + 1) history
           newName        = renameMethodName method callNumber
           manipulations' = insertManipulation statNode name (method, callNumber) manipulations
           callStack'     = S.push (method, newName, node + 1) callStack
-          acc'           = (history', manipulations', callStack', ps, k)
+          acc'           = (history', manipulations', callStack', ps, k, s)
        in paths acc' graph (G.context cfg neighbour)
 
 -- Case: a statement.
@@ -93,15 +102,20 @@ paths acc graph (_, node, Block s, neighbours)
     = concatMap (\ (edge, neighbour) -> next acc s graph (node, neighbour, edge)) neighbours
 
 next :: Accumulator -> CompoundStmt' -> CFG -> CFGEdge -> ProgramPaths
-next (history, manipulations, callStack, ps, k) s graph@CFG{cfg} (node, neighbour, edge) 
-    = let pathInfo = PathStmtInfo{callName=callName', original=scope'}
-          acc'     = (history, manipulations', callStack, map ((stat', pathInfo):) ps, k-1)
+next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, neighbour, edge) 
+    = let (k', s') = (k-1, s + scopeModificationOfEdge edge)
+          pathInfo = PathStmtInfo{callName=callName', original=scope', depth=s'}
+          acc'     = (history, manipulations', callStack, map ((stat4, pathInfo):) ps, k', s')
        in paths acc' graph (G.context cfg neighbour)
     where
-        renaming                           = manipulations M.!? node
-        manipulations'                     =  M.insert node renaming' manipulations
-        (scope', callName', _)             = fromJust $ S.peek callStack
-        stat | ConditionalEdge e <- edge   = Assume' e
-             | (Stmt' s')        <- s      = s'
-        (renaming', stat') = maybe (M.empty, stat) (\ r -> renameStmt r stat) renaming
-           
+        renaming                             = manipulations M.!? node
+        manipulations'                       = M.insert node renaming' manipulations
+        (scope', callName', _)               = fromJust $ S.peek callStack
+        stat3 | ConditionalEdge e _ <- edge  = Assume' e
+              | (Stmt' stat2)       <- stat1 = stat2
+        (renaming', stat4) = maybe (M.empty, stat3) (\ r -> renameStmt r stat3) renaming
+
+scopeModificationOfEdge :: CFGEdgeValue -> Int
+scopeModificationOfEdge (InterEdge _ s)       = s
+scopeModificationOfEdge (ConditionalEdge _ s) = s
+scopeModificationOfEdge (IntraEdge s)         = s

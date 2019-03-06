@@ -35,45 +35,44 @@ translatePath unit@(CompilationUnit' _ decls) path
 translateCall :: CompilationUnit' -> ProgramPath -> CExtDecl
 translateCall unit path
     = case methodDecl of
-            MethodDecl'{}      -> translateMethodCall unit callName methodDecl path
-            ConstructorDecl'{} -> translateConstructorCall unit callName methodDecl path
+            MethodDecl'{}      -> translateMethodCall unit methodDecl path
+            ConstructorDecl'{} -> translateConstructorCall unit methodDecl path
     where
-        (PathStmtInfo callName scope@(Scope _ _ scopeMember)) = snd . head $ path
-        methodName = scopeMember
+        (PathStmtInfo _ scope _)= (snd . head) path
         methodDecl = fromJust $ getMethod unit scope
         
-translateConstructorCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
-translateConstructorCall unit callName methodDecl path
+translateConstructorCall :: CompilationUnit' -> MemberDecl' -> ProgramPath -> CExtDecl
+translateConstructorCall unit methodDecl path
     = let (returns, declrs) = translateType unit methodType
           name              = cIdent callName
           params            = translateParams unit methodParams
-          preStats          = cVarDeclStat (cDecl returns [(cDeclr thisName [cPointer], Just (cExpInit (cCall (createObjectAllocName methodName) [])))])
+          preStats          = cVarDeclStat (cDecl returns [(cDeclr thisName [cPointer], Just (cExpInit (cCall (createObjectAllocName scopeMember) [])))])
           postStats         = cReturnStat (Just thisVar)
           localInfo         = (scopeClass, paramNames)
-          stats             = cBlockStat $ translateStmts unit localInfo (map (transformReturnToReturnThis . fst) path)
+          stats             = cBlockStat $ translateStmts unit localInfo (map transformReturnToReturnThis path)
           body              = cCompoundStat [preStats, stats, postStats]
        in cFunction returns name (params : declrs) body
     where
-        (PathStmtInfo callName scope@(Scope _ scopeClass scopeMember)) = snd . head $ path
-        methodName   = scopeMember
+        (PathStmtInfo callName scope depth) = snd . head $ path
+        (Scope _ scopeClass scopeMember) = scope
         paramNames   = namesOfParams methodParams
         methodParams = getParams methodDecl
         methodType   = fromJust (getReturnTypeOfMethod methodDecl)
 
-transformReturnToReturnThis :: Stmt' -> Stmt'
-transformReturnToReturnThis Return' = ReturnExp' (ExpName' ["this"])
-transformReturnToReturnThis s       = s
+transformReturnToReturnThis :: (Stmt', PathStmtInfo) ->  (Stmt', PathStmtInfo)
+transformReturnToReturnThis (Return', info) = (ReturnExp' (ExpName' ["this"]), info)
+transformReturnToReturnThis s               = s
 
-translateMethodCall :: CompilationUnit' -> String -> MemberDecl' -> ProgramPath -> CExtDecl
-translateMethodCall unit callName methodDecl path
+translateMethodCall :: CompilationUnit' -> MemberDecl' -> ProgramPath -> CExtDecl
+translateMethodCall unit methodDecl path
     = let (returns, declrs) = translateType unit methodType
           name              = cIdent callName
           params            = translateParams unit methodParams
           localInfo         = (scopeClass, paramNames)
-          body              = translateStmts unit localInfo (map fst path)
+          body              = translateStmts unit localInfo path
        in cFunction returns name (params : declrs) body
     where
-        (PathStmtInfo callName scope) = snd . head $ path
+        (PathStmtInfo callName scope _) = snd . head $ path
         (Scope _ scopeClass scopeMember) = scope
         methodType   = fromJust $ getReturnTypeOfMethod methodDecl
         thisTy       = RefType' . ClassRefType' . ClassType' $ [scopeClass]

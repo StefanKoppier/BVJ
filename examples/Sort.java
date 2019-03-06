@@ -1,7 +1,9 @@
 class Main {
     public static void main() {
-        int[] elems = new int[] { 2, 1 };
-        sort(elems, 0, 1);
+        int[] elems = new int[2];
+        elems[0] = 2;
+        elems[1] = 1;
+        sort(elems, 0, elems.length);
         assert (elems[0] == 1) && (elems[1] == 2);
     }
 
