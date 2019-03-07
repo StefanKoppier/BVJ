@@ -139,6 +139,10 @@ translateExp unit locals (Assign' lhs' op' exp')
           exp = translateExp unit locals exp'
        in cAssign op lhs exp
 
+translateMaybeExp :: CompilationUnit' -> LocalInformation -> Maybe Exp' -> Maybe CExpr
+translateMaybeExp unit locals 
+    = fmap (translateExp unit locals)
+
 translateExpName :: CompilationUnit' -> LocalInformation -> Name' -> CExpr
 translateExpName unit (className, locals) names'
     -- Case: the name is a local variable.

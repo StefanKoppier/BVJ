@@ -29,7 +29,7 @@ createScopedStmts :: Int -> [(Stmt', Int)] -> [ScopedStmt]
 createScopedStmts _ [] = []
 createScopedStmts x ((stat, y):stats)
     | x == y = SameScope stat : createScopedStmts x stats
-    | x < y  = let (hd, tl) = span (\ (s, x') -> x' == y) stats
+    | x < y  = let (hd, tl) = span (\ (s, x') -> x' >= y) stats
                 in NewScope (SameScope stat : createScopedStmts y hd)
                    : createScopedStmts x tl
     | x > y  = SameScope stat : createScopedStmts y stats
@@ -75,12 +75,9 @@ translateStmtAcc _ locals (Break' _)
 translateStmtAcc _ locals (Continue' _)
     = (locals, cEmptyStat)
 
-translateStmtAcc unit locals (ReturnExp' exp')
-    = let exp = translateExp unit locals exp' 
-       in (locals, cReturnStat (Just exp))
-
-translateStmtAcc _ locals Return'
-    = (locals, cReturnStat Nothing)
+translateStmtAcc unit locals (Return' exp')
+    = let exp = translateMaybeExp unit locals exp'
+       in (locals, cReturnStat exp)
 
 translateVarDecl :: CompilationUnit' -> LocalInformation -> [CDerivedDeclr] -> VarDecl' -> (CDeclr, Maybe CInit)
 translateVarDecl unit locals declrs (VarDecl' (VarId' name') init')

@@ -10,16 +10,17 @@ import Debug.Trace
 
 include "../Parsing/Syntax.ag"
 
-attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
-     SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' MethodInvocation' VarDecls' 
-     VarDecl' VarInits' VarInit' MaybeVarInits' ArrayIndex' Lhs' FieldAccess'
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
+     CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
+     MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
+     ArrayIndex' Lhs' FieldAccess'
     inh ast :: CompilationUnit'
 
 sem CompilationUnit'
     | CompilationUnit' decls.ast = @self
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' 
-     CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
+     CompoundStmts' CompoundStmt' Stmt'  SwitchBlocks' SwitchBlock'
     syn nodes use {++} {[]} :: {CFGNodes}
     syn edges use {++} {[]} :: {CFGEdges}
     chn label               :: {Node}
@@ -38,9 +39,9 @@ sem CompilationUnit'
 -- Methods
 --------------------------------------------------------------------------------
 
-attr Decls' Decl' MemberDecl' CompoundStmt' Stmt' MaybeExp' Exps' Exp' MethodInvocation'
-     VarDecls' VarDecl' MaybeVarInits' VarInits' VarInit' Lhs' ArrayIndex' 
-     FieldAccess' SwitchBlocks' SwitchBlock'
+attr Decls' Decl' MemberDecl' CompoundStmts' CompoundStmt' Stmt' MaybeExp' Exps' 
+     Exp' MethodInvocation' VarDecls' VarDecl' MaybeVarInits' VarInits' VarInit' 
+     Lhs' ArrayIndex' FieldAccess' SwitchBlocks' SwitchBlock'
     inh className :: {String}
 
 attr CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
@@ -65,7 +66,7 @@ sem MemberDecl'
                                            exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
                                            intraEdge entry' @body.init 0
-                                           : -- Edge(s) from final of body to exit of method.
+                                           ++ -- Edge(s) from final of body to exit of method.
                                            intraEdges @body.final exit' 0
                                            ++ -- Edge(s) from returns to exit of method.
                                            intraEdges @body.returns exit' 0
@@ -89,7 +90,7 @@ sem MemberDecl'
                                            exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
                                            intraEdge entry' @body.init 0
-                                           : -- Edge(s) from final of body to exit of method.
+                                           ++ -- Edge(s) from final of body to exit of method.
                                            intraEdges @body.final exit' 0
                                            ++ -- Edge(s) from returns to exit of method.
                                            intraEdges @body.returns exit' 0
@@ -98,9 +99,10 @@ sem MemberDecl'
                         body.label   = new @lhs.label
                             .method  = [@name]
 
-attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
-     SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' MethodInvocation' VarDecls' 
-     VarDecl' VarInits' VarInit' MaybeVarInits' Lhs' ArrayIndex' FieldAccess'
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
+     CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
+     MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
+     Lhs' ArrayIndex' FieldAccess'
     inh methods :: {Methods}
 
 sem CompilationUnit'
@@ -117,7 +119,7 @@ sem MemberDecl'
 -- Statements
 --------------------------------------------------------------------------------
 
-attr CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
+attr CompoundStmts' CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
     inh method                  :: Name'
     syn init                    :: {CFGNode}
     syn final                   :: {CFGNodes}
@@ -129,20 +131,55 @@ attr CompoundStmt'
     syn guard :: {CFGNode}
 
 {
-firstStmtInSeq :: CompoundStmt' -> CompoundStmt'
-firstStmtInSeq (Seq' s1 s2) = firstStmtInSeq s1
-firstStmtInSeq s           = s
-
-seqEdges :: CompoundStmt' -> CFGNodes -> CFGNode -> CFGEdges
-seqEdges stat final init
-    | Block' _ <- firstStmtInSeq stat
+seqEdges :: CompoundStmts' -> CFGNodes -> CFGNode -> CFGEdges
+seqEdges [] _ _ = []
+seqEdges (stat:_) final init
+    | init == noNode
+        = []
+    | Block' _ <- stat
         = intraEdges final init 1
     | otherwise
         = intraEdges final init 0
 }
 
+sem CompoundStmts'
+    | Cons  lhs .label = @tl.label
+                .init  = @hd.init
+                .final = if @tl.final == [noNode]
+                            then @hd.final
+                            else @tl.final
+                .edges = case @hd.self of
+                            Stmt' (Break' _)
+                                -> @hd.edges
+                            Stmt' (Continue' _)
+                                -> @hd.edges
+                            Stmt' (Return' _)
+                                -> @hd.edges
+                            Block' _
+                                -> @hd.edges ++ @tl.edges
+                                   ++ intraEdges @hd.final @tl.init (-1)
+                            IfThenElse' _ _ _
+                                -> @hd.edges ++ @tl.edges 
+                                   ++ intraEdges @hd.final @tl.init (-1)
+                            While' _ e _
+                                -> let conditional = @hd.guard
+                                       normal      = filter (conditional /=) @hd.final in
+                                       condEdge conditional @tl.init (PreNot' e) 0
+                                       ++ -- TODO: (-1) (-n) as these are the breaks inside the scope.
+                                       intraEdges normal @tl.init 0 
+                                       ++
+                                       @hd.edges ++ @tl.edges
+                            _   
+                                -> @hd.edges ++ @tl.edges 
+                                   ++ seqEdges @tl.self @hd.final @tl.init
+                .nodes = @hd.nodes ++ @tl.nodes
+            hd  .label = @lhs.label
+            tl  .label = @hd.label
+    | Nil   lhs .init  = noNode
+                .final = [noNode]
+
 sem CompoundStmt'
-    | Seq'          lhs  .label = @stat2.label
+{-    | Seq'          lhs  .label = @stat2.label
                          .init  = @stat1.init
                          .final = @stat2.final
                          .edges = case @stat1.self of
@@ -172,7 +209,7 @@ sem CompoundStmt'
                                           ++ seqEdges @stat2.self @stat1.final @stat2.init
                     stat1.label = @lhs.label
                     stat2.label = @stat1.label
-
+-}
     | Block'        lhs  .label    = @stat.label
                     stat .label    = @lhs.label
       
@@ -186,9 +223,9 @@ sem CompoundStmt'
                          .edges    = let self = block (new @exp.label) @self in
                                        -- Edge from condition to init of true branch.
                                        condEdge self @stat1.init @exp.self 1
-                                       : -- Edge from condition to init of false branch.
+                                       ++ -- Edge from condition to init of false branch.
                                        condEdge self @stat2.init (PreNot' @exp.self) 1
-                                       : -- Edge(s) of the branches.
+                                       ++ -- Edge(s) of the branches.
                                        @stat1.edges ++ @stat2.edges ++ @exp.edges
                     exp  .label    = @lhs.label
                          .statNode = new @exp.label
@@ -206,7 +243,7 @@ sem CompoundStmt'
                                                     then self else @exp.init in
                                          -- Edge from condition to the init body.
                                          condEdge self @body.init (@exp.self) 1
-                                         : -- Edge(s) from finals of body to the condition.
+                                         ++ -- Edge(s) from finals of body to the condition.
                                          intraEdges @body.final init (-1)
                                          ++ -- Edge(s) from continues of this loop to the condition.
                                          intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init (-1)
@@ -243,7 +280,7 @@ sem SwitchBlocks'
     | Cons lhs.init     = @hd.init
               .edges    = -- Edges from expression to each case.
                           condEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 1 
-                          : -- Edges from final of case to init of the next.
+                          ++ -- Edges from final of case to init of the next.
                           (if @tl.init == noNode
                                then [] else intraEdges @hd.final @tl.init 0)
                           -- Edges from the body and rest of the list. 
@@ -315,23 +352,23 @@ sem Stmt'
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
                     .continues = [block (new @lhs.label) (Stmt' @self)]
 
-    | ReturnExp'    lhs .label   = new @exp.label
-                        .init    = if noNode == @exp.init
-                                      then (block (new @exp.label) (Stmt' @self))
-                                      else @exp.init
-                        .final   = []
-                        .nodes   = block (new @exp.label) (Stmt' @self) : @exp.nodes
-                        .edges   = @exp.edges
-                        .returns = [block (new @exp.label) (Stmt' @self)]
-                    exp .label   = @lhs.label
-                        .statNode = 1 + @lhs.label + @exp.numberOfCalls
+    | Return'   lhs .label    = new @exp.label
+                    .init     = if noNode == @exp.init
+                                    then (block (new @exp.label) (Stmt' @self))
+                                    else @exp.init
+                    .final    = []
+                    .nodes    = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges    = @exp.edges
+                    .returns  = [block (new @exp.label) (Stmt' @self)]
+                exp .label    = @lhs.label
+                    .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
-    | Return'   lhs .label   = new @lhs.label
+{-    | Return'   lhs .label   = new @lhs.label
                     .init    = block (new @lhs.label) (Stmt' @self)
                     .final   = []
                     .nodes   = [block (new @lhs.label) (Stmt' @self)]
                     .returns = [block (new @lhs.label) (Stmt' @self)]
-
+-}
 --------------------------------------------------------------------------------
 -- Expressions and variable declarations
 --------------------------------------------------------------------------------
@@ -558,9 +595,10 @@ attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
 sem MemberDecl'
     | FieldDecl' lhs.fieldTypes = generateTypesFromDecls Nothing @lhs.className @ty.self @var.self
 
-attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmt' Stmt' 
-     SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' MethodInvocation' FieldAccess'
-     VarInits' VarInit' MaybeVarInits' ArrayIndex' VarDecls' VarDecl' Lhs'
+attr TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
+     CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
+     MethodInvocation' FieldAccess' VarInits' VarInit' MaybeVarInits' ArrayIndex' 
+     VarDecls' VarDecl' Lhs'
     inh types :: {TypeEnvironment}
 
 sem CompilationUnit'
@@ -570,9 +608,8 @@ sem MemberDecl'
     | MethodDecl'       body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
     | ConstructorDecl'  body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
 
-sem CompoundStmt'
-    | Seq'          stat1.types = @lhs.types
-                    stat2.types = @lhs.types `M.union` generateTypesFromStmt Nothing @lhs.className @stat1.self
+sem CompoundStmts'
+    | Cons  tl.types = @lhs.types `M.union` generateTypesFromStmt Nothing @lhs.className @hd.self
 
 --------------------------------------------------------------------------------
 -- Auxiliary functions
@@ -615,13 +652,15 @@ entry n scope = (n, Entry scope)
 exit :: Node -> Scope -> CFGNode
 exit n scope =  (n, Exit scope)
 
-intraEdge :: CFGNode -> CFGNode -> Int -> CFGEdge
-intraEdge (x,_) (y,_) s = (x, y, IntraEdge s)
+intraEdge :: CFGNode -> CFGNode -> Int -> CFGEdges
+intraEdge (x,_) yNode@(y,_) s 
+    | noNode == yNode = []
+    | otherwise       = [(x, y, IntraEdge s)]
 
 intraEdges :: CFGNodes -> CFGNode -> Int -> CFGEdges
 intraEdges xs y s
     | noNode == y = []
-    | otherwise   = map (\ x -> intraEdge x y s) xs
+    | otherwise   = concatMap (\ x -> intraEdge x y s) xs
 
 callEdge :: (Node, Scope) -> Methods -> CFGEdge
 callEdge (node, scope) methods
@@ -645,8 +684,10 @@ returnEdge (scope, node) methods
     where
         method = methods M.!? scope
 
-condEdge :: CFGNode -> CFGNode -> Exp' -> Int -> CFGEdge
-condEdge (x,_) (y,_) e s = (x, y, ConditionalEdge e s)
+condEdge :: CFGNode -> CFGNode -> Exp' -> Int -> CFGEdges
+condEdge (x,_) yNode@(y,_) e s 
+    | yNode == noNode = []
+    | otherwise       = [(x, y, ConditionalEdge e s)]
 
 isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
 isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True

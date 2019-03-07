@@ -23,7 +23,7 @@ linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = d
         Just (entry,_) -> do
             let (Scope _ _ scopeMember) = method
             let history   = M.fromList [(n, 0) | (_,Entry n) <- G.labNodes cfg]
-            let callStack = S.singleton (method, scopeMember, -1)
+            let callStack = S.singleton (method, scopeMember, -1, 0)
             let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
             let ps        = paths acc graph (G.context cfg entry)
             return . map (clean . reverse) $ ps
@@ -40,7 +40,6 @@ printInformation verbosity graph = do
 
 clean :: ProgramPath -> ProgramPath
 clean []                   = []
-clean ((Empty'     ,_):ps) = clean ps
 clean ((Continue' _,_):ps) = clean ps
 clean ((Break' _   ,_):ps) = clean ps
 clean (s              :ps) = s : clean ps
@@ -52,9 +51,9 @@ clean (s              :ps) = s : clean ps
 -- | The history of number of calls renamed.
 type CallHistory = M.Map Scope Int
 
--- | A stack frame containing the current method, the current call name, and 
--- the node the method should return to.
-type StackFrame = (Scope, String, G.Node)
+-- | A stack frame containing the current method, the current call name, 
+-- the node the method should return to, and the previous scope depth.
+type StackFrame = (Scope, String, G.Node, Int)
 
 -- | The stack of method calls.
 type CallStack = Stack StackFrame
@@ -78,13 +77,14 @@ paths _ _ (_,_, Entry scope, [])
     = []
 
 -- Case: the entry of an method.
-paths acc graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
-    = paths acc graph (G.context cfg neighbour)
+paths (history, manipulations, callStack, ps, k, _) graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
+    = let acc' = (history, manipulations, callStack, ps, k, 0)
+       in paths acc' graph (G.context cfg neighbour)
     
 -- Case: the exit of an method.
-paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,_,Exit _,_)
-    = let (_, _, destination) = fromJust $ S.peek callStack
-          acc'                = (history, manipulations, S.pop callStack, ps, k, s)
+paths (history, manipulations, callStack, ps, k, _) graph@CFG{cfg} (_,_,Exit _,_)
+    = let (_, _, destination, s) = fromJust $ S.peek callStack
+          acc'                   = (history, manipulations, S.pop callStack, ps, k, s)
        in paths acc' graph (G.context cfg destination)
 
 -- Case: the call of an method.
@@ -93,7 +93,7 @@ paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,node, Call
           history'       = M.insert method (callNumber + 1) history
           newName        = renameMethodName method callNumber
           manipulations' = insertManipulation statNode name (method, callNumber) manipulations
-          callStack'     = S.push (method, newName, node + 1) callStack
+          callStack'     = S.push (method, newName, node + 1, s) callStack
           acc'           = (history', manipulations', callStack', ps, k, s)
        in paths acc' graph (G.context cfg neighbour)
 
@@ -110,7 +110,7 @@ next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, n
     where
         renaming                             = manipulations M.!? node
         manipulations'                       = M.insert node renaming' manipulations
-        (scope', callName', _)               = fromJust $ S.peek callStack
+        (scope', callName', _, _)            = fromJust $ S.peek callStack
         stat3 | ConditionalEdge e _ <- edge  = Assume' e
               | (Stmt' stat2)       <- stat1 = stat2
         (renaming', stat4) = maybe (M.empty, stat3) (\ r -> renameStmt r stat3) renaming

@@ -60,8 +60,8 @@ translateConstructorCall unit methodDecl path
         methodType   = fromJust (getReturnTypeOfMethod methodDecl)
 
 transformReturnToReturnThis :: (Stmt', PathStmtInfo) ->  (Stmt', PathStmtInfo)
-transformReturnToReturnThis (Return', info) = (ReturnExp' (ExpName' ["this"]), info)
-transformReturnToReturnThis s               = s
+transformReturnToReturnThis (Return' _, info) = (Return' (Just (ExpName' ["this"])), info)
+transformReturnToReturnThis s                 = s
 
 translateMethodCall :: CompilationUnit' -> MemberDecl' -> ProgramPath -> CExtDecl
 translateMethodCall unit methodDecl path

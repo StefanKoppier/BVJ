@@ -91,8 +91,11 @@ instance Pretty ClassType' where
 -- Statements
 --------------------------------------------------------------------------------
 
+instance Pretty CompoundStmts' where
+    pretty []     = empty
+    pretty (s:ss) = pretty s $+$ pretty ss
+
 instance Pretty CompoundStmt' where
-    pretty (Seq' s1 s2)              = pretty s1 $+$ pretty s2
     pretty (Block' s)                = lbrace $+$ nest 4 (pretty s) $+$ rbrace
     pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" <+> pretty s2
     pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) <+> nest 4 (pretty s)
@@ -110,8 +113,8 @@ instance Pretty Stmt' where
     pretty (Break' Nothing)         = text "break" <> semi
     pretty (Continue' (Just ident)) = text "continue:" <+> text ident <> semi
     pretty (Continue' Nothing)      = text "continue" <> semi
-    pretty (ReturnExp' exp)         = text "return" <+> pretty exp <> semi
-    pretty Return'                  = text "return" <> semi
+    pretty (Return' Nothing)        = text "return" <> semi
+    pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
 
 instance Pretty SwitchBlocks' where
     pretty = foldr (($+$) . pretty) empty

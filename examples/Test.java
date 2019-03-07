@@ -1,11 +1,12 @@
 class Main {
     public static void main() {
+        int x = getZero();
+    }
+
+    public static int getZero() {
+        ;
         {
-            int x = 0;
-        }
-        int a = 0;
-        {
-            int x = 1;
+            return 0;
         }
     }
 }

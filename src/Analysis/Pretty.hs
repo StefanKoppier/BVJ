@@ -34,6 +34,6 @@ instance Pretty CFGAdj where
     pretty = brackets . commas
 
 instance Pretty (CFGEdgeValue, Node) where
-    pretty (InterEdge _ s, n) = pretty n <+> quotes (pretty s)
-    pretty (ConditionalEdge _ s, n) = pretty n <+> quotes (pretty s)
-    pretty (IntraEdge s, n) = pretty n <+> quotes (pretty s)
+    pretty (InterEdge _ s, n)       = pretty n <+> quotes (pretty s)
+    pretty (ConditionalEdge e s, n) = pretty n <+> quotes (pretty s)
+    pretty (IntraEdge s, n)         = pretty n <+> quotes (pretty s)

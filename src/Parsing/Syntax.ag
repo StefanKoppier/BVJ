@@ -38,12 +38,12 @@ data MemberDecl'
                         ty        :: MaybeType'
                         name      :: {String}
                         params    :: FormalParams'
-                        body      :: CompoundStmt'
+                        body      :: CompoundStmts'
 
     | ConstructorDecl'  modifiers :: Modifiers'
                         name      :: {String}
                         params    :: FormalParams'
-                        body      :: CompoundStmt'
+                        body      :: CompoundStmts'
 deriving MemberDecl' : Eq, Show
 
 type FormalParams' = [FormalParam']
@@ -89,11 +89,10 @@ deriving ClassType' : Ord, Eq, Show
 -- Statements
 --------------------------------------------------------------------------------
 
-data CompoundStmt'
-    | Seq'          stat1   :: CompoundStmt'
-                    stat2   :: CompoundStmt'
+type CompoundStmts' = [CompoundStmt']
 
-    | Block'        stat    :: CompoundStmt'
+data CompoundStmt'
+    | Block'        stat    :: CompoundStmts'
 
     | IfThenElse'   exp     :: Exp'
                     stat1   :: CompoundStmt'
@@ -110,9 +109,9 @@ data CompoundStmt'
 deriving CompoundStmt' : Eq, Show
 
 data Stmt'
-    | Decl'     modifiers   :: Modifiers'
-                ty          :: Type'
-                vars        :: VarDecls'
+    | Decl'         modifiers   :: Modifiers'
+                    ty          :: Type'
+                    vars        :: VarDecls'
 
     | Empty'
 
@@ -127,9 +126,7 @@ data Stmt'
 
     | Continue'     ident       :: {Maybe String}
 
-    | ReturnExp'    exp         :: Exp'
-
-    | Return'
+    | Return'       exp         :: MaybeExp'
 deriving Stmt' : Eq, Show
 
 type SwitchBlocks' = [SwitchBlock']

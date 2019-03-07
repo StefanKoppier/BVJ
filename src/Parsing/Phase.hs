@@ -79,23 +79,38 @@ transformParam (FormalParam ms ty False id)
 transformParam (FormalParam _ _ True _)
     = syntacticalError "variable arity parameter"
 
-transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmt'
+transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmts'
 transformConstructorBody (ConstructorBody Nothing ss)
-    = let b' = Block (ss ++ [BlockStmt Empty]) in transformBlock b'
+    = transformBlockStmts ss
 transformConstructorBody (ConstructorBody (Just _) _) 
     = syntacticalError "base class constructor call"
 
-transformMethodBody :: MethodBody -> PhaseResult CompoundStmt'
+transformMethodBody :: MethodBody -> PhaseResult CompoundStmts'
 transformMethodBody (MethodBody (Just (Block b))) 
-    = let b' = Block (b ++ [BlockStmt Empty]) in transformBlock b'
+    = transformBlockStmts b
 transformMethodBody (MethodBody Nothing)  
     = syntacticalError "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
-transformBlock (Block [])     = pure emptyStmt
-transformBlock (Block [s])    = transformBlockStmt s
-transformBlock (Block (s:ss)) = Seq' <$> transformBlockStmt s <*> transformBlock (Block ss)
+transformBlock (Block ss) = Block' <$> transformBlockStmts ss
 
+transformBlockStmts :: [BlockStmt] -> PhaseResult CompoundStmts'
+transformBlockStmts []     = pure []
+transformBlockStmts (s:ss) = 
+    case s of
+        BlockStmt StmtBlock{} -> do
+            s' <- transformBlockStmt s
+            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+        BlockStmt While{} -> do
+            s' <- transformBlockStmt s
+            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+        BlockStmt BasicFor{} -> do
+            s' <- transformBlockStmt s
+            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+        _     -> do
+            s' <- transformBlockStmt s
+            (s':) <$> transformBlockStmts ss
+        
 transformBlockStmt :: BlockStmt -> PhaseResult CompoundStmt'
 transformBlockStmt (BlockStmt s)        = transformStmt s
 transformBlockStmt (LocalClass _)       = syntacticalError "local class"
@@ -180,17 +195,11 @@ transformStmt :: Stmt -> PhaseResult CompoundStmt'
 transformStmt = foldStmt alg
     where
         alg :: StmtAlgebra (PhaseResult CompoundStmt')
-        alg = (                fmap Block' . transformBlock
-              , \ g s       -> IfThenElse' <$> transformExp g <*> s <*> compound Empty'
+        alg = (                transformBlock
+              , \ g s       -> IfThenElse' <$> transformExp g <*> s <*> pure (Stmt' Empty')
               , \ g s1 s2   -> IfThenElse' <$> transformExp g <*> s1 <*> s2
               , \ g s       -> While' Nothing <$> transformExp g <*> s
-              , \ i g u s   -> do
-                    s' <- s
-                    i' <- maybe (pure emptyStmt) (\ (ForLocalVars ms ty ds) -> (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds) i
-                    u' <- maybe (pure emptyStmt) (fmap (foldr (\ e -> Seq' (Stmt' $ ExpStmt' e)) emptyStmt) . mapM transformExp) u
-                    g' <- maybe ((pure . Lit' . Boolean') True) transformExp g
-                    let while = While' Nothing g' (Seq' s' u')
-                    pure $ Block' $ Seq' i' (Seq' while emptyStmt)
+              ,                transformFor
               , \ m t i g s -> syntacticalError "for (iterator)"
               ,                compound Empty'
               ,                fmap (Stmt' . ExpStmt') . transformExp
@@ -200,15 +209,40 @@ transformStmt = foldStmt alg
               , \ s e       -> syntacticalError "do"
               ,                compound . Break' . transformMaybeIdent
               ,                compound . Continue' . transformMaybeIdent
-              , \case (Just e) -> Stmt' . ReturnExp' <$> transformExp e
-                      Nothing  -> pure (Stmt' Return')
+              , \ e         -> Stmt' . Return' <$> transformMaybeExp e
               , \ e s       -> syntacticalError "synchronized"
               , \ e         -> syntacticalError "throw"
               , \ b c f     -> syntacticalError "try catch (finally)"
               , \ (Ident l) s -> labelize (Just l) <$> s
               )
 
-        labelize l (While' _ g s) = While' l g s 
+        labelize l (While' _ g s) = While' l g s
+
+-- | Transforms a for loop into a an equivalent while loop.
+transformFor :: Maybe ForInit -> Maybe Exp -> Maybe [Exp] -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
+transformFor init guard update body = do
+    init'     <- maybe (pure emptyStmt) transformForInit init
+    guard'    <- maybe (pure $ Lit' $ Boolean' True) transformExp guard
+    update'   <- maybe (pure []) transformForUpdate update
+    body'     <- body
+    whileBody <- transformForBody body' update'
+    let while = While' Nothing guard' whileBody
+    pure (Block' [init', while, emptyStmt])
+
+transformForInit :: ForInit -> PhaseResult CompoundStmt'
+transformForInit (ForLocalVars ms ty ds)
+    = (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds
+
+transformForBody :: CompoundStmt' -> CompoundStmts' -> PhaseResult CompoundStmt'
+transformForBody (Block' ss) update 
+    = pure $ Block' (ss ++ update)
+transformForBody s update
+    = pure $ Block' (s : update)
+
+transformForUpdate :: [Exp] -> PhaseResult CompoundStmts'
+transformForUpdate es = do
+    es' <- transformExps es
+    pure $ map (Stmt' . ExpStmt') es'
 
 transformSwitchBlock :: SwitchBlock -> PhaseResult SwitchBlock'
 transformSwitchBlock (SwitchBlock (SwitchCase e) s) 
@@ -222,6 +256,10 @@ transformExpToString e                     = pure (prettyPrint e)
 
 transformExps :: [Exp] -> PhaseResult [Exp']
 transformExps = mapM transformExp
+
+transformMaybeExp :: Maybe Exp -> PhaseResult (Maybe Exp')
+transformMaybeExp Nothing  = pure Nothing
+transformMaybeExp (Just e) = Just <$> transformExp e
 
 transformExp :: Exp -> PhaseResult Exp'
 transformExp = foldExp alg

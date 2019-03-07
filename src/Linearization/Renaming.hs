@@ -65,11 +65,9 @@ renameStmt ops s@(Break' _)
     = (ops, s)
 renameStmt ops s@(Continue' _)
     = (ops, s)
-renameStmt ops (ReturnExp' e) = 
-    let (ops1, e') = renameExp ops e
-     in (ops1, ReturnExp' e')
-renameStmt ops Return' 
-    = (ops, Return')
+renameStmt ops (Return' e) = 
+    let (ops1, e') = renameMaybeExp ops e
+     in (ops1, Return' e')
 
 renameVarDecl :: RenamingOperations -> VarDecl' -> (RenamingOperations, VarDecl')
 renameVarDecl ops (VarDecl' id init) 
@@ -89,7 +87,13 @@ renameMaybeVarInits ops (Just inits)
     = let (ops1, inits') = mapAccumL renameVarInit ops inits
        in (ops1, Just inits')
 renameMaybeVarInits ops Nothing
-    = (ops, Nothing) 
+    = (ops, Nothing)
+
+renameMaybeExp :: RenamingOperations -> Maybe Exp' -> (RenamingOperations, Maybe Exp')
+renameMaybeExp ops Nothing = (ops, Nothing)
+renameMaybeExp ops (Just exp)
+    = let (ops1, exp') = renameExp ops exp
+       in (ops1, Just exp')
 
 renameExp :: RenamingOperations -> Exp' -> (RenamingOperations, Exp')
 renameExp ops e@(Lit' _) = (ops, e)
