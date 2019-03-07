@@ -64,11 +64,11 @@ sem MemberDecl'
                                            entry' = entry (new @lhs.label) scope
                                            exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
-                                           intraEdge entry' @body.init
+                                           intraEdge entry' @body.init 0
                                            : -- Edge(s) from final of body to exit of method.
-                                           intraEdges @body.final exit'
+                                           intraEdges @body.final exit' 0
                                            ++ -- Edge(s) from returns to exit of method.
-                                           intraEdges @body.returns exit'
+                                           intraEdges @body.returns exit' 0
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
@@ -88,11 +88,11 @@ sem MemberDecl'
                                            entry' = entry (new @lhs.label) scope
                                            exit'  = exit (new @body.label) scope in
                                            -- Edge from entry of method to body.
-                                           intraEdge entry' @body.init
+                                           intraEdge entry' @body.init 0
                                            : -- Edge(s) from final of body to exit of method.
-                                           intraEdges @body.final exit'
+                                           intraEdges @body.final exit' 0
                                            ++ -- Edge(s) from returns to exit of method.
-                                           intraEdges @body.returns exit'
+                                           intraEdges @body.returns exit' 0
                                            ++ -- Edges of the body.
                                            @body.edges
                         body.label   = new @lhs.label
@@ -128,6 +128,19 @@ attr CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
 attr CompoundStmt'
     syn guard :: {CFGNode}
 
+{
+firstStmtInSeq :: CompoundStmt' -> CompoundStmt'
+firstStmtInSeq (Seq' s1 s2) = firstStmtInSeq s1
+firstStmtInSeq s           = s
+
+seqEdges :: CompoundStmt' -> CFGNodes -> CFGNode -> CFGEdges
+seqEdges stat final init
+    | Block' _ <- firstStmtInSeq stat
+        = intraEdges final init 1
+    | otherwise
+        = intraEdges final init 0
+}
+
 sem CompoundStmt'
     | Seq'          lhs  .label = @stat2.label
                          .init  = @stat1.init
@@ -136,9 +149,9 @@ sem CompoundStmt'
                                     While' _ e _
                                        -> let conditional = @stat1.guard
                                               normal      = filter (conditional /=) @stat1.final in
-                                              condEdge conditional @stat2.init (PreNot' e)
+                                              condEdge conditional @stat2.init (PreNot' e) 0
                                               :
-                                              intraEdges normal @stat2.init
+                                              intraEdges normal @stat2.init 0
                                               ++
                                               @stat1.edges ++ @stat2.edges
                                     Stmt' (Break' _)
@@ -149,10 +162,19 @@ sem CompoundStmt'
                                        -> @stat1.edges
                                     Stmt' Return'
                                        -> @stat1.edges
-                                    _  -> @stat1.edges ++ @stat2.edges ++
-                                          intraEdges @stat1.final @stat2.init
+                                    (IfThenElse' _ _ _)
+                                       -> @stat1.edges ++ @stat2.edges 
+                                          ++ intraEdges @stat1.final @stat2.init (-1)
+                                    (Block' _)
+                                       -> @stat1.edges ++ @stat2.edges
+                                          ++ intraEdges @stat1.final @stat2.init (-1)
+                                    _  -> @stat1.edges ++ @stat2.edges 
+                                          ++ seqEdges @stat2.self @stat1.final @stat2.init
                     stat1.label = @lhs.label
                     stat2.label = @stat1.label
+
+    | Block'        lhs  .label    = @stat.label
+                    stat .label    = @lhs.label
       
     | IfThenElse'   lhs  .label    = @stat2.label
                          .init     = if noNode == @exp.init 
@@ -163,9 +185,9 @@ sem CompoundStmt'
                                      : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
                          .edges    = let self = block (new @exp.label) @self in
                                        -- Edge from condition to init of true branch.
-                                       condEdge self @stat1.init @exp.self
+                                       condEdge self @stat1.init @exp.self 1
                                        : -- Edge from condition to init of false branch.
-                                       condEdge self @stat2.init (PreNot' @exp.self)
+                                       condEdge self @stat2.init (PreNot' @exp.self) 1
                                        : -- Edge(s) of the branches.
                                        @stat1.edges ++ @stat2.edges ++ @exp.edges
                     exp  .label    = @lhs.label
@@ -183,11 +205,11 @@ sem CompoundStmt'
                                          init = if noNode == @exp.init
                                                     then self else @exp.init in
                                          -- Edge from condition to the init body.
-                                         condEdge self @body.init (@exp.self)
+                                         condEdge self @body.init (@exp.self) 1
                                          : -- Edge(s) from finals of body to the condition.
-                                         intraEdges @body.final init
+                                         intraEdges @body.final init (-1)
                                          ++ -- Edge(s) from continues of this loop to the condition.
-                                         intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init
+                                         intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init (-1)
                                          ++ -- Edge(s) of the body.
                                          @body.edges ++ @exp.edges
                         .breaks    = filter (not . isLabelOfThisNode @ident) @body.breaks
@@ -220,10 +242,10 @@ attr SwitchBlocks'
 sem SwitchBlocks'
     | Cons lhs.init     = @hd.init
               .edges    = -- Edges from expression to each case.
-                          condEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 
+                          condEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 1 
                           : -- Edges from final of case to init of the next.
                           (if @tl.init == noNode
-                               then [] else intraEdges @hd.final @tl.init)
+                               then [] else intraEdges @hd.final @tl.init 0)
                           -- Edges from the body and rest of the list. 
                           ++ @hd.edges ++ @tl.edges
            tl .previous = @hd.self : @lhs.previous 
@@ -593,13 +615,13 @@ entry n scope = (n, Entry scope)
 exit :: Node -> Scope -> CFGNode
 exit n scope =  (n, Exit scope)
 
-intraEdge :: CFGNode -> CFGNode -> CFGEdge
-intraEdge (x,_) (y,_) = (x, y, IntraEdge 0)
+intraEdge :: CFGNode -> CFGNode -> Int -> CFGEdge
+intraEdge (x,_) (y,_) s = (x, y, IntraEdge s)
 
-intraEdges :: CFGNodes -> CFGNode -> CFGEdges
-intraEdges xs y 
+intraEdges :: CFGNodes -> CFGNode -> Int -> CFGEdges
+intraEdges xs y s
     | noNode == y = []
-    | otherwise   = map (`intraEdge` y) xs
+    | otherwise   = map (\ x -> intraEdge x y s) xs
 
 callEdge :: (Node, Scope) -> Methods -> CFGEdge
 callEdge (node, scope) methods
@@ -623,8 +645,8 @@ returnEdge (scope, node) methods
     where
         method = methods M.!? scope
 
-condEdge :: CFGNode -> CFGNode -> Exp' -> CFGEdge
-condEdge (x,_) (y,_) e = (x, y, ConditionalEdge e 0)
+condEdge :: CFGNode -> CFGNode -> Exp' -> Int -> CFGEdge
+condEdge (x,_) (y,_) e s = (x, y, ConditionalEdge e s)
 
 isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
 isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True

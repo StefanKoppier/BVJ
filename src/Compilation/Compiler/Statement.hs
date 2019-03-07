@@ -1,6 +1,7 @@
 module Compilation.Compiler.Statement where
 
-import Data.List                       (mapAccumL)
+import Data.List                       (mapAccumL, groupBy, span)
+import Data.Function                   (on)
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants 
 import Compilation.CProgram
@@ -11,12 +12,38 @@ import Parsing.Syntax
 import Parsing.Utility
 import Linearization.Path
 
+import Auxiliary.Pretty
+import Parsing.Pretty
 import Debug.Trace
+
+data ScopedStmt 
+    = SameScope Stmt'
+    | NewScope  [ScopedStmt]
 
 translateStmts :: CompilationUnit' -> LocalInformation -> [(Stmt', PathStmtInfo)] -> CStat
 translateStmts unit locals stats
-    = let stats' = map fst stats
-       in (cCompoundStat . snd . mapAccumL (translateStmtAcc unit) locals) stats'
+    = let scoped = createScopedStmts 0 (map (\ (s, i) -> (s, depth i)) stats)
+       in cCompoundStat (translateScopedStmts unit locals scoped)
+
+createScopedStmts :: Int -> [(Stmt', Int)] -> [ScopedStmt]
+createScopedStmts _ [] = []
+createScopedStmts x ((stat, y):stats)
+    | x == y = SameScope stat : createScopedStmts x stats
+    | x < y  = let (hd, tl) = span (\ (s, x') -> x' == y) stats
+                in NewScope (SameScope stat : createScopedStmts y hd)
+                   : createScopedStmts x tl
+    | x > y  = SameScope stat : createScopedStmts y stats
+
+translateScopedStmts :: CompilationUnit' -> LocalInformation -> [ScopedStmt] -> [CBlockItem]
+translateScopedStmts _ _ [] = []
+
+translateScopedStmts unit locals' (SameScope stat':stats)
+    = let (locals, stat) = translateStmtAcc unit locals' stat'
+       in stat : translateScopedStmts unit locals stats
+
+translateScopedStmts unit locals' (NewScope stat':stats)
+    = let stat = translateScopedStmts unit locals' stat'
+       in cBlockStat (cCompoundStat stat) : translateScopedStmts unit locals' stats
 
 translateStmtAcc :: CompilationUnit' -> LocalInformation -> Stmt' -> (LocalInformation, CBlockItem)
 translateStmtAcc unit (className, locals) (Decl' _ ty' vars') 

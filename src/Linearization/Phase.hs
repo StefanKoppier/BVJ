@@ -104,7 +104,7 @@ paths acc graph (_, node, Block s, neighbours)
 next :: Accumulator -> CompoundStmt' -> CFG -> CFGEdge -> ProgramPaths
 next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, neighbour, edge) 
     = let (k', s') = (k-1, s + scopeModificationOfEdge edge)
-          pathInfo = PathStmtInfo{callName=callName', original=scope', depth=s'}
+          pathInfo = PathStmtInfo{callName=callName', original=scope', depth=s}
           acc'     = (history, manipulations', callStack, map ((stat4, pathInfo):) ps, k', s')
        in paths acc' graph (G.context cfg neighbour)
     where
