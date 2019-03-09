@@ -12,10 +12,6 @@ data PathStmtInfo = PathStmtInfo {
     , depth    :: Int    -- ^ The scope depth of the statement.
 }
 
--- TODO: temp debugging instance, remove later
-instance Show PathStmtInfo where
-    show (PathStmtInfo _ _ depth) = show depth
-
 type PathStmt = (Stmt', PathStmtInfo)
 
 type ProgramPath = [PathStmt]

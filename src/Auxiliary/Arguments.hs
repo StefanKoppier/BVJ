@@ -10,6 +10,7 @@ import Parsing.Syntax      (Scope(..))
 data Arguments = Arguments {
       method                   :: Scope
     , verbosity                :: Verbosity
+    , numberOfThreads          :: Int
     , keepOutputFiles          :: Bool
     , maximumDepth             :: Int
     , enableAssertions         :: Bool
@@ -27,6 +28,7 @@ defaultArgs :: Arguments
 defaultArgs = Arguments {
       method = Scope Nothing "main" "main"
     , verbosity = Informative
+    , numberOfThreads = 4
     , keepOutputFiles = False
     , maximumDepth = 100
     , enableAssertions = True

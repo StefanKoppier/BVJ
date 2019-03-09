@@ -14,8 +14,9 @@ perform args file = do
 arguments :: Arguments
 arguments = defaultArgs {
       method          = Scope Nothing "Main" "main"
-    , verbosity       = Informative {- Compact-}
-    , maximumDepth    = 30
+    , verbosity       = {-Informative-} Compact
+    , numberOfThreads = 8
+    , maximumDepth    = 90
     , keepOutputFiles = False
     , includePaths    = -- For PC:
                         [ "C:\\MinGW\\lib\\gcc\\mingw32\\6.3.0\\include"

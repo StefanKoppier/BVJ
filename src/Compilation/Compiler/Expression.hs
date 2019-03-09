@@ -31,13 +31,6 @@ translateExp unit locals (InstanceCreation' (ClassType' name') args')
           args = map (translateExp unit locals) args'
        in cCall name args
 
-{- 
-translateExp unit locals (ArrayCreate' ty' [size'] _) 
-    = let size    = translateExp unit locals size'
-          name    = cIdent ("allocator_" ++ nameOfType ty' ++ "_Array")
-       in cCall name [size] 
--}
-
 translateExp unit locals (ArrayCreate' ty' sizes' _)
     = let dimensions = length sizes' 
           name       = cIdent ("allocator_" ++ nameOfType ty' ++ concat (replicate dimensions "_Array"))

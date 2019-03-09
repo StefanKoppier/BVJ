@@ -2,18 +2,18 @@ module Verification.Phase(
     verificationPhase
 ) where
     
-import System.Process           (readProcessWithExitCode)
-import Auxiliary.Pretty
-import Control.Concurrent.Async
+import System.Process                      (readProcessWithExitCode)
+import Control.Concurrent.ParallelIO.Local
 import System.Directory
 import System.IO
 import Auxiliary.Phase
+import Auxiliary.Pretty
 import Compilation.CProgram
 import Verification.Result
 import Compilation.Pretty
 
 verificationPhase :: Phase CPrograms VerificationResults
-verificationPhase args@Arguments{keepOutputFiles, verbosity} programs = do
+verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do
     newEitherT $ printInformation verbosity programs
     newEitherT createWorkingDir
     results <- newEitherT $ runAsync args programs
@@ -32,9 +32,9 @@ printInformation verbosity programs = do
             -> return $ Right ()
 
 runAsync :: Arguments -> CPrograms -> IO (Either PhaseError VerificationResults)
-runAsync args programs = do
-    processes <- mapM (async . verify args) programs
-    results <- mapM wait processes
+runAsync args@Arguments{numberOfThreads} programs = do
+    let tasks = map (verify args) programs
+    results <- withPool numberOfThreads (\ pool -> parallel pool tasks)
     return $ sequence results
 
 verify :: Arguments -> CProgram -> IO (Either PhaseError VerificationResult)

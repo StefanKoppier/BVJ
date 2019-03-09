@@ -179,37 +179,6 @@ sem CompoundStmts'
                 .final = [noNode]
 
 sem CompoundStmt'
-{-    | Seq'          lhs  .label = @stat2.label
-                         .init  = @stat1.init
-                         .final = @stat2.final
-                         .edges = case @stat1.self of
-                                    While' _ e _
-                                       -> let conditional = @stat1.guard
-                                              normal      = filter (conditional /=) @stat1.final in
-                                              condEdge conditional @stat2.init (PreNot' e) 0
-                                              :
-                                              intraEdges normal @stat2.init 0
-                                              ++
-                                              @stat1.edges ++ @stat2.edges
-                                    Stmt' (Break' _)
-                                       -> @stat1.edges
-                                    Stmt' (Continue' _)
-                                       -> @stat1.edges
-                                    Stmt' (ReturnExp' _)
-                                       -> @stat1.edges
-                                    Stmt' Return'
-                                       -> @stat1.edges
-                                    (IfThenElse' _ _ _)
-                                       -> @stat1.edges ++ @stat2.edges 
-                                          ++ intraEdges @stat1.final @stat2.init (-1)
-                                    (Block' _)
-                                       -> @stat1.edges ++ @stat2.edges
-                                          ++ intraEdges @stat1.final @stat2.init (-1)
-                                    _  -> @stat1.edges ++ @stat2.edges 
-                                          ++ seqEdges @stat2.self @stat1.final @stat2.init
-                    stat1.label = @lhs.label
-                    stat2.label = @stat1.label
--}
     | Block'        lhs  .label    = @stat.label
                     stat .label    = @lhs.label
       
@@ -363,12 +332,6 @@ sem Stmt'
                 exp .label    = @lhs.label
                     .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
-{-    | Return'   lhs .label   = new @lhs.label
-                    .init    = block (new @lhs.label) (Stmt' @self)
-                    .final   = []
-                    .nodes   = [block (new @lhs.label) (Stmt' @self)]
-                    .returns = [block (new @lhs.label) (Stmt' @self)]
--}
 --------------------------------------------------------------------------------
 -- Expressions and variable declarations
 --------------------------------------------------------------------------------

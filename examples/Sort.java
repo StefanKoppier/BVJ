@@ -1,10 +1,11 @@
 class Main {
     public static void main() {
-        int[] elems = new int[2];
+        int[] elems = new int[3];
         elems[0] = 2;
         elems[1] = 1;
+        elems[2] = 3;
         sort(elems, 0, elems.length - 1);
-        assert (elems[0] == 1) && (elems[1] == 2);
+        assert (elems[0] == 1) && (elems[1] == 2) && (elems[2] == 3);
     }
 
     public static int partition(int[] array, int low, int high)
