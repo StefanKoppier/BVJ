@@ -100,13 +100,13 @@ transformBlockStmts (s:ss) =
     case s of
         BlockStmt StmtBlock{} -> do
             s' <- transformBlockStmt s
-            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
         BlockStmt While{} -> do
             s' <- transformBlockStmt s
-            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
         BlockStmt BasicFor{} -> do
             s' <- transformBlockStmt s
-            ([s',emptyStmt] ++) <$> transformBlockStmts ss
+            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
         _     -> do
             s' <- transformBlockStmt s
             (s':) <$> transformBlockStmts ss

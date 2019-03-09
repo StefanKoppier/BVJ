@@ -40,8 +40,8 @@ printInformation verbosity graph = do
 
 clean :: ProgramPath -> ProgramPath
 clean []                   = []
-clean ((Continue' _,_):ps) = clean ps
-clean ((Break' _   ,_):ps) = clean ps
+clean ((Continue' _,i):ps) = (Empty', i) : clean ps
+clean ((Break' _   ,i):ps) = (Empty', i) : clean ps
 clean (s              :ps) = s : clean ps
 
 --------------------------------------------------------------------------------

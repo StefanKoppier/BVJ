@@ -97,8 +97,8 @@ instance Pretty CompoundStmts' where
 
 instance Pretty CompoundStmt' where
     pretty (Block' s)                = lbrace $+$ nest 4 (pretty s) $+$ rbrace
-    pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" <+> pretty s2
-    pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) <+> nest 4 (pretty s)
+    pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" $+$  pretty s2
+    pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) $+$ pretty s
     pretty (While' Nothing g s)      = text "while" <+> parens (pretty g) $+$ pretty s
     pretty (Switch' e cs)            = text "switch" <+> parens (pretty e) $+$ lbrace $+$ pretty cs $+$ rbrace
     pretty (Stmt' s)                 = pretty s

@@ -109,29 +109,37 @@ sem CompilationUnit'
     | CompilationUnit' decls.methods = @decls.methods
 
 sem MemberDecl'
-    | MethodDecl'      body.methods = let scope = Scope Nothing @lhs.className @name
+    | MethodDecl'      body.currentDepth = 0
+                           .methods = let scope = Scope Nothing @lhs.className @name
                                        in M.insert scope (new @lhs.label, new @body.label) @lhs.methods
     
-    | ConstructorDecl' body.methods = let scope = Scope Nothing @lhs.className @name
+    | ConstructorDecl' body.currentDepth = 0
+                           .methods = let scope = Scope Nothing @lhs.className @name
                                        in M.insert scope (new @lhs.label, new @body.label) @lhs.methods
 
 --------------------------------------------------------------------------------
 -- Statements
 --------------------------------------------------------------------------------
 
+{
+type CFGDepthNode  = (CFGNode, Int)
+type CFGDepthNodes = [CFGDepthNode]
+}
+
 attr CompoundStmts' CompoundStmt' Stmt' SwitchBlocks' SwitchBlock'
-    inh method                  :: Name'
-    syn init                    :: {CFGNode}
-    syn final                   :: {CFGNodes}
-    syn breaks    use {++} {[]} :: {CFGNodes}
-    syn continues use {++} {[]} :: {CFGNodes}
-    syn returns   use {++} {[]} :: {CFGNodes}
+    inh method                     :: Name'
+    syn init                       :: {CFGNode}
+    syn final                      :: {CFGDepthNodes}
+    syn breaks       use {++} {[]} :: {CFGDepthNodes}
+    syn continues    use {++} {[]} :: {CFGDepthNodes}
+    syn returns      use {++} {[]} :: {CFGDepthNodes}
+    chn currentDepth               :: {Int}
 
 attr CompoundStmt'
     syn guard :: {CFGNode}
 
 {
-seqEdges :: CompoundStmts' -> CFGNodes -> CFGNode -> CFGEdges
+seqEdges :: CompoundStmts' -> CFGDepthNodes -> CFGNode -> CFGEdges
 seqEdges [] _ _ = []
 seqEdges (stat:_) final init
     | init == noNode
@@ -145,7 +153,7 @@ seqEdges (stat:_) final init
 sem CompoundStmts'
     | Cons  lhs .label = @tl.label
                 .init  = @hd.init
-                .final = if @tl.final == [noNode]
+                .final = if map fst @tl.final == [noNode]
                             then @hd.final
                             else @tl.final
                 .edges = case @hd.self of
@@ -163,10 +171,10 @@ sem CompoundStmts'
                                    ++ intraEdges @hd.final @tl.init (-1)
                             While' _ e _
                                 -> let conditional = @hd.guard
-                                       normal      = filter (conditional /=) @hd.final in
+                                       normal      = filter ( \ (f,_) -> conditional /= f) @hd.final in
                                        condEdge conditional @tl.init (PreNot' e) 0
-                                       ++ -- TODO: (-1) (-n) as these are the breaks inside the scope.
-                                       intraEdges normal @tl.init 0 
+                                       ++ 
+                                       concatMap (\ (n,d) -> intraEdge n @tl.init (@hd.currentDepth - d)) normal
                                        ++
                                        @hd.edges ++ @tl.edges
                             _   
@@ -175,12 +183,17 @@ sem CompoundStmts'
                 .nodes = @hd.nodes ++ @tl.nodes
             hd  .label = @lhs.label
             tl  .label = @hd.label
+            tl  .currentDepth = case @hd.self of
+                                   Block' _ -> @lhs.currentDepth - 1
+                                   _        -> @lhs.currentDepth
     | Nil   lhs .init  = noNode
-                .final = [noNode]
+                .final = [(noNode, undefined)]
 
 sem CompoundStmt'
-    | Block'        lhs  .label    = @stat.label
-                    stat .label    = @lhs.label
+    | Block'        lhs  .label        = @stat.label
+                         .currentDepth = @lhs.currentDepth
+                    stat .label        = @lhs.label
+                         .currentDepth = @lhs.currentDepth + 1
       
     | IfThenElse'   lhs  .label    = @stat2.label
                          .init     = if noNode == @exp.init 
@@ -196,34 +209,41 @@ sem CompoundStmt'
                                        condEdge self @stat2.init (PreNot' @exp.self) 1
                                        ++ -- Edge(s) of the branches.
                                        @stat1.edges ++ @stat2.edges ++ @exp.edges
-                    exp  .label    = @lhs.label
-                         .statNode = new @exp.label
-                    stat1.label    = new @exp.label
-                    stat2.label    = @stat1.label
+                         .currentDepth = @lhs.currentDepth
+                    exp  .label        = @lhs.label
+                         .statNode     = new @exp.label
+                    stat1.label        = new @exp.label
+                         .currentDepth = @lhs.currentDepth + 1 
+                    stat2.label        = @stat1.label
+                         .currentDepth = @lhs.currentDepth + 1 
 
     | While'        lhs .label     = @body.label
                         .init      = if noNode == @exp.init 
                                         then (block (new @exp.label) @self)
                                         else @exp.init
-                        .final     = block (new @exp.label) @self : filter (isLabelOfThisNode @ident) @body.breaks
+                        .final     = (block (new @exp.label) @self, @lhs.currentDepth) : filter (isLabelOfThisNode @ident) @body.breaks
                         .nodes     = block (new @exp.label) @self : @body.nodes ++ @exp.nodes
-                        .edges     = let self = block (new @exp.label) @self
-                                         init = if noNode == @exp.init
-                                                    then self else @exp.init in
+                        .edges     = let self      = block (new @exp.label) @self
+                                         continues = filter (isLabelOfThisNode @ident) @body.continues
+                                         init      = if noNode == @exp.init
+                                                        then self else @exp.init in
                                          -- Edge from condition to the init body.
                                          condEdge self @body.init (@exp.self) 1
                                          ++ -- Edge(s) from finals of body to the condition.
                                          intraEdges @body.final init (-1)
                                          ++ -- Edge(s) from continues of this loop to the condition.
-                                         intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init (-1)
+                                         concatMap (\ (n,d) -> intraEdge n init (@lhs.currentDepth - d + 2)) continues
+                                         --intraEdges (filter (isLabelOfThisNode @ident) @body.continues) init (-1)
                                          ++ -- Edge(s) of the body.
                                          @body.edges ++ @exp.edges
                         .breaks    = filter (not . isLabelOfThisNode @ident) @body.breaks
                         .continues = filter (not . isLabelOfThisNode @ident) @body.continues
                         .guard     = block (new @exp.label) @self
+                        .currentDepth = @lhs.currentDepth
                     exp .label     = @lhs.label
                         .statNode  = new @exp.label
                     body.label     = new @exp.label
+                        .currentDepth = @lhs.currentDepth + 1
 
     | Switch'       lhs  .label    = @cases.label
                          .init     = if noNode == @exp.init 
@@ -268,7 +288,7 @@ sem Stmt'
                     .init  = if noNode == @vars.init 
                                 then (block (new @vars.label) (Stmt' @self))
                                 else @vars.init
-                    .final = [block (new @vars.label) (Stmt' @self)]
+                    .final = [(block (new @vars.label) (Stmt' @self), @lhs.currentDepth)]
                     .nodes = block (new @vars.label) (Stmt' @self) : @vars.nodes
                     .edges = @vars.edges
                 vars.label = @lhs.label
@@ -276,14 +296,14 @@ sem Stmt'
 
     | Empty'    lhs .label = new @lhs.label
                     .init  = block (new @lhs.label) (Stmt' @self)
-                    .final = [block (new @lhs.label) (Stmt' @self)]
+                    .final = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
                     .nodes = [block (new @lhs.label) (Stmt' @self)]
 
     | ExpStmt'  lhs .label = new @exp.label
                     .init  = if noNode == @exp.init 
                                 then (block (new @exp.label) (Stmt' @self))
                                 else @exp.init
-                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
@@ -293,7 +313,7 @@ sem Stmt'
                     .init  = if noNode == @exp.init 
                                 then (block (new @exp.label) (Stmt' @self))
                                 else @exp.init
-                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
@@ -303,7 +323,7 @@ sem Stmt'
                     .init  = if noNode == @exp.init 
                                 then (block (new @exp.label) (Stmt' @self))
                                 else @exp.init
-                    .final = [block (new @exp.label) (Stmt' @self)]
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
                     .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges = @exp.edges
                 exp .label = @lhs.label
@@ -313,13 +333,13 @@ sem Stmt'
                     .init   = block (new @lhs.label) (Stmt' @self)
                     .final  = []
                     .nodes  = [block (new @lhs.label) (Stmt' @self)]
-                    .breaks = [block (new @lhs.label) (Stmt' @self)]
+                    .breaks = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
 
     | Continue' lhs .label     = new @lhs.label
                     .init      = block (new @lhs.label) (Stmt' @self)
                     .final     = []
                     .nodes     = [block (new @lhs.label) (Stmt' @self)]
-                    .continues = [block (new @lhs.label) (Stmt' @self)]
+                    .continues = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
 
     | Return'   lhs .label    = new @exp.label
                     .init     = if noNode == @exp.init
@@ -328,7 +348,7 @@ sem Stmt'
                     .final    = []
                     .nodes    = block (new @exp.label) (Stmt' @self) : @exp.nodes
                     .edges    = @exp.edges
-                    .returns  = [block (new @exp.label) (Stmt' @self)]
+                    .returns  = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
                 exp .label    = @lhs.label
                     .statNode = 1 + @lhs.label + @exp.numberOfCalls
 
@@ -620,10 +640,12 @@ intraEdge (x,_) yNode@(y,_) s
     | noNode == yNode = []
     | otherwise       = [(x, y, IntraEdge s)]
 
-intraEdges :: CFGNodes -> CFGNode -> Int -> CFGEdges
-intraEdges xs y s
+intraEdges :: CFGDepthNodes -> CFGNode -> Int -> CFGEdges
+intraEdges xs' y s
     | noNode == y = []
     | otherwise   = concatMap (\ x -> intraEdge x y s) xs
+    where
+        xs = map fst xs'
 
 callEdge :: (Node, Scope) -> Methods -> CFGEdge
 callEdge (node, scope) methods
@@ -652,14 +674,14 @@ condEdge (x,_) yNode@(y,_) e s
     | yNode == noNode = []
     | otherwise       = [(x, y, ConditionalEdge e s)]
 
-isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
-isLabelOfThisNode _        (_, Block (Stmt' (Break' Nothing)))      = True
-isLabelOfThisNode _        (_, Block (Stmt' (Continue' Nothing)))   = True
-isLabelOfThisNode Nothing  (_, Block (Stmt' (Break' (Just _))))     = False
-isLabelOfThisNode Nothing  (_, Block (Stmt' (Continue' (Just _))))  = False
-isLabelOfThisNode (Just l) (_, Block (Stmt' (Break' (Just l'))))    = l == l'
-isLabelOfThisNode (Just l) (_, Block (Stmt' (Continue' (Just l')))) = l == l'
-isLabelOfThisNode _        _                                        = error "Not a break or continue statement."
+isLabelOfThisNode :: Maybe String -> CFGDepthNode -> Bool
+isLabelOfThisNode _        ((_, Block (Stmt' (Break' Nothing))), _)      = True
+isLabelOfThisNode _        ((_, Block (Stmt' (Continue' Nothing))), _)   = True
+isLabelOfThisNode Nothing  ((_, Block (Stmt' (Break' (Just _)))), _)     = False
+isLabelOfThisNode Nothing  ((_, Block (Stmt' (Continue' (Just _)))), _)  = False
+isLabelOfThisNode (Just l) ((_, Block (Stmt' (Break' (Just l')))), _)    = l == l'
+isLabelOfThisNode (Just l) ((_, Block (Stmt' (Continue' (Just l')))), _) = l == l'
+isLabelOfThisNode _        _                                             = error "Not a break or continue statement."
 
 cfgOfCompilationUnit :: CompilationUnit' -> CFG
 cfgOfCompilationUnit unit
