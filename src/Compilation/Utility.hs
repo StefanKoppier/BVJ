@@ -116,6 +116,11 @@ cExprStat :: CExpr -> CBlockItem
 cExprStat expression 
     = CBlockStmt (CExpr (Just expression) noInfo)
 
+-- | Create a C for statement with an init, guard, update and body.
+cForStat :: CDecl -> CExpr -> CExpr -> CStat -> CBlockItem
+cForStat init guard update body
+    = CBlockStmt (CFor (Right init) (Just guard) (Just update) body noInfo)
+
 -- | Create a C empty (;) statement.
 cEmptyStat :: CBlockItem
 cEmptyStat = CBlockStmt (CExpr Nothing noInfo)
@@ -144,6 +149,10 @@ cArrayInit inits
 cExpInit :: CExpr -> CInit
 cExpInit expression
     = CInitExpr expression noInfo
+
+-- | Create a C zero init value.
+cExpInitZero :: CInit
+cExpInitZero = cExpInit (cConst (cIntConst (cInteger 0)))
 
 --------------------------------------------------------------------------------
 -- Expressions

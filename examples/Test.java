@@ -1,12 +1,11 @@
 class Main {
     public static void main() {
-        int x = getZero();
-    }
+        int[][][] array = new int[2][1][1];
 
-    public static int getZero() {
-        ;
-        {
-            return 0;
-        }
+        array[0][0][0] = 2;
+        array[1][0][0] = 1;
+
+        assert array[0][0][0] == 2;
+        assert array[1][0][0] == 1;
     }
 }

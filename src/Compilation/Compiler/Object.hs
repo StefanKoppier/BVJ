@@ -65,10 +65,10 @@ translateFieldInitializer unit classDecl (FieldDecl' _ _ decls)
 
 translateFieldDeclInitializer :: CompilationUnit' -> ClassDecl' -> VarDecl' -> CBlockItem
 translateFieldDeclInitializer unit (ClassDecl' _ className' _) (VarDecl' (VarId' name') (InitExp' exp'))
-    = let localInfo  = (className', [])
-          exp        = translateExp unit localInfo exp'
-          name       = cIdent name'
-          assignment = cAssign CAssignOp (cMember thisVar name) exp
+    = let localInfo    = (className', [])
+          (decls, exp) = translateExp unit localInfo exp'
+          name         = cIdent name'
+          assignment   = cAssign CAssignOp (cMember thisVar name) exp
        in cExprStat assignment
     
 translateFieldDeclInitializer unit _ (VarDecl' (VarId' name') (InitArray' Nothing))
@@ -100,5 +100,5 @@ translateStaticFieldDecl unit ty' (ClassDecl' _ name _) (VarDecl' (VarId' id) in
     = let (ty, declrs) = translateType unit (Just ty')
           renamed      = VarDecl' (VarId' (createStaticFieldName name id)) init'
           localInfo    = (name, [])
-          decl         = translateVarDecl unit localInfo declrs renamed
+          (_, decl)    = translateVarDecl unit (localInfo, []) declrs renamed
        in cDeclExt (cDecl ty [decl])

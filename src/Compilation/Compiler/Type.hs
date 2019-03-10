@@ -2,6 +2,7 @@ module Compilation.Compiler.Type where
 
 import Language.C.Syntax.AST
 import Compilation.Utility
+import Compilation.Compiler.Naming
 import Parsing.Syntax
 import Debug.Trace
 
@@ -29,18 +30,13 @@ translateRefType _ (ClassRefType' (ClassType' [name']))
     = let name = cIdent name'
        in (cStructType name, [cPointer])
 
-translateRefType unit ty@(ArrayType' _)
+translateRefType unit ty@(ArrayType' innerTy)
     = let name = cIdent (nameOfType (RefType' ty))
        in (cStructType name, [cPointer])
 
-nameOfType :: Type' -> String
-nameOfType (RefType' (ClassRefType' (ClassType' [name])))
-    = name
-nameOfType (RefType' (ArrayType' ty))
-    = nameOfType ty ++ "_Array"
-nameOfType (PrimType' ty)
-    = case ty of 
-        BooleanT' -> "Boolean"; ByteT'   -> "Byte"  
-        ShortT'   -> "Short"  ; IntT'    -> "Int"   
-        LongT'    -> "Long"   ; CharT'   -> "Char"
-        FloatT'   -> "Float"  ; DoubleT' -> "Double"
+{-
+depthOfInnerType :: Type' -> Int
+depthOfInnerType (PrimType' _)                = 0
+depthOfInnerType (RefType' (ClassRefType' _)) = 0
+depthOfInnerType (RefType' (ArrayType' ty))   = 1 + depthOfInnerType ty
+-}

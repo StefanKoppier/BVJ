@@ -2,10 +2,12 @@ module Compilation.Compiler.Array where
 
 import Data.List
 import Language.C.Syntax.AST
+import Language.C.Syntax.Constants
 import Language.C.Data.Ident
 import Compilation.Utility
 import Compilation.Compiler.Type
 import Compilation.Compiler.Naming
+import Compilation.CProgram
 import Parsing.Syntax
 import Linearization.Path
 
@@ -18,6 +20,7 @@ createArrayStructDecl unit ty'
        in cStruct name [ cDecl ty       [(cDeclr arrayElementsName (cPointer : dDeclr), Nothing)]
                        , cDecl cIntType [(cDeclr arrayLengthName []                   , Nothing)] ]
 
+{-
 createArrayAllocDecl :: CompilationUnit' -> Type' -> CExtDecl
 createArrayAllocDecl unit ty'
     = let name       = cIdent ("allocator_" ++ nameOfType ty' ++ "_Array")
@@ -33,3 +36,4 @@ createArrayAllocDecl unit ty'
           return     = cReturnStat (Just thisVar)
           body       = cCompoundStat [alloc, cBlockStat init, return]
        in cFunction returnTy name declrs body
+-}

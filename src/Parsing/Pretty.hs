@@ -224,7 +224,7 @@ instance Pretty ArrayIndex' where
     pretty (ArrayIndex' array indices)
         = pretty array <> indices'
         where
-            indices' = foldr (\ index -> ($+$) (brackets (pretty index))) empty indices
+            indices' = foldr (\ index -> (<+>) (brackets (pretty index))) empty indices
 
 instance Pretty FieldAccess' where
     pretty (PrimaryFieldAccess' exp field)
