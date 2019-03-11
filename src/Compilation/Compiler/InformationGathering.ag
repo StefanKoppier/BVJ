@@ -16,14 +16,9 @@ include "../../Parsing/Syntax.ag"
 attr MemberDecl' ProgramPath' Stmt' ArrayIndex' MethodInvocation' VarDecls' VarDecl' 
      MaybeExp' Exps' Exp' MaybeVarInits' VarInits' VarInit' 
     syn constructedClassTypes use {S.union} {S.empty} :: {S.Set ClassType'}
-    syn constructedArrayTypes use {S.union} {S.empty} :: {S.Set Type'}
 
 sem Exp'
     | InstanceCreation' lhs.constructedClassTypes = S.insert (nameOfRenamedClassType @ty.self) @args.constructedClassTypes
-
-    | ArrayCreate'      lhs.constructedArrayTypes = S.insert @ty.self @sizes.constructedArrayTypes
-
-    | ArrayCreateInit'  lhs.constructedArrayTypes = S.insert @ty.self @inits.constructedArrayTypes
 
 attr MemberDecl' ProgramPath' RefType' MaybeType' Type' ClassType' Stmt' VarDecls' 
      VarDecl' MaybeVarInits' VarInit' MaybeExp' Exps' Exp' Lhs' MethodInvocation' 
@@ -43,84 +38,8 @@ nameOfRenamedClassType (ClassType' [name])
     = ClassType' [takeWhile (\ c -> c /= '_') name]
 }
 
-{-
---------------------------------------------------------------------------------
--- Transforming of the array creations to method calls.
---------------------------------------------------------------------------------
-
-attr ProgramPath'
-    syn modified :: ProgramPath'
-
-attr Stmt'
-    syn modified :: Stmt'
-
-sem Stmt'
-    | Decl'         lhs.modified = @self
-    | Empty'        lhs.modified = @self
-    | ExpStmt'      lhs.modified = ExpStmt' @exp.modified
-    | Assert'       lhs.modified = Assert' @exp.modified @message
-    | Assume'       lhs.modified = Assume' @exp.modified
-    | Break'        lhs.modified = @self
-    | Continue'     lhs.modified = @self
-    | ReturnExp'    lhs.modified = ReturnExp' @exp.modified
-    | Return'       lhs.modified = @self
-
-attr Exps'
-    syn modified :: Exps'
-
-attr Exp'
-    syn modified :: Exp'
-
-attr ProgramPath' Stmt' Exps' Exp' VarInits' VarInit'
-    syn arrayAllocators :: {[CExtDecl]}
-    chn counter         :: {Int}
-    inh unit            :: {CompilationUnit'}
-
-sem Exp'
-    | Lit'              lhs.modified = @self
-    | This'             lhs.modified = @self
-    | InstanceCreation' lhs.modified = InstanceCreation' @ty.self @args.modified
-    | ArrayCreate'      lhs.modified = MethodInv' (MethodCall' ["Array_allocator_" ++ show (@lhs.counter + 1)] [])
-                           .arrayAllocators = createArrayAllocator @lhs.unit @self (@lhs.counter + 1) 
-                                              : @sizes.arrayAllocators
-                           .counter  = @sizes.counter
-                           sizes.counter = @lhs.counter + 1
-    | ArrayCreateInit'  lhs.modified = MethodInv' (MethodCall' ["Array_allocator_" ++ show (@lhs.counter + 1)] [])
-                           .arrayAllocators = createArrayAllocator @lhs.unit @self (@lhs.counter + 1) 
-                                              : @inits.arrayAllocators
-                           .counter   = @inits.counter
-                        inits.counter = @lhs.counter + 1
-    | FieldAccess'      lhs.modified = @self
-    | MethodInv'        lhs.modified = @self
-    | ArrayAccess'      lhs.modified = ArrayAccess' @ident @index.modified
-    | ExpName'          lhs.modified = @self
-    | PostIncrement'    lhs.modified = PostIncrement' @exp.modified
-    | PostDecrement'    lhs.modified = PostDecrement' @exp.modified
-    | PreIncrement'     lhs.modified = PreIncrement' @exp.modified
-    | PreDecrement'     lhs.modified = PreDecrement' @exp.modified
-    | PrePlus'          lhs.modified = PrePlus' @exp.modified
-    | PreMinus'         lhs.modified = PreMinus' @exp.modified
-    | PreBitCompl'      lhs.modified = PreBitCompl' @exp.modified
-    | PreNot'           lhs.modified = PreNot' @exp.modified
-    | BinOp'            lhs.modified = BinOp' @exp1.modified @op.self @exp2.modified
-    | Cond'             lhs.modified = Cond' @guard.modified @e1.modified @e2.modified
-    | Assign'           lhs.modified = Assign' @target.self @op.self @exp.modified
-                    
 {
-createArrayAllocator :: CompilationUnit' -> Exp' -> Int -> CExtDecl
-createArrayAllocator unit (ArrayCreate' ty [size] _) i 
-    = let name                 = cIdent ("Array_allocator_" ++ show i)
-          (elemTy, elemDDeclr) = translateType unit (Just ty)
-          returnTy             = cStructType (cIdent "")
-          calloc               = cCalloc (translateExp unit [] size) (cSizeofType elemTy elemDDeclr)
-          return               = cReturnStat (Just thisVar)
-          body                 = cCompoundStat [calloc, return]
-       in cFunction returnTy name [cPointer] body
-}
--}
-
-{
-typesInProgram :: CompilationUnit' -> ProgramPath' -> ([ClassType'], [ClassType'], [Type'], [Type'])
+typesInProgram :: CompilationUnit' -> ProgramPath' -> ([ClassType'], [ClassType'], [Type'])
 typesInProgram unit@(CompilationUnit' _ decls) path
     = let wrappedPath           = wrap_ProgramPath' (sem_ProgramPath' path) initialPath
           wrappedFields         = map (\ d -> wrap_MemberDecl' (sem_MemberDecl' d) initialDecl) fields
@@ -128,26 +47,13 @@ typesInProgram unit@(CompilationUnit' _ decls) path
                                   : map constructedClassTypes_Syn_MemberDecl' wrappedFields
           usedClasses           = usedClassTypes_Syn_ProgramPath' wrappedPath 
                                   : map usedClassTypes_Syn_MemberDecl' wrappedFields
-          constructedArrayTypes = constructedArrayTypes_Syn_ProgramPath' wrappedPath
-                                  : map constructedArrayTypes_Syn_MemberDecl' wrappedFields
           usedArrayTypes        = usedArrayTypes_Syn_ProgramPath' wrappedPath
                                   : map usedArrayTypes_Syn_MemberDecl' wrappedFields
        in ( S.toList . S.unions $ constructedClasses
           , S.toList . S.unions $ usedClasses
-          , S.toList . S.unions $ constructedArrayTypes
           , S.toList . S.unions $ usedArrayTypes )
     where
         fields      = (concatMap getFields . getClasses) decls
         initialPath = Inh_ProgramPath'{}
         initialDecl = Inh_MemberDecl'{}
-{-
-transformArrayConstructs :: CompilationUnit' -> ProgramPath' -> (ProgramPath', [CExtDecl])
-transformArrayConstructs unit path
-    = let wrapped = wrap_ProgramPath' (sem_ProgramPath' path) initial
-      in ( modified_Syn_ProgramPath' wrapped
-         , arrayAllocators_Syn_ProgramPath' wrapped )
-    where
-        initial = Inh_ProgramPath' { counter_Inh_ProgramPath' = 0
-                                   , unit_Inh_ProgramPath'    = unit }
--}
 }

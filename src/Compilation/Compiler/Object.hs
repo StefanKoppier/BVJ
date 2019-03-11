@@ -2,6 +2,7 @@ module Compilation.Compiler.Object where
 
 import Language.C.Syntax.AST
 import Data.Maybe
+import Data.List
 import Compilation.Utility
 import Compilation.Compiler.Expression
 import Compilation.Compiler.Statement
@@ -66,7 +67,8 @@ translateFieldInitializer unit classDecl (FieldDecl' _ _ decls)
 translateFieldDeclInitializer :: CompilationUnit' -> ClassDecl' -> VarDecl' -> CBlockItem
 translateFieldDeclInitializer unit (ClassDecl' _ className' _) (VarDecl' (VarId' name') (InitExp' exp'))
     = let localInfo    = (className', [])
-          (decls, exp) = translateExp unit localInfo exp'
+          expAcc       = (0, [])
+          (decls, exp) = translateExp unit localInfo expAcc exp'
           name         = cIdent name'
           assignment   = cAssign CAssignOp (cMember thisVar name) exp
        in cExprStat assignment
@@ -78,27 +80,30 @@ translateFieldDeclInitializer unit _ (VarDecl' (VarId' name') (InitArray' Nothin
 -- Creation of static fields of classes.
 --------------------------------------------------------------------------------
 
-createStaticFields :: CompilationUnit' -> [CExtDecl]
-createStaticFields unit@(CompilationUnit' _ decls)
-    = concatMap (translateStaticFields unit) classDecls
+createStaticFields :: CompilationUnit' -> ExpAccumulator -> (ExpAccumulator, [CExtDecl])
+createStaticFields unit@(CompilationUnit' _ decls) expAcc
+    = let (expAcc1, fields) = mapAccumL (translateStaticFields unit) expAcc classDecls
+       in (expAcc1, concat fields)
     where
         classDecls = [c | ClassTypeDecl'(c) <- decls]
 
-translateStaticFields :: CompilationUnit' -> ClassDecl' -> [CExtDecl]
-translateStaticFields unit classDecl@(ClassDecl' modifiers name body)
-    = concatMap (translateStaticField unit classDecl) staticFields
+translateStaticFields :: CompilationUnit' -> ExpAccumulator -> ClassDecl' -> (ExpAccumulator, [CExtDecl])
+translateStaticFields unit expAcc classDecl@(ClassDecl' modifiers name body)
+    = let (expAcc1, fields) = mapAccumL (translateStaticField unit classDecl) expAcc staticFields
+       in (expAcc1, concat fields)
     where
         fields       = getFields classDecl
         staticFields = filter isStatic fields
 
-translateStaticField :: CompilationUnit' -> ClassDecl' -> MemberDecl' -> [CExtDecl]
-translateStaticField unit classDecl (FieldDecl' _ ty' vars')
-    = map (translateStaticFieldDecl unit ty' classDecl) vars'
+translateStaticField :: CompilationUnit' -> ClassDecl' -> ExpAccumulator -> MemberDecl' -> (ExpAccumulator, [CExtDecl])
+translateStaticField unit classDecl expAcc (FieldDecl' _ ty' vars')
+    = mapAccumL (translateStaticFieldDecl unit ty' classDecl) expAcc vars'
 
-translateStaticFieldDecl :: CompilationUnit' -> Type' -> ClassDecl' -> VarDecl' -> CExtDecl
-translateStaticFieldDecl unit ty' (ClassDecl' _ name _) (VarDecl' (VarId' id) init')
+translateStaticFieldDecl :: CompilationUnit' -> Type' -> ClassDecl' -> ExpAccumulator -> VarDecl' -> (ExpAccumulator, CExtDecl)
+translateStaticFieldDecl unit ty' (ClassDecl' _ name _) expAcc (VarDecl' (VarId' id) init')
     = let (ty, declrs) = translateType unit (Just ty')
           renamed      = VarDecl' (VarId' (createStaticFieldName name id)) init'
-          localInfo    = (name, [])
-          (_, decl)    = translateVarDecl unit (localInfo, []) declrs renamed
-       in cDeclExt (cDecl ty [decl])
+          acc          = ((name, []), expAcc)
+          (acc1, decl) = translateVarDecl unit declrs acc renamed
+          expAcc1      = snd acc1
+       in (expAcc1, cDeclExt (cDecl ty [decl]))

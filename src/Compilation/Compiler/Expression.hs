@@ -1,6 +1,6 @@
-{-
 module Compilation.Compiler.Expression where
 
+import Data.List
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants 
 import Compilation.CProgram
@@ -12,193 +12,16 @@ import Parsing.Utility
 
 import Debug.Trace
 
-translateExp :: CompilationUnit' -> LocalInformation -> Exp' -> CExpr
-translateExp _ _ (Lit' lit') 
-    = case lit' of
-        Int'     value -> cConst (cIntConst    (cInteger value))
-        Float'   value -> cConst (cFloatConst  (cFloat value))
-        Double'  value -> cConst (cFloatConst  (cFloat value))
-        Boolean' True  -> cConst (cIntConst    (cInteger 1))
-        Boolean' False -> cConst (cIntConst    (cInteger 0))
-        Char'    value -> cConst (cCharConst   (cChar value))
-        String'  value -> cConst (cStringConst (cString value))
-        Null'          -> cNull
+type ExpTranslationResult a = (ExpAccumulator, a)
 
-translateExp _ _ This'
-    = thisVar
+type ExpAccumulator = (Int, [CExtDecl])
 
-translateExp unit locals (InstanceCreation' (ClassType' name') args') 
-    = let name = cIdent (head name')
-          args = map (translateExp unit locals) args'
-       in cCall name args
+updateAcc :: [CExtDecl] -> ExpAccumulator -> (ExpAccumulator, Int)
+updateAcc newDecls (x, decls) = ((x + 1, newDecls ++ decls), x)
 
-translateExp unit locals (ArrayCreate' ty' sizes' _)
-    = let dimensions = length sizes' 
-          name       = cIdent ("allocator_" ++ nameOfType ty' ++ concat (replicate dimensions "_Array")concat (replicate dimensions "_Array"))
-          size'      = translateExp unit locals (head sizes')
-      in cCall name [size']
-
-translateExp unit locals (FieldAccess' access)
-    = translateFieldAccess unit locals access
-
-translateExp unit locals (MethodInv' (MethodCall' (pre':[name']) args'))
-    | (Just _) <- findClass pre' unit
-        = undefined
-    | otherwise
-        = let name    = cIdent name'
-              thisArg = cVar (cIdent pre')
-              args    = thisArg : map (translateExp unit locals) args'
-           in cCall name args 
-
-translateExp unit locals (MethodInv' (MethodCall' [name'] args')) 
-    = let name = cIdent name'
-          args = map (translateExp unit locals) args'
-       in cCall name args
-
-translateExp unit locals (MethodInv' (PrimaryMethodCall' exp' name' args'))
-    = let exp  = translateExp unit locals exp'
-          args = exp : map (translateExp unit locals) args'
-          name = cIdent name'
-       in cCall name args
-
-translateExp unit locals (ArrayAccess' name' [index'])
-    = let name  = cIdent name'
-          index = translateExp unit locals index'
-          array = cMember (cVar name) arrayElementsName
-       in cIndex array index
-
-translateExp unit locals (ExpName' name')
-    = translateExpName unit locals name'
-
-translateExp unit locals (PostIncrement' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CPostIncOp exp
-
-translateExp unit locals (PostDecrement' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CPreDecOp exp
-
-translateExp unit locals (PreIncrement' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CPreIncOp exp
-
-translateExp unit locals (PreDecrement' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CPostDecOp exp
-
-translateExp unit locals (PrePlus' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CPlusOp exp
-
-translateExp unit locals (PreMinus' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CMinOp exp
-
-translateExp unit locals (PreBitCompl' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CCompOp exp
-
-translateExp unit locals (PreNot' exp')
-    = let exp = translateExp unit locals exp'
-       in cUnary CNegOp exp
-
-translateExp unit locals (BinOp' exp1' op' exp2')
-    = let op   = case op' of
-                    Mult'   -> CMulOp; Div'     -> CDivOp; Rem'    -> CRmdOp
-                    Add'    -> CAddOp; Sub'     -> CSubOp; LShift' -> CShlOp
-                    RShift' -> CShrOp; RRShift' -> CShrOp; LThan'  -> CLeOp
-                    GThan'  -> CGrOp ; LThanE'  -> CLeqOp; GThanE' -> CGeqOp
-                    Equal'  -> CEqOp ; NotEq'   -> CNeqOp; And'    -> CAndOp
-                    Or'     -> COrOp ; Xor'     -> CXorOp; CAnd'   -> CLndOp
-                    COr'    -> CLorOp
-          exp1 = translateExp unit locals exp1'
-          exp2 = translateExp unit locals exp2'
-       in cBinary op exp1 exp2 
-
-translateExp unit locals (Cond' guard' exp1' exp2')
-    = let guard = translateExp unit locals guard'
-          exp1  = translateExp unit locals exp1'
-          exp2  = translateExp unit locals exp2'
-       in cCond guard exp1 exp2 
-
-translateExp unit locals (Assign' lhs' op' exp') 
-    = let op  = case op' of 
-                    EqualA'   -> CAssignOp; MultA'   -> CMulAssOp
-                    DivA'     -> CDivAssOp; RemA'    -> CRmdAssOp
-                    AddA'     -> CAddAssOp; SubA'    -> CSubAssOp
-                    LShiftA'  -> CShlAssOp; RShiftA' -> CShrAssOp
-                    RRShiftA' -> CShrAssOp; AndA'    -> CAndAssOp
-                    XorA'     -> CXorAssOp; OrA'     -> COrAssOp
-          lhs = translateLhs unit locals lhs'
-          exp = translateExp unit locals exp'
-       in cAssign op lhs exp
-
-translateMaybeExp :: CompilationUnit' -> LocalInformation -> Maybe Exp' -> Maybe CExpr
-translateMaybeExp unit locals 
-    = fmap (translateExp unit locals)
-
-translateExpName :: CompilationUnit' -> LocalInformation -> Name' -> CExpr
-translateExpName unit (className, locals) names'
-    -- Case: the name is a local variable.
-    | head names' `elem` locals 
-        = let names = map (cVar . cIdent) names'
-           in foldl1 cMemberVar names
-
-    -- Case: the name is a field of the class.
-    | Just thisClass <- findClass className unit
-    , containsNonStaticFieldWithName thisClass (head names')
-        = let names = map (cVar . cIdent) names'
-           in foldl cMemberVar thisVar names
-
-    -- Case: the name is a class, thus the tail must be a static member.
-    | Just classDecl <- findClass (head names') unit
-        = translateFieldName unit classDecl (tail names')
-
-    -- Case: the name is a field of this class.
-    | Just classDecl <- findClass className unit 
-        = translateFieldName unit classDecl names'
-
-translateFieldName :: CompilationUnit' -> ClassDecl' -> Name' -> CExpr
-translateFieldName unit (ClassDecl' ms name' _) (field':names')
-    = let field = cVar (createStructName name' field')
-          names = fmap (cVar . cIdent) names'
-       in foldl cMemberVar field names
-
-translateLhs :: CompilationUnit' -> LocalInformation -> Lhs' -> CExpr
-translateLhs _ _ (Name' [name'])
-    = cVar (cIdent name')
-
-translateLhs unit locals (Field' access')
-    = translateFieldAccess unit locals access'
-
-translateLhs unit locals (Array' (ArrayIndex' array' [index']))
-    = let array = translateExp unit locals array'
-          index = translateExp unit locals index'
-       in cIndex (cMember array arrayElementsName) index
-
-translateFieldAccess :: CompilationUnit' -> LocalInformation -> FieldAccess' -> CExpr
-translateFieldAccess unit locals (PrimaryFieldAccess' exp' field')
-    = cMember (translateExp unit locals exp') (cIdent field')
--}
-
-module Compilation.Compiler.Expression where
-
-import Language.C.Syntax.AST
-import Language.C.Syntax.Constants 
-import Compilation.CProgram
-import Compilation.Utility
-import Compilation.Compiler.Type
-import Compilation.Compiler.Naming
-import Parsing.Syntax
-import Parsing.Utility
-
-import Debug.Trace
-
-type ExpTranslationResult a = ([CExtDecl], a)
-
-translateExp :: CompilationUnit' -> LocalInformation -> Exp' -> ExpTranslationResult CExpr
-translateExp _ _ (Lit' lit') 
-    = ([], lit)
+translateExp :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Exp' -> ExpTranslationResult CExpr
+translateExp _ _ acc (Lit' lit') 
+    = (acc, lit)
     where
         lit = case lit' of
                 Int'     value -> cConst (cIntConst    (cInteger value))
@@ -210,242 +33,258 @@ translateExp _ _ (Lit' lit')
                 String'  value -> cConst (cStringConst (cString value))
                 Null'          -> cNull
 
-translateExp _ _ This'
-    = ([], thisVar)
+translateExp _ _ acc This'
+    = (acc, thisVar)
 
-translateExp unit locals (InstanceCreation' (ClassType' name') args') 
-    = let name    = cIdent (head name')
-          results = map (translateExp unit locals) args'
-          args    = map snd results
-          decls   = concatMap fst results
-       in (decls, cCall name args)
+translateExp unit locals acc (InstanceCreation' (ClassType' name') args') 
+    = let name         = cIdent (head name')
+          (acc1, args) = mapAccumL (translateExp unit locals) acc args'
+       in (acc1, cCall name args)
 
-translateExp unit locals exp@(ArrayCreate' ty' sizes' _)
-    = let call = createArrayConstructorDecl unit locals exp
-          name = cIdent ("new_Array") -- + unique identifier
-       in ([call], cCall name [])
+translateExp unit locals acc exp@ArrayCreate'{}
+    = let (acc1, i)    = updateAcc [call] acc
+          (acc2, call) = createArrayNewDecl unit locals i acc1 exp
+          name         = cIdent ("new_Array$" ++ show i)
+       in (acc2, cCall name [])
 
-{-
-translateExp unit locals (ArrayCreateInit' ty' dimensions' inits')
-    = undefined
--}
+translateExp unit locals acc exp@ArrayCreateInit'{}
+    = let (acc1, i)    = updateAcc [call] acc
+          (acc2, call) = createArrayNewDecl unit locals i acc1 exp
+          name         = cIdent ("new_Array$" ++ show i)
+       in (acc2, cCall name [])
 
-translateExp unit locals (FieldAccess' access)
-    = translateFieldAccess unit locals access
+translateExp unit locals acc (FieldAccess' access)
+    = translateFieldAccess unit locals acc access
 
-translateExp unit locals (MethodInv' (MethodCall' (pre':[name']) args'))
+translateExp unit locals acc (MethodInv' (MethodCall' (pre':[name']) args'))
     | (Just _) <- findClass pre' unit
         = undefined
     | otherwise
-        = let name    = cIdent name'
-              thisArg = cVar (cIdent pre')
-              results = ([], thisArg) : map (translateExp unit locals) args'
-              args    = map snd results
-              decls   = concatMap fst results
-           in (decls, cCall name args)
+        = let name         = cIdent name'
+              thisArg      = cVar (cIdent pre')
+              (acc1, args) = mapAccumL (translateExp unit locals) acc args'
+           in (acc1, cCall name (thisArg : args))
 
-translateExp unit locals (MethodInv' (MethodCall' [name'] args')) 
-    = let name    = cIdent name'
-          results = map (translateExp unit locals) args'
-          args    = map snd results
-          decls   = concatMap fst results
-       in (decls, cCall name args)
+translateExp unit locals acc (MethodInv' (MethodCall' [name'] args')) 
+    = let name         = cIdent name'
+          (acc1, args) = mapAccumL (translateExp unit locals) acc args'
+       in (acc1, cCall name args)
 
-translateExp unit locals (MethodInv' (PrimaryMethodCall' exp' name' args'))
-    = let exp     = translateExp unit locals exp'
-          results = exp : map (translateExp unit locals) args'
-          args    = map snd results
-          decls   = concatMap fst results
-          name    = cIdent name'
-       in (decls, cCall name args)
+translateExp unit locals acc (MethodInv' (PrimaryMethodCall' exp' name' args'))
+    = let (acc1, exp)  = translateExp unit locals acc exp'
+          (acc2, args) = mapAccumL (translateExp unit locals) acc1 args'
+          name         = cIdent name'
+       in (acc2, cCall name (exp : args))
 
-translateExp unit locals (ArrayAccess' name' [index'])
-    = let name           = cIdent name'
-          (decls, index) = translateExp unit locals index'
-          array          = cMember (cVar name) arrayElementsName
-       in (decls, cIndex array index)
+translateExp unit locals acc (ArrayAccess' name' [index'])
+    = let name          = cIdent name'
+          (acc1, index) = translateExp unit locals acc index'
+          array         = cMember (cVar name) arrayElementsName
+       in (acc1, cIndex array index)
 
-translateExp unit locals (ArrayAccess' name' indices')
-    = let name    = cIdent name'
-          results = map (translateExp unit locals) indices'
-          decls   = concatMap fst results
-          indices = map snd results
-          array   = cVar name
-          access  = foldl (\ acc index -> cIndex (cMember acc arrayElementsName) index) array indices
-         in (decls, access)
+translateExp unit locals acc (ArrayAccess' name' indices')
+    = let name            = cIdent name'
+          (acc1, indices) = mapAccumL (translateExp unit locals) acc indices'
+          array           = cVar name
+          access          = foldl (\ acc index -> cIndex (cMember acc arrayElementsName) index) array indices
+         in (acc1, access)
 
-translateExp unit locals (ExpName' name')
-    = translateExpName unit locals name'
+translateExp unit locals acc (ExpName' name')
+    = translateExpName unit locals acc name'
 
-translateExp unit locals (PostIncrement' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CPostIncOp exp)
+translateExp unit locals acc (PostIncrement' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CPostIncOp exp)
 
-translateExp unit locals (PostDecrement' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CPreDecOp exp)
+translateExp unit locals acc (PostDecrement' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CPreDecOp exp)
 
-translateExp unit locals (PreIncrement' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CPreIncOp exp)
+translateExp unit locals acc (PreIncrement' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CPreIncOp exp)
 
-translateExp unit locals (PreDecrement' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CPostDecOp exp)
+translateExp unit locals acc (PreDecrement' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CPostDecOp exp)
 
-translateExp unit locals (PrePlus' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CPlusOp exp)
+translateExp unit locals acc (PrePlus' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CPlusOp exp)
 
-translateExp unit locals (PreMinus' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CMinOp exp)
+translateExp unit locals acc (PreMinus' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CMinOp exp)
 
-translateExp unit locals (PreBitCompl' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CCompOp exp)
+translateExp unit locals acc (PreBitCompl' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CCompOp exp)
 
-translateExp unit locals (PreNot' exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cUnary CNegOp exp)
+translateExp unit locals acc (PreNot' exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cUnary CNegOp exp)
 
-translateExp unit locals (BinOp' exp1' op' exp2')
-    = let op   = case op' of
-                    Mult'   -> CMulOp; Div'     -> CDivOp; Rem'    -> CRmdOp
-                    Add'    -> CAddOp; Sub'     -> CSubOp; LShift' -> CShlOp
-                    RShift' -> CShrOp; RRShift' -> CShrOp; LThan'  -> CLeOp
-                    GThan'  -> CGrOp ; LThanE'  -> CLeqOp; GThanE' -> CGeqOp
-                    Equal'  -> CEqOp ; NotEq'   -> CNeqOp; And'    -> CAndOp
-                    Or'     -> COrOp ; Xor'     -> CXorOp; CAnd'   -> CLndOp
-                    COr'    -> CLorOp
-          (decls1, exp1) = translateExp unit locals exp1'
-          (decls2, exp2) = translateExp unit locals exp2'
-       in (decls1 ++ decls2, cBinary op exp1 exp2)
+translateExp unit locals acc (BinOp' exp1' op' exp2')
+    = let (acc1, exp1) = translateExp unit locals acc exp1'
+          (acc2, exp2) = translateExp unit locals acc1 exp2'
+       in (acc2, cBinary op exp1 exp2)
+    where
+        op = case op' of
+                Mult'   -> CMulOp; Div'     -> CDivOp; Rem'    -> CRmdOp
+                Add'    -> CAddOp; Sub'     -> CSubOp; LShift' -> CShlOp
+                RShift' -> CShrOp; RRShift' -> CShrOp; LThan'  -> CLeOp
+                GThan'  -> CGrOp ; LThanE'  -> CLeqOp; GThanE' -> CGeqOp
+                Equal'  -> CEqOp ; NotEq'   -> CNeqOp; And'    -> CAndOp
+                Or'     -> COrOp ; Xor'     -> CXorOp; CAnd'   -> CLndOp
+                COr'    -> CLorOp
 
-translateExp unit locals (Cond' guard' exp1' exp2')
-    = let (decls1, guard) = translateExp unit locals guard'
-          (decls2, exp1)  = translateExp unit locals exp1'
-          (decls3, exp2)  = translateExp unit locals exp2'
-       in (decls1 ++ decls2 ++ decls3, cCond guard exp1 exp2)
+translateExp unit locals acc (Cond' guard' exp1' exp2')
+    = let (acc1, guard) = translateExp unit locals acc guard'
+          (acc2, exp1)  = translateExp unit locals acc1 exp1'
+          (acc3, exp2)  = translateExp unit locals acc2 exp2'
+       in (acc3, cCond guard exp1 exp2)
 
-translateExp unit locals (Assign' lhs' op' exp') 
-    = let op  = case op' of 
-                    EqualA'   -> CAssignOp; MultA'   -> CMulAssOp
-                    DivA'     -> CDivAssOp; RemA'    -> CRmdAssOp
-                    AddA'     -> CAddAssOp; SubA'    -> CSubAssOp
-                    LShiftA'  -> CShlAssOp; RShiftA' -> CShrAssOp
-                    RRShiftA' -> CShrAssOp; AndA'    -> CAndAssOp
-                    XorA'     -> CXorAssOp; OrA'     -> COrAssOp
-          (decls1, lhs) = translateLhs unit locals lhs'
-          (decls2, exp) = translateExp unit locals exp'
-       in (decls1 ++ decls2, cAssign op lhs exp)
+translateExp unit locals acc (Assign' lhs' op' exp') 
+    = let (acc1, lhs) = translateLhs unit locals acc lhs'
+          (acc2, exp) = translateExp unit locals acc1 exp'
+       in (acc2, cAssign op lhs exp)
+    where
+        op = case op' of 
+                EqualA'   -> CAssignOp; MultA'   -> CMulAssOp
+                DivA'     -> CDivAssOp; RemA'    -> CRmdAssOp
+                AddA'     -> CAddAssOp; SubA'    -> CSubAssOp
+                LShiftA'  -> CShlAssOp; RShiftA' -> CShrAssOp
+                RRShiftA' -> CShrAssOp; AndA'    -> CAndAssOp
+                XorA'     -> CXorAssOp; OrA'     -> COrAssOp
 
-translateExp unit locals e
+translateExp unit locals acc e
     = trace (show e) undefined
 
-translateMaybeExp :: CompilationUnit' -> LocalInformation -> Maybe Exp' -> ExpTranslationResult (Maybe CExpr)
-translateMaybeExp unit locals Nothing
-    = ([], Nothing)
-translateMaybeExp unit locals (Just exp')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, Just exp)
+translateMaybeExp :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Maybe Exp' -> ExpTranslationResult (Maybe CExpr)
+translateMaybeExp unit locals acc Nothing
+    = (acc, Nothing)
+translateMaybeExp unit locals acc (Just exp')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, Just exp)
 
-translateExpName :: CompilationUnit' -> LocalInformation -> Name' -> ExpTranslationResult CExpr
-translateExpName unit (className, locals) names'
+translateExpName :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Name' -> ExpTranslationResult CExpr
+translateExpName unit (className, locals) acc names'
     -- Case: the name is a local variable.
     | head names' `elem` locals 
         = let names = map (cVar . cIdent) names'
-           in ([], foldl1 cMemberVar names)
+           in (acc, foldl1 cMemberVar names)
 
     -- Case: the name is a field of the class.
     | Just thisClass <- findClass className unit
     , containsNonStaticFieldWithName thisClass (head names')
         = let names = map (cVar . cIdent) names'
-           in ([], foldl cMemberVar thisVar names)
+           in (acc, foldl cMemberVar thisVar names)
 
     -- Case: the name is a class, thus the tail must be a static member.
     | Just classDecl <- findClass (head names') unit
-        = translateFieldName unit classDecl (tail names')
+        = translateFieldName unit classDecl acc (tail names')
 
     -- Case: the name is a field of this class.
     | Just classDecl <- findClass className unit 
-        = translateFieldName unit classDecl names'
+        = translateFieldName unit classDecl acc names'
 
-translateFieldName :: CompilationUnit' -> ClassDecl' -> Name' -> ExpTranslationResult CExpr
-translateFieldName unit (ClassDecl' ms name' _) (field':names')
+translateFieldName :: CompilationUnit' -> ClassDecl' -> ExpAccumulator -> Name' -> ExpTranslationResult CExpr
+translateFieldName unit (ClassDecl' ms name' _) acc (field':names')
     = let field = cVar (createStructName name' field')
           names = fmap (cVar . cIdent) names'
-       in ([], foldl cMemberVar field names)
+       in (acc, foldl cMemberVar field names)
 
-translateLhs :: CompilationUnit' -> LocalInformation -> Lhs' -> ExpTranslationResult CExpr
-translateLhs _ _ (Name' [name'])
-    = ([], cVar (cIdent name'))
+translateLhs :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Lhs' -> ExpTranslationResult CExpr
+translateLhs _ _ acc (Name' [name'])
+    = (acc, cVar (cIdent name'))
 
-translateLhs unit locals (Field' access')
-    = translateFieldAccess unit locals access'
+translateLhs unit locals acc (Field' access')
+    = translateFieldAccess unit locals acc access'
 
-translateLhs unit locals (Array' (ArrayIndex' array' [index']))
-    = let (decls1, array) = translateExp unit locals array'
-          (decls2, index) = translateExp unit locals index'
-       in (decls1 ++ decls2, cIndex (cMember array arrayElementsName) index)
+{-
+translateLhs unit locals acc (Array' (ArrayIndex' array' [index']))
+    = let (acc1, array) = translateExp unit acc array'
+          (acc2, index) = translateExp unit acc1 index'
+       in (acc2, cIndex (cMember array arrayElementsName) index)
+-}
 
-translateLhs unit locals (Array' (ArrayIndex' array' indices'))
-    = let (decls1, array) = translateExp unit locals array'
-          results         = map (translateExp unit locals) indices'
-          decls2          = concatMap fst results
-          indices         = map snd results
+translateLhs unit locals acc (Array' (ArrayIndex' array' indices'))
+    = let (acc1, array)   = translateExp unit locals acc array'
+          (acc2, indices) = mapAccumL (translateExp unit locals) acc1 indices'
           access          = foldl ( \ acc index -> cIndex (cMember acc arrayElementsName) index) array indices
-       in (decls1 ++ decls2, access)
+       in (acc2, access)
 
-translateFieldAccess :: CompilationUnit' -> LocalInformation -> FieldAccess' -> ExpTranslationResult CExpr
-translateFieldAccess unit locals (PrimaryFieldAccess' exp' field')
-    = let (decls, exp) = translateExp unit locals exp'
-       in (decls, cMember exp (cIdent field'))
+translateFieldAccess :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> FieldAccess' -> ExpTranslationResult CExpr
+translateFieldAccess unit locals acc (PrimaryFieldAccess' exp' field')
+    = let (acc1, exp) = translateExp unit locals acc exp'
+       in (acc1, cMember exp (cIdent field'))
 
 --------------------------------------------------------------------------------
 -- Array new creation
 --------------------------------------------------------------------------------
 
-createArrayConstructorDecl :: CompilationUnit' -> LocalInformation -> Exp' -> CExtDecl
-createArrayConstructorDecl unit locals exp@(ArrayCreate' ty' sizes' _)
-    = let name       = cIdent ("new_Array") -- ++ a unique number
-          nameOfTy   = createArrayTypeName dimensions ty'
-          returnTy   = cStructType nameOfTy
-          body       = createArrayConstructorBody unit locals exp
-          params     = cParams []
-       in cFunction returnTy name [params, cPointer] body   
+createArrayNewDecl :: CompilationUnit' -> LocalInformation -> Int -> ExpAccumulator -> Exp' -> ExpTranslationResult CExtDecl
+createArrayNewDecl unit locals i acc exp@(ArrayCreate' ty' sizes' _)
+    = let name         = cIdent ("new_Array$" ++ show i)
+          nameOfTy     = createArrayTypeName dimensions ty'
+          returnTy     = cStructType nameOfTy
+          (acc1, body) = createArrayConstructorBody unit locals acc exp
+          params       = cParams []
+       in (acc1, cFunction returnTy name [params, cPointer] body)
     where
         dimensions = length sizes'
 
-createArrayConstructorBody :: CompilationUnit' -> LocalInformation -> Exp' -> CStat
-createArrayConstructorBody unit locals exp@(ArrayCreate' ty' sizes' _) 
-    = let nameOfTy  = createArrayTypeName dimensions ty'
-          thisTy    = cStructType nameOfTy
-          thisValue = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
-          init      = createInitForDimension unit locals 0 thisVar ty' sizes'
-          return    = cReturnStat (Just thisVar)
-       in cCompoundStat [thisValue, cBlockStat init, return]
+createArrayNewDecl unit locals i acc exp@(ArrayCreateInit' ty' dimensions _)
+    = let name         = cIdent ("new_Array$" ++ show i)
+          nameOfTy     = createArrayTypeName dimensions ty'
+          returnTy     = cStructType nameOfTy
+          (acc1, body) = createArrayConstructorBody unit locals acc exp
+          params       = cParams []
+       in (acc1, cFunction returnTy name [params, cPointer] body)
+
+createArrayConstructorBody :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Exp' -> ExpTranslationResult CStat
+createArrayConstructorBody unit locals acc exp@(ArrayCreate' ty' sizes' _) 
+    = let nameOfTy     = createArrayTypeName dimensions ty'
+          thisTy       = cStructType nameOfTy
+          thisValue    = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
+          (acc1, init) = createInitForDimension unit locals 0 thisVar ty' sizes' acc Nothing
+          return       = cReturnStat (Just thisVar)
+       in (acc1, cCompoundStat [thisValue, cBlockStat init, return])
     where
         dimensions = length sizes'
 
--- TODO: add decls to return type
-createInitForDimension :: CompilationUnit' -> LocalInformation -> Int -> CExpr -> Type' -> [Exp'] -> CStat
-createInitForDimension unit locals depth expr ty [size]
+createArrayConstructorBody unit locals acc exp@(ArrayCreateInit' ty' dimensions inits')
+    =  let nameOfTy     = createArrayTypeName dimensions ty'
+           thisTy       = cStructType nameOfTy
+           thisValue    = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
+           (acc1, init) = createInitForDimension unit locals 0 thisVar ty' sizes' acc (Just inits')
+           return       = cReturnStat (Just thisVar)
+        in (acc1, cCompoundStat [thisValue, cBlockStat init, return])
+    where
+        sizes' = sizesOfVarInit inits'
+
+sizesOfVarInit :: VarInits' -> [Exp']
+sizesOfVarInit []                           = []
+sizesOfVarInit (InitExp' _:xs)              = [Lit' (Int' (fromIntegral (1 + length xs)))]
+sizesOfVarInit (InitArray' (Just inits):xs) = Lit' (Int' (fromIntegral (1 + length xs))) : sizesOfVarInit inits 
+
+createInitForDimension :: CompilationUnit' -> LocalInformation -> Int -> CExpr -> Type' -> [Exp'] -> ExpAccumulator -> Maybe VarInits' -> ExpTranslationResult CStat
+createInitForDimension unit locals depth expr ty [size] acc Nothing
     = let (typeOfElem, dDeclr) = translateType unit (Just ty)
           sizeOfElem           = cSizeofType typeOfElem dDeclr
-          (decls, sizeExpr)    = translateExp unit locals size
+          (acc1, sizeExpr)     = translateExp unit locals acc size
           setElems             = cExprStat $ cAssign CAssignOp elemsMember (cCalloc sizeExpr sizeOfElem)
           setLength            = cExprStat $ cAssign CAssignOp lengthMember sizeExpr
-       in cCompoundStat [setLength, setElems]
+       in (acc1, cCompoundStat [setLength, setElems])
     where
         lengthMember = cMember expr arrayLengthName
         elemsMember  = cMember expr arrayElementsName
-
-createInitForDimension unit locals depth expr ty (size:sizes)
+    
+createInitForDimension unit locals depth expr ty (size:sizes) acc inits
     = let nameOfTy          = createArrayTypeName dimensions ty
           typeOfElem        = cStructType nameOfTy
           sizeOfElem        = cSizeofType typeOfElem [cPointer]
-          (decls, sizeExpr) = translateExp unit locals size
+          (acc1, sizeExpr) = translateExp unit locals acc size
           setElems          = cExprStat $ cAssign CAssignOp elemsMember (cCalloc sizeExpr sizeOfElem)
           setLength         = cExprStat $ cAssign CAssignOp lengthMember sizeExpr
           nextIdent         = cIdent ("i" ++ show depth)
@@ -455,9 +294,10 @@ createInitForDimension unit locals depth expr ty (size:sizes)
           forInit           = cDecl cIntType [(cDeclr nextIdent [], Just cExpInitZero)]
           forGuard          = cBinary CLeOp nextVar sizeExpr
           forUpdate         = cUnary CPreIncOp nextVar
-          forBody           = cCompoundStat [allocArray, cBlockStat $ createInitForDimension unit locals (depth + 1) nextExpr ty sizes]
+          (acc2, nextDim)   = createInitForDimension unit locals (depth + 1) nextExpr ty sizes acc1 inits
+          forBody           = cCompoundStat [allocArray, cBlockStat nextDim]
           setInner          = cForStat forInit forGuard forUpdate forBody
-       in cCompoundStat [setLength, setElems, setInner]
+       in (acc2, cCompoundStat [setLength, setElems, setInner])
     where
         lengthMember = cMember expr arrayLengthName
         elemsMember  = cMember expr arrayElementsName

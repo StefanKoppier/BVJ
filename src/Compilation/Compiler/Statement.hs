@@ -1,7 +1,6 @@
 module Compilation.Compiler.Statement where
 
 import Data.List                       (mapAccumL, groupBy, span)
-import Data.Function                   (on)
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants 
 import Compilation.CProgram
@@ -20,75 +19,61 @@ data ScopedStmt
     = SameScope Stmt'
     | NewScope  [ScopedStmt]
 
-translateStmts :: CompilationUnit' -> LocalInformation -> [(Stmt', PathStmtInfo)] -> ([CExtDecl], CStat)
-translateStmts unit locals stats
-    = let scoped        = createScopedStmts 0 (map (\ (s, i) -> (s, depth i)) stats)
-          (decls, stat) = translateScopedStmts unit (locals, []) scoped
-       in (decls, cCompoundStat stat)
+translateStmts :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> [(Stmt', PathStmtInfo)] -> (ExpAccumulator, CStat)
+translateStmts unit locals expAcc stats
+    = let scoped          = createScopedStmts 0 (map (\ (s, i) -> (s, depth i)) stats)
+          initialAcc      = (locals, expAcc)
+          (expAcc1, stat) = translateScopedStmts unit initialAcc scoped
+       in (expAcc1, cCompoundStat stat)
 
 createScopedStmts :: Int -> [(Stmt', Int)] -> [ScopedStmt]
 createScopedStmts _ [] = []
 createScopedStmts x ((stat, y):stats)
     | x == y = SameScope stat : createScopedStmts x stats
-    | x < y  = let (hd, tl) = span (\ (s, x') -> x' >= y) stats
+    | x < y  = let (hd, tl) = span (\ (_, x') -> x' >= y) stats
                 in NewScope (SameScope stat : createScopedStmts y hd)
                     : createScopedStmts x tl
     | x > y  = SameScope stat : createScopedStmts y stats
 
-type Accumulator = (LocalInformation, [CExtDecl])
+type Accumulator = (LocalInformation, ExpAccumulator)
 
-translateScopedStmts :: CompilationUnit' -> Accumulator -> [ScopedStmt] -> ([CExtDecl], [CBlockItem])
-translateScopedStmts _ (_, decls) [] = (decls, [])
+translateScopedStmts :: CompilationUnit' -> Accumulator -> [ScopedStmt] -> (ExpAccumulator, [CBlockItem])
+translateScopedStmts _ (_, expAcc) [] = (expAcc, [])
 
 translateScopedStmts unit acc' (SameScope stat':stats')
-    = let (acc1 , stat)  = translateStmtAcc unit acc' stat'
-          (decls, stats) = translateScopedStmts unit acc1 stats'
-       in (decls, stat : stats)
+    = let (acc1 , stat)   = translateStmtAcc unit acc' stat'
+          (expAcc, stats) = translateScopedStmts unit acc1 stats'
+       in (expAcc, stat : stats)
 
-translateScopedStmts unit acc' (NewScope stat':stats')
-    = let (decls1, stat)  = translateScopedStmts unit acc' stat'
-          (decls2, stats) = translateScopedStmts unit acc' stats'
-       in (decls1 ++ decls2, cBlockStat (cCompoundStat stat) : stats)
-
-{-
-translateScopedStmts :: CompilationUnit' -> LocalInformation -> [ScopedStmt] -> [CBlockItem]
-translateScopedStmts _ _ [] = []
-
-translateScopedStmts unit locals' (SameScope stat':stats)
-    = let (locals, stat) = translateStmtAcc unit locals' stat'
-       in stat : translateScopedStmts unit locals stats
-
-translateScopedStmts unit locals' (NewScope stat':stats)
-    = let stat = translateScopedStmts unit locals' stat'
-       in cBlockStat (cCompoundStat stat) : translateScopedStmts unit locals' stats
--}
+translateScopedStmts unit (locals', expAcc') (NewScope stat':stats')
+    = let (expAcc1, stat)  = translateScopedStmts unit (locals', expAcc') stat'
+          (expAcc2, stats) = translateScopedStmts unit (locals', expAcc1) stats'
+       in (expAcc2, cBlockStat (cCompoundStat stat) : stats)
 
 translateStmtAcc :: CompilationUnit' -> Accumulator -> Stmt' -> (Accumulator, CBlockItem)
-translateStmtAcc unit acc'@((className, localVars'), decls') (Decl' _ ty' vars') 
-    = let (ty, declrs) = translateType unit (Just ty')
-          results      = map (translateVarDecl unit acc' declrs) vars'
-          decls        = concatMap (snd . fst) results
-          vars         = map snd results
-          acc          = ((className, newLocals ++ localVars'), decls' ++ decls)
-       in (acc, cVarDeclStat (cDecl ty vars))
+translateStmtAcc unit acc'@((className, localVars'), _) (Decl' _ ty' vars') 
+    = let (ty, declrs)         = translateType unit (Just ty')
+          ((_, expAcc1), vars) = mapAccumL (translateVarDecl unit declrs) acc' vars'
+          acc1                 = ((className, newLocals ++ localVars'), expAcc1)
+       in (acc1, cVarDeclStat (cDecl ty vars))
     where
         newLocals = namesOfDecls vars'
 
 translateStmtAcc _ acc' Empty'
     = (acc', cEmptyStat)
 
-translateStmtAcc unit (locals', decls') (ExpStmt' exp')
-    = let (decls, exp) = translateExp unit locals' exp'
-       in ((locals', decls' ++ decls), cExprStat exp)
+translateStmtAcc unit (locals', expAcc') (ExpStmt' exp')
+    = let (expAcc1, exp) = translateExp unit locals' expAcc' exp'
+       in ((locals', expAcc1), cExprStat exp)
 
-translateStmtAcc unit (locals', decls') (Assert' exp' error')
-    = let (decls, exp) = translateExp unit locals' exp'
-          error        = cString error'
-       in ((locals', decls' ++ decls), cAssertStat exp error)
+translateStmtAcc unit (locals', expAcc') (Assert' exp' error')
+    = let (expAcc1, exp) = translateExp unit locals' expAcc' exp'
+          error          = cString error'
+       in ((locals', expAcc1), cAssertStat exp error)
 
-translateStmtAcc unit (locals', decls') (Assume' exp')
-    = let (decls, exp) = translateExp unit locals' exp'
-       in ((locals', decls' ++ decls), cAssumeStat exp)
+translateStmtAcc unit (locals', expAcc') (Assume' exp')
+    = let (expAcc1, exp) = translateExp unit locals' expAcc' exp'
+       in ((locals', expAcc1), cAssumeStat exp)
 
 translateStmtAcc _ acc' (Break' _)
     = (acc', cEmptyStat)
@@ -96,23 +81,25 @@ translateStmtAcc _ acc' (Break' _)
 translateStmtAcc _ acc' (Continue' _)
     = (acc', cEmptyStat)
 
-translateStmtAcc unit (locals', decls') (Return' exp')
-    = let (decls, exp) = translateMaybeExp unit locals' exp'
-       in ((locals', decls' ++ decls), cReturnStat exp)
+translateStmtAcc unit (locals', expAcc') (Return' exp')
+    = let (expAcc1, exp) = translateMaybeExp unit locals' expAcc' exp'
+       in ((locals', expAcc1), cReturnStat exp)
 
-translateVarDecl :: CompilationUnit' -> Accumulator -> [CDerivedDeclr] -> VarDecl' -> (Accumulator, (CDeclr, Maybe CInit))
-translateVarDecl unit acc' declrs (VarDecl' (VarId' name') init')
+translateVarDecl :: CompilationUnit' -> [CDerivedDeclr] -> Accumulator -> VarDecl' -> (Accumulator, (CDeclr, Maybe CInit))
+translateVarDecl unit declrs acc' (VarDecl' (VarId' name') init')
     = let name        = cIdent name'
-          (acc, init) = translateVarInit unit acc' init'
-       in (acc, (cDeclr name declrs, init))
+          (acc1, init) = translateVarInit unit acc' init'
+       in (acc1, (cDeclr name declrs, init))
 
 translateVarInit :: CompilationUnit' -> Accumulator -> VarInit' -> (Accumulator, Maybe CInit)
-translateVarInit unit (locals', decls') (InitExp' exp')
-    = let (decls, exp) = translateExp unit locals' exp'
-       in ((locals', decls' ++ decls), Just $ cExpInit exp)
+translateVarInit unit (locals', expAcc) (InitExp' exp')
+    = let (expAcc1, exp) = translateExp unit locals' expAcc exp'
+       in ((locals', expAcc1), Just $ cExpInit exp)
 
+{-
 translateVarInit _ acc (InitArray' Nothing)
     = (acc, Nothing)
 
 translateVarInit unit acc (InitArray' (Just inits'))
     = undefined --cArrayInit <$> mapM (translateVarInit unit locals) inits'
+-}
