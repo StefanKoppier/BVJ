@@ -86,20 +86,7 @@ translateStmtAcc unit (locals', expAcc') (Return' exp')
        in ((locals', expAcc1), cReturnStat exp)
 
 translateVarDecl :: CompilationUnit' -> [CDerivedDeclr] -> Accumulator -> VarDecl' -> (Accumulator, (CDeclr, Maybe CInit))
-translateVarDecl unit declrs acc' (VarDecl' (VarId' name') init')
-    = let name        = cIdent name'
-          (acc1, init) = translateVarInit unit acc' init'
-       in (acc1, (cDeclr name declrs, init))
-
-translateVarInit :: CompilationUnit' -> Accumulator -> VarInit' -> (Accumulator, Maybe CInit)
-translateVarInit unit (locals', expAcc) (InitExp' exp')
-    = let (expAcc1, exp) = translateExp unit locals' expAcc exp'
-       in ((locals', expAcc1), Just $ cExpInit exp)
-
-{-
-translateVarInit _ acc (InitArray' Nothing)
-    = (acc, Nothing)
-
-translateVarInit unit acc (InitArray' (Just inits'))
-    = undefined --cArrayInit <$> mapM (translateVarInit unit locals) inits'
--}
+translateVarDecl unit declrs (locals', expAcc') (VarDecl' (VarId' name') init')
+    = let name            = cIdent name'
+          (expAcc1, init) = translateVarInit unit locals' expAcc' init'
+       in ((locals', expAcc1), (cDeclr name declrs, init))

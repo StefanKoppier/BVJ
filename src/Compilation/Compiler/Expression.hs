@@ -1,6 +1,7 @@
 module Compilation.Compiler.Expression where
 
 import Data.List
+import Data.Maybe
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants 
 import Compilation.CProgram
@@ -201,13 +202,6 @@ translateLhs _ _ acc (Name' [name'])
 translateLhs unit locals acc (Field' access')
     = translateFieldAccess unit locals acc access'
 
-{-
-translateLhs unit locals acc (Array' (ArrayIndex' array' [index']))
-    = let (acc1, array) = translateExp unit acc array'
-          (acc2, index) = translateExp unit acc1 index'
-       in (acc2, cIndex (cMember array arrayElementsName) index)
--}
-
 translateLhs unit locals acc (Array' (ArrayIndex' array' indices'))
     = let (acc1, array)   = translateExp unit locals acc array'
           (acc2, indices) = mapAccumL (translateExp unit locals) acc1 indices'
@@ -218,6 +212,24 @@ translateFieldAccess :: CompilationUnit' -> LocalInformation -> ExpAccumulator -
 translateFieldAccess unit locals acc (PrimaryFieldAccess' exp' field')
     = let (acc1, exp) = translateExp unit locals acc exp'
        in (acc1, cMember exp (cIdent field'))
+
+-- TODO: unsafe fromJust.
+translateVarInits :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> VarInits' -> (ExpAccumulator, CInit)
+translateVarInits unit locals' expAcc' inits'
+    = let (expAcc1, inits) = mapAccumL (translateVarInit unit locals') expAcc' inits'
+       in (expAcc1, cArrayInit (map fromJust inits))
+
+translateVarInit :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> VarInit' -> (ExpAccumulator, Maybe CInit)
+translateVarInit unit locals' expAcc (InitExp' exp')
+    = let (expAcc1, exp) = translateExp unit locals' expAcc exp'
+       in (expAcc1, Just $ cExpInit exp)
+
+translateVarInit _ locals' expAcc' (InitArray' Nothing)
+    = (expAcc', Nothing)
+
+translateVarInit unit locals' expAcc' (InitArray' (Just inits'))
+    = let (expAcc1, inits) = translateVarInits unit locals' expAcc' inits'
+       in (expAcc1, Just inits)
 
 --------------------------------------------------------------------------------
 -- Array new creation
@@ -253,15 +265,25 @@ createArrayConstructorBody unit locals acc exp@(ArrayCreate' ty' sizes' _)
     where
         dimensions = length sizes'
 
-createArrayConstructorBody unit locals acc exp@(ArrayCreateInit' ty' dimensions inits')
-    =  let nameOfTy     = createArrayTypeName dimensions ty'
-           thisTy       = cStructType nameOfTy
-           thisValue    = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
-           (acc1, init) = createInitForDimension unit locals 0 thisVar ty' sizes' acc (Just inits')
-           return       = cReturnStat (Just thisVar)
-        in (acc1, cCompoundStat [thisValue, cBlockStat init, return])
+createArrayConstructorBody unit locals acc exp@(ArrayCreateInit' ty' dimensions' inits')
+    =  let nameOfTy          = createArrayTypeName dimensions' ty'
+           thisTy            = cStructType nameOfTy
+           cSizes            = map (snd . translateExp unit ("", []) (0, [])) sizes'
+           (acc1, initValue) = createArrayInitValue unit locals ty' cSizes acc inits'
+           thisValue         = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
+           (acc2, init)      = createInitForDimension unit locals 0 thisVar ty' sizes' acc1 (Just inits')
+           return            = cReturnStat (Just thisVar)
+        in (acc2, cCompoundStat [initValue, thisValue, cBlockStat init, return])
     where
         sizes' = sizesOfVarInit inits'
+
+createArrayInitValue :: CompilationUnit' -> LocalInformation -> Type' -> [CExpr] -> ExpAccumulator -> VarInits' -> (ExpAccumulator, CBlockItem)
+createArrayInitValue unit locals' ty' sizes' expAcc' inits'
+    = let (ty, tydDeclr)  = translateType unit (Just ty')
+          dDeclrs         = map cArray sizes' ++ tydDeclr
+          declr           = cDeclr (cIdent "initial") dDeclrs
+          (expAcc1, init) = translateVarInits unit locals' expAcc' inits'
+       in (expAcc1, cVarDeclStat (cDecl ty [(declr, Just init)]))
 
 sizesOfVarInit :: VarInits' -> [Exp']
 sizesOfVarInit []                           = []
@@ -269,36 +291,53 @@ sizesOfVarInit (InitExp' _:xs)              = [Lit' (Int' (fromIntegral (1 + len
 sizesOfVarInit (InitArray' (Just inits):xs) = Lit' (Int' (fromIntegral (1 + length xs))) : sizesOfVarInit inits 
 
 createInitForDimension :: CompilationUnit' -> LocalInformation -> Int -> CExpr -> Type' -> [Exp'] -> ExpAccumulator -> Maybe VarInits' -> ExpTranslationResult CStat
-createInitForDimension unit locals depth expr ty [size] acc Nothing
+createInitForDimension unit locals depth expr ty [size] acc inits
     = let (typeOfElem, dDeclr) = translateType unit (Just ty)
           sizeOfElem           = cSizeofType typeOfElem dDeclr
           (acc1, sizeExpr)     = translateExp unit locals acc size
           setElems             = cExprStat $ cAssign CAssignOp elemsMember (cCalloc sizeExpr sizeOfElem)
           setLength            = cExprStat $ cAssign CAssignOp lengthMember sizeExpr
-       in (acc1, cCompoundStat [setLength, setElems])
+          setInitial           = maybe [] (const [createElemAssignment expr sizeExpr depth]) inits
+       in (acc1, cCompoundStat (setLength : setElems : setInitial))
     where
         lengthMember = cMember expr arrayLengthName
         elemsMember  = cMember expr arrayElementsName
     
 createInitForDimension unit locals depth expr ty (size:sizes) acc inits
-    = let nameOfTy          = createArrayTypeName dimensions ty
-          typeOfElem        = cStructType nameOfTy
-          sizeOfElem        = cSizeofType typeOfElem [cPointer]
+    = let nameOfTy         = createArrayTypeName dimensions ty
+          typeOfElem       = cStructType nameOfTy
+          sizeOfElem       = cSizeofType typeOfElem [cPointer]
           (acc1, sizeExpr) = translateExp unit locals acc size
-          setElems          = cExprStat $ cAssign CAssignOp elemsMember (cCalloc sizeExpr sizeOfElem)
-          setLength         = cExprStat $ cAssign CAssignOp lengthMember sizeExpr
-          nextIdent         = cIdent ("i" ++ show depth)
-          nextVar           = cVar nextIdent
-          nextExpr          = cIndex elemsMember nextVar
-          allocArray        = cExprStat $ cAssign CAssignOp nextExpr (cMalloc (cSizeofType typeOfElem []))
-          forInit           = cDecl cIntType [(cDeclr nextIdent [], Just cExpInitZero)]
-          forGuard          = cBinary CLeOp nextVar sizeExpr
-          forUpdate         = cUnary CPreIncOp nextVar
-          (acc2, nextDim)   = createInitForDimension unit locals (depth + 1) nextExpr ty sizes acc1 inits
-          forBody           = cCompoundStat [allocArray, cBlockStat nextDim]
-          setInner          = cForStat forInit forGuard forUpdate forBody
+          setElems         = cExprStat $ cAssign CAssignOp elemsMember (cCalloc sizeExpr sizeOfElem)
+          setLength        = cExprStat $ cAssign CAssignOp lengthMember sizeExpr
+          nextIdent        = cIdent ("i" ++ show depth)
+          nextVar          = cVar nextIdent
+          nextExpr         = cIndex elemsMember nextVar
+          allocArray       = cExprStat $ cAssign CAssignOp nextExpr (cMalloc (cSizeofType typeOfElem []))
+          forInit          = cDecl cIntType [(cDeclr nextIdent [], Just cExpInitZero)]
+          forGuard         = cBinary CLeOp nextVar sizeExpr
+          forUpdate        = cUnary CPreIncOp nextVar
+          (acc2, nextDim)  = createInitForDimension unit locals (depth + 1) nextExpr ty sizes acc1 inits
+          forBody          = cCompoundStat [allocArray, cBlockStat nextDim]
+          setInner         = cForStat forInit forGuard forUpdate forBody
        in (acc2, cCompoundStat [setLength, setElems, setInner])
     where
         lengthMember = cMember expr arrayLengthName
         elemsMember  = cMember expr arrayElementsName
         dimensions   = length sizes
+
+createElemAssignment :: CExpr -> CExpr -> Int -> CBlockItem
+createElemAssignment expr size depth
+    = let forVarIdent          = cIdent ("i" ++ show depth)
+          forVar               = cVar forVarIdent
+          forInit              = cDecl cIntType [(cDeclr forVarIdent [], Just cExpInitZero)]
+          forGuard             = cBinary CLeOp forVar size
+          forUpdate            = cUnary CPreIncOp forVar
+          initialVar           = cVar (cIdent "initial")
+          indices              = map (\ i -> cVar (cIdent ("i" ++ show i))) [0..depth]
+          initValue            = foldl cIndex initialVar indices
+          initTarget           = cIndex (cMember expr arrayElementsName) forVar
+          (CBlockStmt forBody) = cExprStat (cAssign CAssignOp initTarget initValue)
+       in cForStat forInit forGuard forUpdate forBody  
+    where
+        elemsMember = cMember expr arrayElementsName

@@ -261,5 +261,8 @@ cCalloc amount size
 cPointer :: CDerivedDeclr
 cPointer = CPtrDeclr [] noInfo
 
+cArray :: CExpr -> CDerivedDeclr
+cArray size = CArrDeclr [] (CArrSize False size) noInfo
+
 noInfo :: NodeInfo
 noInfo = OnlyPos nopos (nopos, 0)
