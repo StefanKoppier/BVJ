@@ -33,10 +33,3 @@ translateRefType _ (ClassRefType' (ClassType' [name']))
 translateRefType unit ty@(ArrayType' innerTy)
     = let name = cIdent (nameOfType (RefType' ty))
        in (cStructType name, [cPointer])
-
-{-
-depthOfInnerType :: Type' -> Int
-depthOfInnerType (PrimType' _)                = 0
-depthOfInnerType (RefType' (ClassRefType' _)) = 0
-depthOfInnerType (RefType' (ArrayType' ty))   = 1 + depthOfInnerType ty
--}
