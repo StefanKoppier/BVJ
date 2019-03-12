@@ -9,10 +9,11 @@ import System.IO
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Compilation.CProgram
-import Verification.Result
+--import Verification.Result
+import Verification.CBMCResult
 import Compilation.Pretty
 
-verificationPhase :: Phase CPrograms VerificationResults
+verificationPhase :: Phase CPrograms CProverResults
 verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do
     newEitherT $ printInformation verbosity programs
     newEitherT createWorkingDir
@@ -31,20 +32,20 @@ printInformation verbosity programs = do
         _
             -> return $ Right ()
 
-runAsync :: Arguments -> CPrograms -> IO (Either PhaseError VerificationResults)
+runAsync :: Arguments -> CPrograms -> IO (Either PhaseError CProverResults)
 runAsync args@Arguments{numberOfThreads} programs = do
     let tasks = map (verify args) programs
     results <- withPool numberOfThreads (\ pool -> parallel pool tasks)
     return $ sequence results
 
-verify :: Arguments -> CProgram -> IO (Either PhaseError VerificationResult)
+verify :: Arguments -> CProgram -> IO (Either PhaseError CProverResult)
 verify args program = do
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
     let program' = "#include <stdlib.h>\n" ++ toString program
     hPutStr handle program'
     hClose handle
     (_,result,_) <- readProcessWithExitCode "./tools/cbmc/cbmc" (cbmcArgs path args) ""
-    runEitherT $ parseOutput result
+    runEitherT $ parseXML result
 
 createWorkingDir :: IO (Either PhaseError ())
 createWorkingDir = do 

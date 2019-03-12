@@ -30,7 +30,7 @@ library
                        Compilation.Phase
                        Compilation.Pretty
                        Verification.Phase
-                       Verification.Result
+                       Verification.CBMCResult
                        Verification.Pretty
                        Auxiliary.Phase
                        Auxiliary.Pretty

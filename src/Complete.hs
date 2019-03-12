@@ -7,10 +7,10 @@ import Analysis.Phase
 import Linearization.Phase
 import Compilation.Phase
 import Verification.Phase
-import Verification.Result
+import Verification.CBMCResult
 import Verification.Pretty
 
-allPhases :: Phase String VerificationResults
+allPhases :: Phase String CProverResults
 allPhases args file = do
     ast      <- parsingPhase args file
     cfg      <- analysisPhase args ast
