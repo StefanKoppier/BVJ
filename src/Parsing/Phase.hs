@@ -157,12 +157,30 @@ transformRefType (ArrayType ty)    = ArrayType'    <$> transformType ty
 transformClassType :: ClassType -> PhaseResult ClassType'
 transformClassType (ClassType tys) = ClassType' <$> pure [i | (Ident i) <- map fst tys]
 
+transformToInnerMostArrayType :: Type -> PhaseResult Type'
+transformToInnerMostArrayType (RefType (ArrayType t))
+    = transformToInnerMostArrayType t
+transformToInnerMostArrayType ty
+    = transformType ty
+
 transformVarDecls :: Type -> [VarDecl] -> PhaseResult [VarDecl']
 transformVarDecls ty = mapM (transformVarDecl ty)
 
 transformVarDecl :: Type -> VarDecl -> PhaseResult VarDecl'
-transformVarDecl ty (VarDecl id Nothing)     = VarDecl' <$> transformVarDeclId id <*> defaultInit ty
-transformVarDecl _  (VarDecl id (Just init)) = VarDecl' <$> transformVarDeclId id <*> transformVarInit init
+transformVarDecl ty (VarDecl id Nothing)     
+    = VarDecl' <$> transformVarDeclId id <*> defaultInit ty
+transformVarDecl _  (VarDecl id (Just init@InitExp{})) 
+    = VarDecl' <$> transformVarDeclId id <*> transformVarInit init
+transformVarDecl ty (VarDecl id (Just init@(InitArray (ArrayInit inits)))) = do
+    id'        <- transformVarDeclId id
+    inits'     <- mapM transformVarInit inits
+    ty'        <- transformToInnerMostArrayType ty
+    dimensions <- dimensionsOfVarInit init
+    trace (show ty) $ return $ VarDecl' id' (InitExp' (ArrayCreateInit' ty' dimensions inits'))
+
+dimensionsOfVarInit :: VarInit -> PhaseResult Int
+dimensionsOfVarInit (InitArray (ArrayInit (init:_))) = (1+) <$> dimensionsOfVarInit init
+dimensionsOfVarInit (InitExp _)                      = pure 0
 
 transformVarDeclId :: VarDeclId -> PhaseResult VarDeclId'
 transformVarDeclId (VarId (Ident n)) = pure $ VarId' n
@@ -276,7 +294,7 @@ transformExp = foldExp alg
         , arrayCreate = \ ty es 0
             -> ArrayCreate' <$> transformType ty <*> sequence es <*> pure 0
         , arrayCreateInit = \ ty ds (ArrayInit is)
-            -> ArrayCreateInit' <$> transformType ty <*> pure ds <*> mapM transformVarInit is
+            ->  trace (show ty) $ ArrayCreateInit' <$> transformType ty <*> pure ds <*> mapM transformVarInit is
         , fieldAccess = fmap FieldAccess' . transformFieldAccess
         , methodInv = fmap MethodInv' . transformMethodInvocation
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
