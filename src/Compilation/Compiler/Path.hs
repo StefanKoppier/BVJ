@@ -1,24 +1,21 @@
 module Compilation.Compiler.Path where
 
-import           Data.Maybe  
-import qualified Data.Set                                  as S
-import           Data.List
-import           Data.Function
-import           Language.C.Syntax.AST
-import           Compilation.CProgram
-import           Compilation.Utility
-import           Compilation.Compiler.Type
-import           Compilation.Compiler.Statement
-import           Compilation.Compiler.Expression
-import           Compilation.Compiler.Array
-import           Compilation.Compiler.Object
-import           Compilation.Compiler.Naming
-import           Compilation.Compiler.InformationGathering
-import           Linearization.Path
-import           Parsing.Syntax
-import           Parsing.Utility
-
-import Debug.Trace
+import Data.Maybe  
+import Data.List
+import Data.Function
+import Language.C.Syntax.AST
+import Compilation.CProgram
+import Compilation.Utility
+import Compilation.Compiler.Type
+import Compilation.Compiler.Statement
+import Compilation.Compiler.Expression
+import Compilation.Compiler.Array
+import Compilation.Compiler.Object
+import Compilation.Compiler.Naming
+import Compilation.Compiler.InformationGathering
+import Linearization.Path
+import Parsing.Syntax
+import Parsing.Utility
 
 translatePath :: CompilationUnit' -> ProgramPath -> CProgram
 translatePath unit@(CompilationUnit' _ decls) path
@@ -89,14 +86,13 @@ translateMethodCall unit methodDecl expAcc path
                             else thisParam thisTy : getParams methodDecl
 
 translateParams :: CompilationUnit' -> FormalParams' -> CDerivedDeclr
-translateParams unit params 
-    = cParams (map (translateParam unit) params)
+translateParams unit = cParams . map (translateParam unit)
 
 translateParam :: CompilationUnit' -> FormalParam' -> CDecl
-translateParam unit (FormalParam' _ ty' (VarId' name)) 
-    = let (ty, declrs) = translateType unit (Just ty')
-          var          = (cDeclr (cIdent name) declrs, Nothing)
-       in cDecl ty [var]
+translateParam unit (FormalParam' _ ty (VarId' name)) 
+    = let (cTy, declrs) = translateType unit (Just ty)
+          var           = (cDeclr (cIdent name) declrs, Nothing)
+       in cDecl cTy [var]
        
 thisParam :: Type' -> FormalParam'
 thisParam ty = FormalParam' [] ty (VarId' "this")

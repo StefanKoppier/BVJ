@@ -4,15 +4,12 @@ import Language.C.Syntax.AST
 import Compilation.Utility
 import Compilation.Compiler.Naming
 import Parsing.Syntax
-import Debug.Trace
 
 translateType :: CompilationUnit' -> Maybe Type' -> (CTypeSpec, [CDerivedDeclr])
 translateType _ Nothing = (cVoidType, [])
 
-translateType _ (Just (PrimType' ty'))
-    = (ty, [])
-    where
-        ty = translatePrimType ty'
+translateType _ (Just (PrimType' ty))
+    = (translatePrimType ty, [])
 
 translateType unit (Just (RefType' ty))
     = translateRefType unit ty
@@ -26,10 +23,8 @@ translatePrimType ty
         FloatT'   -> cFloatType; DoubleT' -> cDoubleType
 
 translateRefType :: CompilationUnit' -> RefType' -> (CTypeSpec, [CDerivedDeclr])
-translateRefType _ (ClassRefType' (ClassType' [name']))
-    = let name = cIdent name'
-       in (cStructType name, [cPointer])
+translateRefType _ (ClassRefType' (ClassType' [name]))
+    = (cStructType (cIdent name), [cPointer])
 
-translateRefType unit ty@(ArrayType' innerTy)
-    = let name = cIdent (nameOfType (RefType' ty))
-       in (cStructType name, [cPointer])
+translateRefType _ ty@ArrayType'{}
+    = (cStructType (cIdent (nameOfType (RefType' ty))), [cPointer])

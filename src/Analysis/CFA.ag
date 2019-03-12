@@ -4,8 +4,6 @@ import           Analysis.CFG
 import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Parsing.Utility
-
-import Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
@@ -549,7 +547,7 @@ getResultClassNameOfInvocation unit package className types (MethodInv' (MethodC
 getResultClassNameOfInvocation unit package className types (MethodInv' (PrimaryMethodCall' e name args))
     = let innerclassName              = getResultClassNameOfInvocation unit package className types e
           innerScope                  = Scope Nothing innerclassName name
-          (Just method)               = trace (show innerScope) (getMethod unit innerScope)
+          (Just method)               = getMethod unit innerScope
           (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
           [resultName]                = nameOfRefType ty
        in resultName

@@ -14,8 +14,6 @@ import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-import Debug.Trace
-
 linearizationPhase :: Phase CFG ProgramPaths
 linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = do
     newEitherT $ printInformation verbosity graph

@@ -104,6 +104,15 @@ renameExp ops (InstanceCreation' (ClassType' name) args)
           name'               = renameMethodCall name scope callNumber
           (ops2, args')       = mapAccumL renameExp ops1 args
        in (ops2, InstanceCreation' (ClassType' name') args')
+renameExp ops (ArrayCreate' ty sizes unspecified)
+    = let (ops1, sizes') = mapAccumL renameExp ops sizes
+       in (ops1, ArrayCreate' ty sizes' unspecified)
+renameExp ops (ArrayCreateInit' ty dimensions inits)
+    = let (ops1, inits') = mapAccumL renameVarInit ops inits
+       in (ops1, ArrayCreateInit' ty dimensions inits')
+renameExp ops (FieldAccess' access)
+    = let (ops1, access') = renameFieldAccess ops access
+       in (ops1, FieldAccess' access')
 renameExp ops (MethodInv' inv)
     = let (ops1, inv') = renameInvocation ops inv
        in (ops1, MethodInv' inv')
@@ -148,9 +157,6 @@ renameExp ops (Assign' lhs op exp)
     = let (ops1, lhs') = renameLhs ops lhs
           (ops2, exp') = renameExp ops1 exp
        in (ops2, Assign' lhs' op exp')
-
-renameExp ops e
-    = trace (show e) undefined
 
 renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
 renameInvocation ops (MethodCall' name args) 

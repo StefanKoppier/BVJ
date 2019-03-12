@@ -18,38 +18,34 @@ import Debug.Trace
 --------------------------------------------------------------------------------
 
 createClassStructDecl :: CompilationUnit' -> ClassType' -> CExtDecl
-createClassStructDecl unit (ClassType' [name'])
-    = translateClassStruct unit class'
-    where 
-        class' = fromJust $ findClass name' unit
+createClassStructDecl unit (ClassType' [name])
+    = translateClassStruct unit (fromJust $ findClass name unit)
 
 createClassAllocDecl :: CompilationUnit' -> ClassType' -> CExtDecl
-createClassAllocDecl unit (ClassType' [name'])
-    = translateStructAllocator unit class'
-    where 
-        class' = fromJust $ findClass name' unit
+createClassAllocDecl unit (ClassType' [name])
+    = translateStructAllocator unit (fromJust $ findClass name unit)
 
 translateClassStruct :: CompilationUnit' -> ClassDecl' -> CExtDecl
-translateClassStruct unit classDecl@(ClassDecl' _ name' _)
-    = let fieldDecls    = concatMap (translateField unit) nonStaticFields'
-          structDecl    = cStruct (cIdent name') fieldDecls
+translateClassStruct unit classDecl@(ClassDecl' _ name _)
+    = let fieldDecls = concatMap (translateField unit) nonStaticFields
+          structDecl = cStruct (cIdent name) fieldDecls
        in structDecl
     where
-        fields'          = getFields classDecl
-        nonStaticFields' = filter (not . isStatic) fields'
+        fields          = getFields classDecl
+        nonStaticFields = filter (not . isStatic) fields
 
 translateStructAllocator :: CompilationUnit' -> ClassDecl' -> CExtDecl
-translateStructAllocator unit classDecl@(ClassDecl' _ name' _)
-    = let (ty, declrs) = translateRefType unit (ClassRefType' (ClassType' [name']))
-          name         = createObjectAllocName name'
-          alloc        = cVarDeclStat (cDecl ty [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType ty []))))])
-          inits        = concatMap (translateFieldInitializer unit classDecl) nonStaticFields'
-          return       = cReturnStat (Just thisVar)
-          body         = cCompoundStat ([alloc] ++ inits ++ [return])
-        in cFunction ty name (cParams [] : declrs) body
+translateStructAllocator unit classDecl@(ClassDecl' _ name _)
+    = let (cTy, declrs) = translateRefType unit (ClassRefType' (ClassType' [name]))
+          cName         = createObjectAllocName name
+          alloc         = cVarDeclStat (cDecl cTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType cTy []))))])
+          inits         = concatMap (translateFieldInitializer unit classDecl) nonStaticFields
+          return        = cReturnStat (Just thisVar)
+          body          = cCompoundStat ([alloc] ++ inits ++ [return])
+        in cFunction cTy cName (cParams [] : declrs) body
     where
-        classFields'     = getFields classDecl
-        nonStaticFields' = filter (not . isStatic) classFields'
+        classFields     = getFields classDecl
+        nonStaticFields = filter (not . isStatic) classFields
 
 translateField :: CompilationUnit' -> MemberDecl' -> [CDecl]
 translateField unit (FieldDecl' _ ty' vars')
@@ -57,24 +53,24 @@ translateField unit (FieldDecl' _ ty' vars')
        in map (translateFieldDecl unit ty) vars'
 
 translateFieldDecl :: CompilationUnit' -> (CTypeSpec, [CDerivedDeclr]) -> VarDecl' -> CDecl
-translateFieldDecl _ (ty, declrs) (VarDecl' (VarId' name') _)
-    = cDecl ty [(cDeclr (cIdent name') declrs, Nothing)]
+translateFieldDecl _ (ty, declrs) (VarDecl' (VarId' name) _)
+    = cDecl ty [(cDeclr (cIdent name) declrs, Nothing)]
 
 translateFieldInitializer :: CompilationUnit' -> ClassDecl' -> MemberDecl' -> [CBlockItem]
 translateFieldInitializer unit classDecl (FieldDecl' _ _ decls)
     = map (translateFieldDeclInitializer unit classDecl) decls
 
 translateFieldDeclInitializer :: CompilationUnit' -> ClassDecl' -> VarDecl' -> CBlockItem
-translateFieldDeclInitializer unit (ClassDecl' _ className' _) (VarDecl' (VarId' name') (InitExp' exp'))
-    = let localInfo    = (className', [])
-          expAcc       = (0, [])
-          (decls, exp) = translateExp unit localInfo expAcc exp'
-          name         = cIdent name'
-          assignment   = cAssign CAssignOp (cMember thisVar name) exp
+translateFieldDeclInitializer unit (ClassDecl' _ className _) (VarDecl' (VarId' name) (InitExp' exp))
+    = let localInfo     = (className, [])
+          expAcc        = (0, [])
+          (decls, cExp) = translateExp unit localInfo expAcc exp
+          cName         = cIdent name
+          assignment    = cAssign CAssignOp (cMember thisVar cName) cExp
        in cExprStat assignment
     
-translateFieldDeclInitializer unit _ (VarDecl' (VarId' name') (InitArray' Nothing))
-    = undefined
+translateFieldDeclInitializer _ _ (VarDecl' (VarId' _) (InitArray' Nothing))
+    = trace "translateFieldDeclInitializer" undefined
     
 --------------------------------------------------------------------------------
 -- Creation of static fields of classes.

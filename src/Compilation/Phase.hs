@@ -17,7 +17,7 @@ compilationPhase Arguments{verbosity} (unit, paths) = do
 printInformation :: Verbosity -> ProgramPaths -> IO (Either PhaseError ())
 printInformation verbosity paths = do
     printHeader "4. TRANSLATION"
-    printText $ "Generated " ++ show (length paths) ++ " program paths"
+    printText $ "Translating " ++ show (length paths) ++ " program paths"
     case verbosity of
         Informative 
             -> printPretty paths

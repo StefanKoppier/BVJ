@@ -21,7 +21,8 @@ cDeclExt = CDeclExt
 -- | Construct a C function from a type, name, derivied declarators and statement.
 cFunction :: CTypeSpec -> Ident -> [CDerivedDeclr] -> CStat -> CExtDecl
 cFunction returns name dDeclr body
-    = CFDefExt (CFunDef [CTypeSpec returns] (CDeclr (Just name) dDeclr Nothing [] noInfo) [] body noInfo)
+    = let declr = CDeclr (Just name) dDeclr Nothing [] noInfo
+       in CFDefExt (CFunDef [CTypeSpec returns] declr [] body noInfo)
 
 -- | Create a C declaration from a type and a list of declarators and initializers.
 cDecl :: CTypeSpec -> [(CDeclr, Maybe CInit)] -> CDecl
@@ -31,13 +32,11 @@ cDecl ty vars
 
 -- | Create a C declarator from an identifier and derived declarators.
 cDeclr :: Ident -> [CDerivedDeclr] -> CDeclr
-cDeclr name dDeclr
-    = CDeclr (Just name) dDeclr Nothing [] noInfo
+cDeclr name dDeclr = CDeclr (Just name) dDeclr Nothing [] noInfo
 
 -- | Create a C declarator representing the parameters of a function.
 cParams :: [CDecl] -> CDerivedDeclr
-cParams params 
-    = CFunDeclr (Right (params, False)) [] noInfo
+cParams params = CFunDeclr (Right (params, False)) [] noInfo
 
 -- | Create a C struct declaration.
 cStruct :: Ident -> [CDecl] -> CExtDecl
@@ -57,37 +56,48 @@ cEnum name members
 -- Types
 --------------------------------------------------------------------------------
 
+-- | The C void type.
 cVoidType :: CTypeSpec
 cVoidType = CVoidType noInfo
 
+-- | The C boolean type.
 cBoolType :: CTypeSpec 
 cBoolType = CTypeDef (cIdent "_Bool") noInfo
 
+-- | The C byte type.
 cByteType :: CTypeSpec
 cByteType = CTypeDef (cIdent "__int8") noInfo
 
+-- | The C short type.
 cShortType :: CTypeSpec
 cShortType = CTypeDef (cIdent "__int16") noInfo
 
+-- | The C int type.
 cIntType :: CTypeSpec
 cIntType = CTypeDef (cIdent "__int32") noInfo
 
+-- | The C long type.
 cLongType :: CTypeSpec
 cLongType = CTypeDef (cIdent "__int64") noInfo
 
+-- | The C char type.
 cCharType :: CTypeSpec
 cCharType = CCharType noInfo
 
+-- | The C float type.
 cFloatType :: CTypeSpec
 cFloatType = CFloatType noInfo
 
+-- | The C double type.
 cDoubleType :: CTypeSpec
 cDoubleType = CDoubleType noInfo
 
+-- | Create a C struct type of the given name.
 cStructType :: Ident -> CTypeSpec
 cStructType name
     = CSUType (CStruct CStructTag (Just name) Nothing [] noInfo) noInfo
 
+-- | Create a C enum type of the given name.
 cEnumType :: Ident -> CTypeSpec
 cEnumType name
     = CEnumType (CEnum (Just name) Nothing [] noInfo) noInfo
@@ -98,18 +108,15 @@ cEnumType name
 
 -- | Construct a C compound statement from a list of statements.
 cCompoundStat :: [CBlockItem] -> CStat
-cCompoundStat stats
-    = CCompound [] stats noInfo
+cCompoundStat stats = CCompound [] stats noInfo
 
 -- | Construct a C block statement from a statement.
 cBlockStat :: CStat -> CBlockItem
-cBlockStat 
-    = CBlockStmt
+cBlockStat = CBlockStmt
 
 -- | Create a C variable declaration statement.
 cVarDeclStat :: CDecl -> CBlockItem
-cVarDeclStat 
-    = CBlockDecl
+cVarDeclStat = CBlockDecl
 
 -- | Create a C expression statement.
 cExprStat :: CExpr -> CBlockItem
@@ -128,7 +135,9 @@ cEmptyStat = CBlockStmt (CExpr Nothing noInfo)
 -- | Create a C assert statement.
 cAssertStat :: CExpr -> CString -> CBlockItem
 cAssertStat expression message 
-    = cExprStat (cCall (cIdent "__CPROVER_assert") [expression, cConst (cStringConst message)])
+    = let methodName = cIdent "__CPROVER_assert"
+          arguments  = [expression, cConst (cStringConst message)]
+       in cExprStat (cCall methodName arguments)
 
 -- | Create a C assume statement.
 cAssumeStat :: CExpr -> CBlockItem
@@ -137,18 +146,15 @@ cAssumeStat expression
 
 -- | Create a C return statement.
 cReturnStat :: Maybe CExpr -> CBlockItem
-cReturnStat expression
-    = CBlockStmt (CReturn expression noInfo)
+cReturnStat expression = CBlockStmt (CReturn expression noInfo)
 
 -- | Create a C array intializer.
 cArrayInit :: [CInit] -> CInit
-cArrayInit inits
-    = CInitList (map ([],) inits) noInfo
+cArrayInit inits = CInitList (map ([],) inits) noInfo
 
 -- | Create a C expression initializer.
 cExpInit :: CExpr -> CInit
-cExpInit expression
-    = CInitExpr expression noInfo
+cExpInit expression = CInitExpr expression noInfo
 
 -- | Create a C zero init value.
 cExpInitZero :: CInit
@@ -160,8 +166,7 @@ cExpInitZero = cExpInit (cConst (cIntConst (cInteger 0)))
 
 -- | Create a C variable access from a name.
 cVar :: Ident -> CExpr
-cVar name
-    = CVar name noInfo
+cVar name = CVar name noInfo
 
 -- | Create a C variable assignment.
 cAssign :: CAssignOp -> CExpr -> CExpr -> CExpr
@@ -200,7 +205,7 @@ cMember expression member
 
 -- | Create a C member access (->) from an expression and a variable.
 cMemberVar :: CExpr -> CExpr -> CExpr
-cMemberVar expression (CVar name noInfo)
+cMemberVar expression (CVar name _)
     = cMember expression name
 
 -- | Create a C sizeof from a type.
@@ -213,28 +218,23 @@ cSizeofType ty dDeclr
 
 -- | Create a C expression from a constant.
 cConst :: CConstant NodeInfo -> CExpr
-cConst 
-    = CConst
+cConst = CConst
 
 -- | Create a C constant from a string.
 cStringConst :: CString -> CConstant NodeInfo
-cStringConst string
-    = CStrConst string noInfo
+cStringConst string = CStrConst string noInfo
     
 -- | Create a C constant from a float.
 cFloatConst :: CFloat -> CConstant NodeInfo
-cFloatConst float
-    = CFloatConst float noInfo
+cFloatConst float = CFloatConst float noInfo
     
 -- | Create a C constant from an int.
 cIntConst :: CInteger -> CConstant NodeInfo
-cIntConst int
-    = CIntConst int noInfo
+cIntConst int = CIntConst int noInfo
     
 -- | Create a C constant from a char.
 cCharConst :: CChar -> CConstant NodeInfo
-cCharConst int
-    = CCharConst int noInfo
+cCharConst int = CCharConst int noInfo
 
 -- | The C NULL constant.
 cNull :: CExpr
@@ -250,17 +250,17 @@ cIdent string = Ident string 0 noInfo
 
 -- | Create a C malloc statement with a given size.
 cMalloc :: CExpr -> CExpr
-cMalloc size
-    = cCall (cIdent "malloc") [size]
+cMalloc size = cCall (cIdent "malloc") [size]
     
 -- | Create a C calloc statement with a given size.
 cCalloc :: CExpr -> CExpr -> CExpr
-cCalloc amount size
-    = cCall (cIdent "calloc") [amount, size]
+cCalloc amount size = cCall (cIdent "calloc") [amount, size]
 
+-- | Create a C pointer derived declarator.
 cPointer :: CDerivedDeclr
 cPointer = CPtrDeclr [] noInfo
 
+-- | Create a C array derived declarator of given size.
 cArray :: CExpr -> CDerivedDeclr
 cArray size = CArrDeclr [] (CArrSize False size) noInfo
 

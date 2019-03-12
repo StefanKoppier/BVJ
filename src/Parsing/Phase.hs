@@ -9,8 +9,6 @@ import Parsing.Utility
 import Auxiliary.Phase
 import Auxiliary.Pretty
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Parsing phase
 --------------------------------------------------------------------------------
@@ -176,7 +174,7 @@ transformVarDecl ty (VarDecl id (Just init@(InitArray (ArrayInit inits)))) = do
     inits'     <- mapM transformVarInit inits
     ty'        <- transformToInnerMostArrayType ty
     dimensions <- dimensionsOfVarInit init
-    trace (show ty) $ return $ VarDecl' id' (InitExp' (ArrayCreateInit' ty' dimensions inits'))
+    return $ VarDecl' id' (InitExp' (ArrayCreateInit' ty' dimensions inits'))
 
 dimensionsOfVarInit :: VarInit -> PhaseResult Int
 dimensionsOfVarInit (InitArray (ArrayInit (init:_))) = (1+) <$> dimensionsOfVarInit init
@@ -294,7 +292,7 @@ transformExp = foldExp alg
         , arrayCreate = \ ty es 0
             -> ArrayCreate' <$> transformType ty <*> sequence es <*> pure 0
         , arrayCreateInit = \ ty ds (ArrayInit is)
-            ->  trace (show ty) $ ArrayCreateInit' <$> transformType ty <*> pure ds <*> mapM transformVarInit is
+            -> ArrayCreateInit' <$> transformType ty <*> pure ds <*> mapM transformVarInit is
         , fieldAccess = fmap FieldAccess' . transformFieldAccess
         , methodInv = fmap MethodInv' . transformMethodInvocation
         , arrayAccess = \ (ArrayIndex (ExpName (Name [Ident n])) es)
