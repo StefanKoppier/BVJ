@@ -4,12 +4,13 @@ module Verification.Phase(
     
 import System.Process                      (readProcessWithExitCode)
 import Control.Concurrent.ParallelIO.Local
+import Control.Concurrent
 import System.Directory
 import System.IO
+import System.ProgressBar
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Compilation.CProgram
---import Verification.Result
 import Verification.CBMCResult
 import Compilation.Pretty
 
@@ -34,17 +35,22 @@ printInformation verbosity programs = do
 
 runAsync :: Arguments -> CPrograms -> IO (Either PhaseError CProverResults)
 runAsync args@Arguments{numberOfThreads} programs = do
-    let tasks = map (verify args) programs
+    (progress, progressThread) <- startProgress percentage noLabel 80 (toInteger $ length programs)
+    let tasks = map (verify args progress) programs
     results <- withPool numberOfThreads (\ pool -> parallel pool tasks)
+    killThread progressThread
+    putStrLn $ mkProgressBar percentage noLabel 80 (toInteger $ length programs) (toInteger $ length programs)
+    putStrLn ""
     return $ sequence results
 
-verify :: Arguments -> CProgram -> IO (Either PhaseError CProverResult)
-verify args program = do
+verify :: Arguments -> ProgressRef -> CProgram -> IO (Either PhaseError CProverResult)
+verify args progress program = do
     (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
     let program' = "#include <stdlib.h>\n" ++ toString program
     hPutStr handle program'
     hClose handle
     (_,result,_) <- readProcessWithExitCode "./tools/cbmc/cbmc" (cbmcArgs path args) ""
+    incProgress progress 1
     runEitherT $ parseXML result
 
 createWorkingDir :: IO (Either PhaseError ())
