@@ -17,9 +17,15 @@ attr MemberDecl' ProgramPath' Stmt' ArrayIndex' MethodInvocation' VarDecls' VarD
 
 sem Exp'
     | InstanceCreation' lhs.constructedClassTypes = S.insert (nameOfRenamedClassType @ty.self) @args.constructedClassTypes
+    | ArrayCreate'      lhs.usedArrayTypes        = (arrayTypeForEachDimension (length @sizes.self) @ty.self) 
+                                                    `S.union`
+                                                    @sizes.usedArrayTypes
+    | ArrayCreateInit'  lhs.usedArrayTypes        = (arrayTypeForEachDimension @dimensions @ty.self) 
+                                                    `S.union`
+                                                    @inits.usedArrayTypes
 
 attr MemberDecl' ProgramPath' RefType' MaybeType' Type' ClassType' Stmt' VarDecls' 
-     VarDecl' MaybeVarInits' VarInit' MaybeExp' Exps' Exp' Lhs' MethodInvocation' 
+     VarDecl' MaybeVarInits' VarInits' VarInit' MaybeExp' Exps' Exp' Lhs' MethodInvocation' 
      FieldAccess'
     syn usedClassTypes use {S.union} {S.empty} :: {S.Set ClassType'}
     syn usedArrayTypes use {S.union} {S.empty} :: {S.Set Type'}
@@ -30,10 +36,16 @@ sem RefType'
 sem ClassType'
     | ClassType' lhs.usedClassTypes = S.singleton (nameOfRenamedClassType @self)
 
+
+
 { -- TODO: very hacky, this needs to be fixed.
 nameOfRenamedClassType :: ClassType' -> ClassType'
 nameOfRenamedClassType (ClassType' [name])
     = ClassType' [takeWhile (\ c -> c /= '_') name]
+
+arrayTypeForEachDimension :: Int -> Type' -> S.Set Type'
+arrayTypeForEachDimension 1 ty = S.singleton ty
+arrayTypeForEachDimension n ty = S.insert (RefType' (ArrayType' ty)) (arrayTypeForEachDimension (n-1) ty)
 }
 
 {

@@ -18,6 +18,8 @@ import Parsing.Syntax
 import Parsing.Utility
 import Data.Accumulator
 
+import Debug.Trace
+
 translatePath :: CompilationUnit' -> ProgramPath -> ExpAccumulator CProgram
 translatePath unit@(CompilationUnit' _ decls) path = do
     let (constructedClasses, usedClasses, usedArrays) 

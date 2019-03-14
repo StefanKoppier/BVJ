@@ -39,7 +39,7 @@ runAsync args@Arguments{numberOfThreads} programs = do
     let tasks = map (verify args progress) programs
     results <- withPool numberOfThreads (\ pool -> parallel pool tasks)
     killThread progressThread
-    putStrLn $ mkProgressBar percentage noLabel 80 (toInteger $ length programs) (toInteger $ length programs)
+    putStrLn $ mkProgressBar percentage noLabel 80 1 1
     putStrLn ""
     return $ sequence results
 

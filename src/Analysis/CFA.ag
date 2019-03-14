@@ -428,20 +428,20 @@ sem Exp'
                         exp1.label = @lhs.label
                         exp2.label = @exp1.label
 
-    | Cond'             lhs .label = @e2.label
+    | Cond'             lhs .label = @exp2.label
                             .init  = if noNode == @guard.init
-                                        then if noNode == @e1.init
-                                                then @e2.init
-                                                else @e1.init
+                                        then if noNode == @exp1.init
+                                                then @exp2.init
+                                                else @exp1.init
                                         else @guard.init
-                            .final = if null @e2.final
-                                        then if null @e1.final
+                            .final = if null @exp2.final
+                                        then if null @exp1.final
                                                 then @guard.final
-                                                else @e2.final
-                                        else @e1.final
+                                                else @exp2.final
+                                        else @exp1.final
                         guard.label = @lhs.label
-                        e1   .label = @guard.label
-                        e2   .label = @e1.label
+                        exp1 .label = @guard.label
+                        exp2 .label = @exp1.label
 
 sem MethodInvocation'
     | MethodCall' lhs.label  = new @args.label
