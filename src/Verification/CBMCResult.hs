@@ -15,8 +15,6 @@ import Data.List
 import Data.Maybe
 import Auxiliary.Phase
 
-import Debug.Trace
-
 type CProverResults = [CProverResult]
 
 data CProverResult = CProverResult {

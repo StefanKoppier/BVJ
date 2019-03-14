@@ -45,13 +45,13 @@ translateExp unit locals acc (InstanceCreation' (ClassType' name) args)
 translateExp unit locals acc exp@ArrayCreate'{}
     = let (acc1, i)    = updateAcc [call] acc
           (acc2, call) = createArrayNewDecl unit locals i acc1 exp
-          name         = cIdent ("new_Array$" ++ show i)
+          name         = createArrayMethodName i
        in (acc2, cCall name [])
 
 translateExp unit locals acc exp@ArrayCreateInit'{}
     = let (acc1, i)    = updateAcc [call] acc
           (acc2, call) = createArrayNewDecl unit locals i acc1 exp
-          name         = cIdent ("new_Array$" ++ show i)
+          name         = createArrayMethodName i
        in (acc2, cCall name [])
 
 translateExp unit locals acc (FieldAccess' access)
@@ -199,7 +199,7 @@ translateLhs unit locals acc (Field' access)
 translateLhs unit locals acc (Array' (ArrayIndex' array indices))
     = let (acc1, cArray)   = translateExp unit locals acc array
           (acc2, cIndices) = mapAccumL (translateExp unit locals) acc1 indices
-          cAccess          = foldl ( \ acc index -> cIndex (cMember acc arrayElementsName) index) cArray cIndices
+          cAccess          = foldl ( \ acc -> cIndex (cMember acc arrayElementsName)) cArray cIndices
        in (acc2, cAccess)
 
 translateFieldAccess :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> FieldAccess' -> ExpTranslationResult CExpr
@@ -207,7 +207,7 @@ translateFieldAccess unit locals acc (PrimaryFieldAccess' exp field)
     = let (acc1, cExp) = translateExp unit locals acc exp
        in (acc1, cMember cExp (cIdent field))
 
--- TODO: unsafe fromJust.
+-- TODO: maybe an unsafe fromJust.
 translateVarInits :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> VarInits' -> (ExpAccumulator, CInit)
 translateVarInits unit locals acc inits
     = let (acc1, cInits) = mapAccumL (translateVarInit unit locals) acc inits
@@ -230,26 +230,22 @@ translateVarInit unit locals expAcc (InitArray' (Just inits))
 --------------------------------------------------------------------------------
 
 createArrayNewDecl :: CompilationUnit' -> LocalInformation -> Int -> ExpAccumulator -> Exp' -> ExpTranslationResult CExtDecl
-createArrayNewDecl unit locals i acc exp@(ArrayCreate' ty sizes _)
-    = let name         = cIdent ("new_Array$" ++ show i)
+createArrayNewDecl unit locals i acc exp
+    = let name         = createArrayMethodName i
           nameOfTy     = createArrayTypeName dimensions ty
           returnTy     = cStructType nameOfTy
           (acc1, body) = createArrayConstructorBody unit locals acc exp
           params       = cParams []
        in (acc1, cFunction returnTy name [params, cPointer] body)
     where
-        dimensions = length sizes
-
-createArrayNewDecl unit locals i acc exp@(ArrayCreateInit' ty dimensions _)
-    = let name         = cIdent ("new_Array$" ++ show i)
-          nameOfTy     = createArrayTypeName dimensions ty
-          returnTy     = cStructType nameOfTy
-          (acc1, body) = createArrayConstructorBody unit locals acc exp
-          params       = cParams []
-       in (acc1, cFunction returnTy name [params, cPointer] body)
+        (ty, dimensions)
+            | (ArrayCreateInit' ty' dimensions' _) <- exp
+                = (ty', dimensions')
+            | (ArrayCreate' ty' sizes' _) <- exp
+                = (ty', length sizes')
 
 createArrayConstructorBody :: CompilationUnit' -> LocalInformation -> ExpAccumulator -> Exp' -> ExpTranslationResult CStat
-createArrayConstructorBody unit locals acc exp@(ArrayCreate' ty sizes _) 
+createArrayConstructorBody unit locals acc (ArrayCreate' ty sizes _) 
     = let nameOfTy     = createArrayTypeName dimensions ty
           thisTy       = cStructType nameOfTy
           thisValue    = cVarDeclStat (cDecl thisTy [(cDeclr thisName [cPointer], Just (cExpInit (cMalloc (cSizeofType thisTy []))))])
@@ -259,7 +255,7 @@ createArrayConstructorBody unit locals acc exp@(ArrayCreate' ty sizes _)
     where
         dimensions = length sizes
 
-createArrayConstructorBody unit locals acc exp@(ArrayCreateInit' ty dimensions inits)
+createArrayConstructorBody unit locals acc (ArrayCreateInit' ty dimensions inits)
     =  let nameOfTy          = createArrayTypeName dimensions ty
            thisTy            = cStructType nameOfTy
            cSizes            = map (snd . translateExp unit ("", []) (0, [])) sizes
@@ -271,18 +267,13 @@ createArrayConstructorBody unit locals acc exp@(ArrayCreateInit' ty dimensions i
     where
         sizes = sizesOfVarInit inits
 
-createArrayInitValue :: CompilationUnit' -> LocalInformation -> Type' -> [CExpr] -> ExpAccumulator -> VarInits' -> (ExpAccumulator, CBlockItem)
+createArrayInitValue :: CompilationUnit' -> LocalInformation -> Type' -> [CExpr] -> ExpAccumulator -> VarInits' -> ExpTranslationResult CBlockItem
 createArrayInitValue unit locals ty sizes acc inits
     = let (cTy, tydDeclr) = translateType unit (Just ty)
           dDeclrs         = map cArray sizes ++ tydDeclr
           declr           = cDeclr (cIdent "initial") dDeclrs
           (acc1, init) = translateVarInits unit locals acc inits
        in (acc1, cVarDeclStat (cDecl cTy [(declr, Just init)]))
-
-sizesOfVarInit :: VarInits' -> [Exp']
-sizesOfVarInit []                           = []
-sizesOfVarInit (InitExp' _:xs)              = [Lit' (Int' (fromIntegral (1 + length xs)))]
-sizesOfVarInit (InitArray' (Just inits):xs) = Lit' (Int' (fromIntegral (1 + length xs))) : sizesOfVarInit inits 
 
 createInitForDimension :: CompilationUnit' -> LocalInformation -> Int -> CExpr -> Type' -> [Exp'] -> ExpAccumulator -> Maybe VarInits' -> ExpTranslationResult CStat
 createInitForDimension unit locals depth expr ty [size] acc inits
@@ -332,6 +323,4 @@ createElemAssignment expr size depth
           initValue            = foldl cIndex initialVar indices
           initTarget           = cIndex (cMember expr arrayElementsName) forVar
           (CBlockStmt forBody) = cExprStat (cAssign CAssignOp initTarget initValue)
-       in cForStat forInit forGuard forUpdate forBody  
-    where
-        elemsMember = cMember expr arrayElementsName
+       in cForStat forInit forGuard forUpdate forBody

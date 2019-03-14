@@ -8,7 +8,7 @@ module Linearization.Renaming(
 
 import qualified Data.Map                   as M
 import qualified Data.Graph.Inductive.Graph as G
-import           Data.List
+import           Data.Accumulator
 import           Parsing.Syntax
 import           Analysis.Pretty                 ()
 import           Auxiliary.Pretty 
@@ -18,6 +18,8 @@ import Debug.Trace
 type StmtManipulations = M.Map G.Node RenamingOperations
 
 type RenamingOperations = M.Map Name' [(Scope, Int)]
+
+type RenamingAcc a = Accumulator RenamingOperations a
 
 insertManipulation :: G.Node -> Name' -> (Scope, Int) -> StmtManipulations -> StmtManipulations
 insertManipulation node name value manipulations
@@ -46,147 +48,160 @@ changeLast :: a -> [a] -> [a]
 changeLast x [_]    = [x]
 changeLast x (v:xs) = v : changeLast x xs 
 
-renameStmt :: RenamingOperations -> Stmt' -> (RenamingOperations, Stmt')
-renameStmt ops (Decl' ms ty vars)
-    = let (ops1, vars') = mapAccumL renameVarDecl ops vars
-       in (ops1, Decl' ms ty vars')
-renameStmt ops Empty' 
-    = (ops, Empty')
-renameStmt ops (ExpStmt' e) 
-    = let (ops1, e') = renameExp ops e
-       in (ops1, ExpStmt' e')
-renameStmt ops (Assert' e mssg)
-    = let (ops1, e') = renameExp ops e 
-       in (ops1, Assert' e' mssg)
-renameStmt ops (Assume' e) 
-    = let (ops1, e') = renameExp ops e
-       in (ops1, Assume' e')
-renameStmt ops s@(Break' _)
-    = (ops, s)
-renameStmt ops s@(Continue' _)
-    = (ops, s)
-renameStmt ops (Return' e) = 
-    let (ops1, e') = renameMaybeExp ops e
-     in (ops1, Return' e')
+rename :: Name' -> RenamingAcc Name'
+rename name = do
+    acc <- getAccumulator
+    let ((scope, callNumber):renames) = acc M.! name
+    let acc' = M.insert name renames acc
+    updateAccumulator (const acc') 
+    return $ renameMethodCall name scope callNumber
 
-renameVarDecl :: RenamingOperations -> VarDecl' -> (RenamingOperations, VarDecl')
-renameVarDecl ops (VarDecl' id init) 
-    = let (ops1, init') = renameVarInit ops init
-       in (ops1, VarDecl' id init')
+renameStmt :: Stmt' -> RenamingAcc Stmt'
+renameStmt (Decl' ms ty vars) = do
+    vars' <- mapM renameVarDecl vars
+    return $ Decl' ms ty vars'
 
-renameVarInit :: RenamingOperations -> VarInit' -> (RenamingOperations, VarInit')
-renameVarInit ops (InitExp' e)
-    = let (ops1, e') = renameExp ops e
-       in (ops1, InitExp' e')
-renameVarInit ops (InitArray' inits)
-    = let (ops1, inits') = renameMaybeVarInits ops inits
-       in (ops1, InitArray' inits')
+renameStmt (ExpStmt' exp) = do
+    exp' <- renameExp exp
+    return $ ExpStmt' exp'
 
-renameMaybeVarInits :: RenamingOperations -> MaybeVarInits' -> (RenamingOperations, MaybeVarInits')
-renameMaybeVarInits ops (Just inits)
-    = let (ops1, inits') = mapAccumL renameVarInit ops inits
-       in (ops1, Just inits')
-renameMaybeVarInits ops Nothing
-    = (ops, Nothing)
+renameStmt (Assert' exp message) = do
+    exp' <- renameExp exp
+    return $ Assert' exp' message
 
-renameMaybeExp :: RenamingOperations -> Maybe Exp' -> (RenamingOperations, Maybe Exp')
-renameMaybeExp ops Nothing = (ops, Nothing)
-renameMaybeExp ops (Just exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, Just exp')
+renameStmt (Assume' exp) = do
+    exp' <- renameExp exp
+    return $ Assume' exp'
 
-renameExp :: RenamingOperations -> Exp' -> (RenamingOperations, Exp')
-renameExp ops e@(Lit' _) = (ops, e)
-renameExp ops This' = (ops, This')
-renameExp ops (InstanceCreation' (ClassType' name) args)
-    = let ((scope, callNumber):renames) = ops M.! name
-          ops1                = M.insert name renames ops
-          name'               = renameMethodCall name scope callNumber
-          (ops2, args')       = mapAccumL renameExp ops1 args
-       in (ops2, InstanceCreation' (ClassType' name') args')
-renameExp ops (ArrayCreate' ty sizes unspecified)
-    = let (ops1, sizes') = mapAccumL renameExp ops sizes
-       in (ops1, ArrayCreate' ty sizes' unspecified)
-renameExp ops (ArrayCreateInit' ty dimensions inits)
-    = let (ops1, inits') = mapAccumL renameVarInit ops inits
-       in (ops1, ArrayCreateInit' ty dimensions inits')
-renameExp ops (FieldAccess' access)
-    = let (ops1, access') = renameFieldAccess ops access
-       in (ops1, FieldAccess' access')
-renameExp ops (MethodInv' inv)
-    = let (ops1, inv') = renameInvocation ops inv
-       in (ops1, MethodInv' inv')
-renameExp ops (ArrayAccess' name indices)
-    = let (ops1, indices') = mapAccumL renameExp ops indices
-       in (ops1, ArrayAccess' name indices')
-renameExp ops e@(ExpName' _) = (ops, e)
-renameExp ops (PostIncrement' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PostIncrement' exp')
-renameExp ops (PostDecrement' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PostDecrement' exp')
-renameExp ops (PreIncrement' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PreIncrement' exp')
-renameExp ops (PreDecrement' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PreDecrement' exp')
-renameExp ops (PrePlus' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PrePlus' exp')
-renameExp ops (PreMinus' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PreMinus' exp')
-renameExp ops (PreBitCompl' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PreBitCompl' exp')
-renameExp ops (PreNot' exp)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PreNot' exp')
-renameExp ops (BinOp' exp1 op exp2)
-    = let (ops1, exp1') = renameExp ops exp1
-          (ops2, exp2') = renameExp ops1 exp2
-       in (ops2, BinOp' exp1' op exp2')
-renameExp ops (Cond' guard exp1 exp2)
-       = let (ops1, guard') = renameExp ops guard
-             (ops2, exp1')  = renameExp ops1 exp1
-             (ops3, exp2')  = renameExp ops2 exp2
-          in (ops3, Cond' guard' exp1' exp2')
-renameExp ops (Assign' lhs op exp)
-    = let (ops1, lhs') = renameLhs ops lhs
-          (ops2, exp') = renameExp ops1 exp
-       in (ops2, Assign' lhs' op exp')
+renameStmt (Return' exp) = do
+    exp' <- renameMaybeExp exp
+    return $ Return' exp'
+    
+renameStmt stat = return stat
 
-renameInvocation :: RenamingOperations -> MethodInvocation' -> (RenamingOperations, MethodInvocation')
-renameInvocation ops (MethodCall' name args) 
-    = let ((scope, callNumber):renames) = ops M.! name
-          ops1                = M.insert name renames ops
-          name'               = renameMethodCall name scope callNumber
-          (ops2, args')       = mapAccumL renameExp ops1 args
-       in (ops2, MethodCall' name' args')
+renameVarDecl :: VarDecl' -> RenamingAcc VarDecl'
+renameVarDecl (VarDecl' id init) = do
+    init' <- renameVarInit init
+    return $ VarDecl' id init'
 
-renameInvocation ops (PrimaryMethodCall' exp name args)
-    = let ((scope, callNumber):renames) = ops M.! [name]
-          ops1                = M.insert [name] renames ops
-          [name']             = renameMethodCall [name] scope callNumber
-          (ops2, args')       = mapAccumL renameExp ops1 args
-          (ops3, exp')        = renameExp ops2 exp
-       in (ops3, PrimaryMethodCall' exp' name' args')
+renameMaybeExp :: Maybe Exp' -> RenamingAcc (Maybe Exp')
+renameMaybeExp Nothing    = return Nothing
+renameMaybeExp (Just exp) = return <$> renameExp exp 
 
-renameLhs :: RenamingOperations -> Lhs' -> (RenamingOperations, Lhs')
-renameLhs ops name@(Name' _) = (ops, name)
-renameLhs ops (Field' access) 
-    = let (ops1, access') = renameFieldAccess ops access
-       in (ops1, Field' access')
-renameLhs ops (Array' (ArrayIndex' array indices))
-    = let (ops1, array')   = renameExp ops array
-          (ops2, indices') = mapAccumL renameExp ops1 indices
-       in (ops2, Array' (ArrayIndex' array' indices'))
+renameExp :: Exp' -> RenamingAcc Exp'
+renameExp (InstanceCreation' (ClassType' name) args) = do
+    newName <- rename name
+    args'   <- mapM renameExp args
+    return $ InstanceCreation' (ClassType' newName) args'
 
-renameFieldAccess :: RenamingOperations -> FieldAccess' -> (RenamingOperations, FieldAccess')
-renameFieldAccess ops (PrimaryFieldAccess' exp field)
-    = let (ops1, exp') = renameExp ops exp
-       in (ops1, PrimaryFieldAccess' exp' field)
-renameFieldAccess ops f@(ClassFieldAccess' _ _)
-    = (ops, f)
+renameExp (ArrayCreate' ty sizes unspecified) = do
+    sizes' <- mapM renameExp sizes
+    return $ ArrayCreate' ty sizes unspecified
+
+renameExp (ArrayCreateInit' ty dimensions inits) = do
+    inits' <- mapM renameVarInit inits
+    return $ ArrayCreateInit' ty dimensions inits'
+
+renameExp (FieldAccess' access) = do
+    access' <- renameFieldAccess access
+    return $ FieldAccess' access'
+
+renameExp (MethodInv' invocation) = do
+    invocation' <- renameInvocation invocation
+    return $ MethodInv' invocation'
+
+renameExp (ArrayAccess' ident indices) = do
+    indices' <- mapM renameExp indices
+    return $ ArrayAccess' ident indices'
+
+renameExp (PostIncrement' exp) = do
+    exp' <- renameExp exp
+    return $ PostIncrement' exp'
+    
+renameExp (PostDecrement' exp) = do
+    exp' <- renameExp exp
+    return $ PostDecrement' exp'
+    
+renameExp (PreIncrement' exp) = do
+    exp' <- renameExp exp
+    return $ PreIncrement' exp'
+    
+renameExp (PreDecrement' exp) = do
+    exp' <- renameExp exp
+    return $ PreDecrement' exp'
+    
+renameExp (PrePlus' exp) = do
+    exp' <- renameExp exp
+    return $ PrePlus' exp'
+    
+renameExp (PreMinus' exp) = do
+    exp' <- renameExp exp
+    return $ PreMinus' exp'
+    
+renameExp (PreBitCompl' exp) = do
+    exp' <- renameExp exp
+    return $ PreBitCompl' exp'
+    
+renameExp (PreNot' exp) = do
+    exp' <- renameExp exp
+    return $ PreNot' exp'
+
+renameExp (BinOp' exp1 op exp2) = do
+    exp1' <- renameExp exp1
+    exp2' <- renameExp exp2
+    return $ BinOp' exp1' op exp2'
+    
+renameExp (Cond' guard exp1 exp2) = do
+    guard' <- renameExp guard
+    exp1'  <- renameExp exp1
+    exp2'  <- renameExp exp2
+    return $ Cond' guard' exp1' exp2'
+
+renameExp (Assign' target op exp) = do
+    target' <- renameLhs target
+    exp'    <- renameExp exp
+    return $ Assign' target' op exp'
+
+renameExp exp = return exp
+
+renameInvocation :: MethodInvocation' -> RenamingAcc MethodInvocation'
+renameInvocation (MethodCall' name args) = do
+    newName <- rename name
+    args'   <- mapM renameExp args
+    return $ MethodCall' newName args'
+
+renameInvocation (PrimaryMethodCall' exp name args) = do
+    [newName] <- rename [name]
+    exp'      <- renameExp exp
+    args'     <- mapM renameExp args
+    return $ PrimaryMethodCall' exp' newName args'
+
+renameVarInit :: VarInit' -> RenamingAcc VarInit'
+renameVarInit (InitExp' exp) = do
+    exp' <- renameExp exp
+    return $ InitExp' exp'
+
+renameVarInit (InitArray' inits) = do
+    inits' <- renameMaybeVarInits inits
+    return $ InitArray' inits'
+
+renameMaybeVarInits :: Maybe VarInits' -> RenamingAcc (Maybe VarInits')
+renameMaybeVarInits Nothing      = return Nothing
+renameMaybeVarInits (Just inits) = return <$> mapM renameVarInit inits
+
+renameFieldAccess :: FieldAccess' -> RenamingAcc FieldAccess'
+renameFieldAccess (PrimaryFieldAccess' exp field) = do
+    exp' <- renameExp exp
+    return $ PrimaryFieldAccess' exp' field
+
+renameLhs :: Lhs' -> RenamingAcc Lhs'
+renameLhs (Field' access) = do
+    access' <- renameFieldAccess access
+    return $ Field' access'
+
+renameLhs (Array' (ArrayIndex' array indices)) = do
+    array'   <- renameExp array
+    indices' <- mapM renameExp indices
+    return $ Array' (ArrayIndex' array' indices')
+
+renameLhs lhs = return lhs

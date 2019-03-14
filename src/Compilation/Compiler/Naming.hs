@@ -50,3 +50,6 @@ createStaticFieldName className fieldName
 createObjectAllocName :: String -> Ident
 createObjectAllocName className
     = cIdent ("allocator_" ++ className)
+
+createArrayMethodName :: Int -> Ident
+createArrayMethodName i = cIdent ("new_Array$" ++ show i)

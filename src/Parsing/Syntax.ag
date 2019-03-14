@@ -190,7 +190,7 @@ data Exp'
     | MethodInv'        invocation  :: MethodInvocation'
 
     | ArrayAccess'      ident       :: {String}
-                        index       :: Exps'
+                        indices     :: Exps'
 
     | ExpName'          name        :: Name'
 
@@ -215,8 +215,8 @@ data Exp'
                         exp2        :: Exp'
 
     | Cond'             guard       :: Exp'
-                        e1          :: Exp'
-                        e2          :: Exp'
+                        exp1        :: Exp'
+                        exp2        :: Exp'
 
     | Assign'           target      :: Lhs'
                         op          :: AssignOp'

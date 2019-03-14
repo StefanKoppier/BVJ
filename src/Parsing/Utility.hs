@@ -119,3 +119,8 @@ hasMethodName name (MethodDecl' _ _ name' _ _) = name == name'
 
 getFields :: ClassDecl' -> [MemberDecl']
 getFields (ClassDecl' _ _ body) = [f | (MemberDecl'(f@FieldDecl'{})) <- body] 
+
+sizesOfVarInit :: VarInits' -> [Exp']
+sizesOfVarInit []                           = []
+sizesOfVarInit (InitExp' _:xs)              = [Lit' (Int' (fromIntegral (1 + length xs)))]
+sizesOfVarInit (InitArray' (Just inits):xs) = Lit' (Int' (fromIntegral (1 + length xs))) : sizesOfVarInit inits 
