@@ -89,6 +89,10 @@ transformMethodBody (MethodBody (Just (Block b)))
 transformMethodBody (MethodBody Nothing)  
     = syntacticalError "method without implementation"
 
+transformMaybeBlock :: Maybe Block -> PhaseResult MaybeCompoundStmts'
+transformMaybeBlock Nothing          = pure Nothing
+transformMaybeBlock (Just (Block b)) = Just <$> transformBlockStmts b
+
 transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block ss) = Block' <$> transformBlockStmts ss
 
@@ -211,25 +215,25 @@ transformStmt :: Stmt -> PhaseResult CompoundStmt'
 transformStmt = foldStmt alg
     where
         alg :: StmtAlgebra (PhaseResult CompoundStmt')
-        alg = (                transformBlock
-              , \ g s       -> IfThenElse' <$> transformExp g <*> s <*> pure (Stmt' Empty')
-              , \ g s1 s2   -> IfThenElse' <$> transformExp g <*> s1 <*> s2
-              , \ g s       -> While' Nothing <$> transformExp g <*> s
-              ,                transformFor
-              , \ m t i g s -> syntacticalError "for (iterator)"
-              ,                compound Empty'
-              ,                fmap (Stmt' . ExpStmt') . transformExp
-              , \ g -> \case Just m  -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformExpToString m --transformExp m
-                             Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> pure ""
-              , \ e bs      -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
-              , \ s e       -> syntacticalError "do"
-              ,                compound . Break' . transformMaybeIdent
-              ,                compound . Continue' . transformMaybeIdent
-              , \ e         -> Stmt' . Return' <$> transformMaybeExp e
-              , \ e s       -> syntacticalError "synchronized"
-              , \ e         -> syntacticalError "throw"
-              , \ b c f     -> syntacticalError "try catch (finally)"
-              , \ (Ident l) s -> labelize (Just l) <$> s
+        alg = (                    transformBlock
+              , \ g s           -> IfThenElse' <$> transformExp g <*> s <*> pure (Stmt' Empty')
+              , \ g s1 s2       -> IfThenElse' <$> transformExp g <*> s1 <*> s2
+              , \ g s           -> While' Nothing <$> transformExp g <*> s
+              ,                    transformFor
+              , \ m t i g s     -> syntacticalError "for (iterator)"
+              ,                    compound Empty'
+              ,                    fmap (Stmt' . ExpStmt') . transformExp
+              , \ g             -> \case Just m  -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformExpToString m --transformExp m
+                                         Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> pure ""
+              , \ e bs          -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
+              , \ s e           -> syntacticalError "do"
+              ,                    compound . Break' . transformMaybeIdent
+              ,                    compound . Continue' . transformMaybeIdent
+              , \ e             -> Stmt' . Return' <$> transformMaybeExp e
+              , \ e s           -> syntacticalError "synchronized"
+              , \ e             -> Stmt' . Throw' <$> transformExp e
+              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
+              , \ (Ident l) s   -> labelize (Just l) <$> s
               )
 
         labelize l (While' _ g s) = While' l g s
@@ -265,6 +269,13 @@ transformSwitchBlock (SwitchBlock (SwitchCase e) s)
     = SwitchBlock' . Just <$> transformExp e <*> transformBlock (Block s)
 transformSwitchBlock (SwitchBlock Default s) 
     = SwitchBlock' Nothing <$> transformBlock (Block s)
+
+transformCatches :: [Catch] -> PhaseResult Catches'
+transformCatches = mapM transformCatch
+
+transformCatch :: Catch -> PhaseResult Catch'
+transformCatch (Catch exc (Block body)) 
+    = Catch' <$> transformParam exc <*> transformBlockStmts body
 
 transformExpToString :: Exp -> PhaseResult String
 transformExpToString (Lit (String string)) = pure string
@@ -387,7 +398,7 @@ transformOp Xor     = pure Xor'
 transformOp CAnd    = pure CAnd'
 transformOp COr     = pure COr'
 
-transformAssignOp:: AssignOp -> PhaseResult AssignOp'
+transformAssignOp :: AssignOp -> PhaseResult AssignOp'
 transformAssignOp EqualA   = pure EqualA'
 transformAssignOp MultA    = pure MultA'
 transformAssignOp DivA     = pure DivA'

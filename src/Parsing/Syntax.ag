@@ -105,8 +105,14 @@ data CompoundStmt'
     | Switch'       exp     :: Exp'
                     cases   :: SwitchBlocks'
 
+    | Try'          stat    :: CompoundStmts'
+                    catches :: Catches'
+                    finally :: MaybeCompoundStmts'
+
     | Stmt'         stat    :: Stmt'
 deriving CompoundStmt' : Eq, Show
+
+type MaybeCompoundStmts' = maybe CompoundStmts'
 
 data Stmt'
     | Decl'         modifiers   :: Modifiers'
@@ -127,6 +133,8 @@ data Stmt'
     | Continue'     ident       :: {Maybe String}
 
     | Return'       exp         :: MaybeExp'
+
+    | Throw'        exp         :: Exp'
 deriving Stmt' : Eq, Show
 
 type SwitchBlocks' = [SwitchBlock']
@@ -135,6 +143,13 @@ data SwitchBlock'
     | SwitchBlock' exp  :: MaybeExp'
                    stat :: CompoundStmt'
 deriving SwitchBlock' : Eq, Show
+
+type Catches' = [Catch']
+
+data Catch'
+    | Catch'    exception :: FormalParam'
+                body      :: CompoundStmts'
+deriving Catch' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Variables

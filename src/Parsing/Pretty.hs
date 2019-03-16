@@ -96,12 +96,23 @@ instance Pretty CompoundStmts' where
     pretty (s:ss) = pretty s $+$ pretty ss
 
 instance Pretty CompoundStmt' where
-    pretty (Block' s)                = lbrace $+$ nest 4 (pretty s) $+$ rbrace
-    pretty (IfThenElse' g s1 s2)     = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" $+$  pretty s2
-    pretty (While' (Just ident) g s) = text ident <> text ": while" <+> parens (pretty g) $+$ pretty s
-    pretty (While' Nothing g s)      = text "while" <+> parens (pretty g) $+$ pretty s
-    pretty (Switch' e cs)            = text "switch" <+> parens (pretty e) $+$ lbrace $+$ pretty cs $+$ rbrace
-    pretty (Stmt' s)                 = pretty s
+    pretty (Block' s)                
+        = lbrace $+$ nest 4 (pretty s) $+$ rbrace
+    pretty (IfThenElse' g s1 s2)     
+        = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" $+$  pretty s2
+    pretty (While' (Just ident) g s) 
+        = text ident <> text ": while" <+> parens (pretty g) $+$ pretty s
+    pretty (While' Nothing g s)      
+        = text "while" <+> parens (pretty g) $+$ pretty s
+    pretty (Switch' e cs)            
+        = text "switch" <+> parens (pretty e) $+$ lbrace $+$ pretty cs $+$ rbrace
+    pretty (Try' stat catches Nothing)
+        = text "try" $+$ lbrace $+$ tab (pretty stat) $+$ rbrace $+$ pretty catches 
+    pretty (Try' stat catches (Just finally))
+        = text "try" $+$ lbrace $+$ tab (pretty stat) $+$ rbrace $+$ pretty catches
+          $+$ text "finally" $+$ lbrace $+$ tab (pretty finally) $+$ rbrace 
+    pretty (Stmt' s)
+        = pretty s
 
 instance Pretty Stmt' where
     pretty (Decl' ms ty vars)       = pretty ms <+> pretty ty <+> pretty vars <> semi
@@ -115,6 +126,7 @@ instance Pretty Stmt' where
     pretty (Continue' Nothing)      = text "continue" <> semi
     pretty (Return' Nothing)        = text "return" <> semi
     pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
+    pretty (Throw' exp)             = text "throw" <+> pretty exp <> semi
 
 instance Pretty SwitchBlocks' where
     pretty = foldr (($+$) . pretty) empty
@@ -122,6 +134,14 @@ instance Pretty SwitchBlocks' where
 instance Pretty SwitchBlock' where
     pretty (SwitchBlock' (Just e) stat) = text "case" <+> pretty e <> colon $+$ nest 4 (pretty stat)
     pretty (SwitchBlock' Nothing stat)  = text "default:" $+$ nest 4 (pretty stat)
+
+instance Pretty Catches' where
+    pretty = foldr (($+$) . pretty) empty
+
+instance Pretty Catch' where
+    pretty (Catch' exception body)
+        = text "catch" <+> parens (pretty exception) 
+        $+$ lbrace $+$ tab (pretty body) $+$ rbrace
 
 --------------------------------------------------------------------------------
 -- Variables

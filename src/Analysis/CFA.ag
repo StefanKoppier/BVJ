@@ -358,7 +358,7 @@ attr MaybeExp' Exps' Exp' FieldAccess' VarDecls' VarDecl' VarInits' VarInit'
      MaybeVarInits' MethodInvocation' ArrayIndex' Lhs' 
     chn label                       :: {Node}
     syn init                        :: {CFGNode}
-    syn final                       :: {CFGNodes}
+    syn final                       :: {CFGDepthNodes}
     syn nodes         use {++} {[]} :: {CFGNodes}
     syn edges         use {++} {[]} :: {CFGEdges}
     syn numberOfCalls use {+} {0}   :: {Int}
@@ -402,7 +402,7 @@ sem Exp'
                                             then call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self)
                                             else @args.init 
                             .final = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
-                                        [call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self)]
+                                        [(call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self), 0)]
                             .nodes = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
                                         call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self) : @args.nodes
                             .edges = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
@@ -450,7 +450,7 @@ sem MethodInvocation'
                                         then call (new @args.label) scope @lhs.statNode @name.self
                                         else @args.init
                      .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
-                                    [call (new @args.label) scope @lhs.statNode @name.self]
+                                    [(call (new @args.label) scope @lhs.statNode @name.self, 0)]
                      .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
                                     call (new @args.label) scope @lhs.statNode @name.self : @args.nodes
                      .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
@@ -472,7 +472,7 @@ sem MethodInvocation'
                                                 else @exp.init
                              .final = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
-                                            [call (new @args.label) scope @lhs.statNode [@name]]
+                                            [(call (new @args.label) scope @lhs.statNode [@name], 0)]
                              .nodes = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
                                             call (new @args.label) scope @lhs.statNode [@name]
