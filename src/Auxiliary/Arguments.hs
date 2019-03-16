@@ -13,6 +13,7 @@ data Arguments = Arguments {
     , numberOfThreads          :: Int
     , keepOutputFiles          :: Bool
     , maximumDepth             :: Int
+    , maximumUnwind            :: Maybe Int
     , enableAssertions         :: Bool
     , enableArrayBoundsCheck   :: Bool
     , enablePointerChecks      :: Bool
@@ -31,6 +32,7 @@ defaultArgs = Arguments {
     , numberOfThreads = 4
     , keepOutputFiles = False
     , maximumDepth = 100
+    , maximumUnwind = Nothing
     , enableAssertions = True
     , enableArrayBoundsCheck = True
     , enablePointerChecks = True

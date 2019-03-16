@@ -68,8 +68,9 @@ workingDir = "tmp_verification_folder"
 
 cbmcArgs :: FilePath -> Arguments -> [String]
 cbmcArgs path args
-    =  [path , "--xml-ui"]
-    ++ includes (includePaths args)
+    =  [path, "--xml-ui"]
+    ++ includeArgs (includePaths args)
+    ++ unwindArg (maximumUnwind args)
     ++ ["--no-assertions"         | not $ enableAssertions args  ]
     ++ ["--bounds-check"          | enableArrayBoundsCheck args  ]
     ++ ["--pointer-check"         | enablePointerChecks args     ]
@@ -77,7 +78,11 @@ cbmcArgs path args
     ++ ["--signed-overflow-check" | enableIntOverflowCheck args  ]
     ++ ["--undefined-shift-check" | enableShiftCheck args        ]
     ++ ["--float-overflow-check"  | enableFloatOverflowCheck args]
-    ++ ["--nan-check"             | enableNaNCheck args          ]
+    ++ ["--nan-check"             | enableNaNCheck args          ] 
 
-includes :: [FilePath] -> [String]
-includes = concatMap (\ path -> ["-I", path])
+unwindArg :: Maybe Int -> [String]
+unwindArg Nothing  = []
+unwindArg (Just n) = ["--unwind", show n]
+
+includeArgs :: [FilePath] -> [String]
+includeArgs = concatMap (\ path -> ["-I", path])
