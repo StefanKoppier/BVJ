@@ -89,12 +89,13 @@ transformMethodBody (MethodBody (Just (Block b)))
 transformMethodBody (MethodBody Nothing)  
     = syntacticalError "method without implementation"
 
-transformMaybeBlock :: Maybe Block -> PhaseResult MaybeCompoundStmts'
-transformMaybeBlock Nothing          = pure Nothing
-transformMaybeBlock (Just (Block b)) = Just <$> transformBlockStmts b
-
 transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block ss) = Block' <$> transformBlockStmts ss
+
+transformMaybeBlock :: Maybe Block -> PhaseResult MaybeCompoundStmts'
+transformMaybeBlock Nothing           = pure Nothing
+transformMaybeBlock (Just (Block [])) = pure Nothing
+transformMaybeBlock (Just (Block b))  = Just <$> transformBlockStmts b
 
 transformBlockStmts :: [BlockStmt] -> PhaseResult CompoundStmts'
 transformBlockStmts []     = pure []
@@ -231,8 +232,8 @@ transformStmt = foldStmt alg
               ,                    compound . Continue' . transformMaybeIdent
               , \ e             -> Stmt' . Return' <$> transformMaybeExp e
               , \ e s           -> syntacticalError "synchronized"
-              , \ e             -> Stmt' . Throw' <$> transformExp e
-              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
+              , \ e             -> syntacticalError "throw"
+              , \ (Block b) c f -> syntacticalError "try catch"
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
 

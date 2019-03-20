@@ -4,14 +4,41 @@
 %\usepackage{minted}
 \usepackage{listings}
 \usepackage{scrextend}
+\usepackage{enumitem}
 \usepackage{float}
 \usepackage{amsmath}
 \usepackage{hyperref}
 \usepackage{todonotes}
+\usepackage{etoolbox}
 \usepackage[page]{appendix}
 
-\newcommand{\javainline}[1]{\lstinline[language=Java]{#1}}
-\newcommand{\cinline}[1]{\lstinline[language=C]{#1}}
+\newcommand{\javainline}[1]{\lstinline[language=Java,basicstyle=\ttfamily]{#1}}
+\newcommand{\cinline}[1]{\lstinline[language=C,basicstyle=\ttfamily]{#1}}
+
+\makeatletter
+\AtEndEnvironment{C}{\xdef\xlang{Language: C}}
+\AfterEndEnvironment{C}{\begin{flushright}\vspace{-7mm}\xlang\end{flushright}}
+\makeatother
+
+\makeatletter
+\AtEndEnvironment{Java}{\xdef\xlang{Language: Java}}
+\AfterEndEnvironment{Java}{\begin{flushright}\vspace{-7mm}\xlang\end{flushright}}
+\makeatother
+
+
+\lstnewenvironment{Java}{
+    \lstset{
+        language=java
+      , basicstyle=\ttfamily
+      , frame=single
+    }}{}
+    
+\lstnewenvironment{C}{
+    \lstset{
+           language=C
+         , basicstyle=\ttfamily
+         , frame=single
+        }}{}
 
 \newtheorem{definition}{Definition}
 
@@ -24,6 +51,8 @@
 \chapter*{Introduction}
 
 \tableofcontents
+
+\input{Features/Features.tex}
 
 \input{Semantics/Semantics.tex}
 

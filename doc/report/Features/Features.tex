@@ -1,0 +1,61 @@
+\chapter{Features}
+The tool supports
+
+\section{Unsupported language features}
+We provide a comprehensive list describing each language feature that is not 
+supporte by the tool. Note that if the reader is reading this document in a pdf 
+viewer, the names of the lists provide a link to sources for more information
+about the missing part.
+
+\subsection{Object-oriented paradigm}
+No support for object-oriented concepts, except for the declaration of classes.
+The following three concepts are the main ones that are not supported. Anything
+that is built upon these conceps, e.g. calling a base class constructor, is also
+not supported.
+
+\begin{labeling}{abstract classes}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/concepts/inheritance.html}
+            {inheritance}] Inheritance of a class or interface.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/concepts/interface.html}
+            {interfaces}] An interface declaration.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/IandI/abstract.html}
+            {abstract classes}] A class or method without an implementation.
+\end{labeling} 
+
+\subsection{Statements}
+\begin{labeling}{synchronized statements}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/nutsandbolts/while.html}
+            {do while loops}] \javainline{do \{ \} while(guard)}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/nutsandbolts/for.html}
+            {for iterator loops}] \javainline{for (int item : numbers) \{ \}}
+\item [\href{https://docs.oracle.com/javase/tutorial/essential/concurrency/locksync.html}
+            {synchronized statements}] \javainline{synchronized(x) \{ \}}
+\end{labeling}
+
+\subsection{Expressions} 
+\begin{labeling}{lambda expressions}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html}
+           {lambda expressions}] \javainline{(x) -> x*x}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/IandI/subclasses.html}
+           {casting}] \javainline{(int)3.0}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/nutsandbolts/op2.html}
+           {instance of}] \javainline{x instanceof Integer}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/methodreferences.html}
+           {method reference}] \javainline{Foo::bar}
+\end{labeling}
+
+\subsection{Others}
+\begin{labeling}{static initialization blocks}
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/initial.html}
+            {static initializer blocks}] Static block execution, which should be executed 
+when the class is loaded.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/initial.html}
+            {static field initializer}] Static class field initialization, which should
+be assigned when the class is loaded.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/nested.html}
+            {nested class definitions}] Class declarations inside classes or inside methods.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/generics/index.html}
+            {generics}] Generic types, of any kind.
+\item [\href{https://docs.oracle.com/javase/tutorial/java/javaOO/enum.html}
+            {enums}] Enum declarations.
+\end{labeling}

@@ -13,6 +13,11 @@ maintainer:          s.koppier@students.uu.nl
 category:            Verification
 build-type:          Simple
 extra-source-files:  src/Analysis/CFA.ag
+                   , src/Analysis/CFA/Statement.ag
+                   , src/Analysis/CFA/Expression.ag
+                   , src/Analysis/CFA/Methods.ag
+                   , src/Analysis/CFA/Type.ag
+                   , src/Analysis/CFA/Exception.ag
                    , src/Parsing/Syntax.ag
                    , Makefile
                    , README.md
@@ -40,6 +45,7 @@ library
   other-modules:       Language.Java.Fold
                        Parsing.Utility
                        Analysis.CFA
+                       Analysis.CFA.Utility
                        Linearization.Renaming
                        Compilation.CProgram
                        Compilation.Utility

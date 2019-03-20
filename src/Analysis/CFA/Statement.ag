@@ -1,0 +1,292 @@
+--------------------------------------------------------------------------------
+-- Statement control flow generation
+--
+-- This file is responsible for creating the control flow of statements.
+--------------------------------------------------------------------------------
+
+attr    MaybeCompoundStmts' CompoundStmts' CompoundStmt' Stmt' 
+        SwitchBlocks' SwitchBlock' Catches' Catch'
+    inh method                     :: Name'
+    syn init                       :: {CFGNode}
+    syn final                      :: {CFGDepthNodes}
+    syn breaks       use {++} {[]} :: {CFGDepthNodes}
+    syn continues    use {++} {[]} :: {CFGDepthNodes}
+    syn returns      use {++} {[]} :: {CFGDepthNodes}
+    chn currentDepth               :: {Int}
+
+attr    CompoundStmt'
+    syn guard :: {CFGNode}
+
+--------------------------------------------------------------------------------
+-- Sequence of statements.
+--------------------------------------------------------------------------------
+
+sem CompoundStmts'
+    | Cons  lhs .label = @tl.label
+                .init  = @hd.init
+                .final = if map fst @tl.final == [noNode]
+                            then @hd.final
+                            else @tl.final
+                .edges = case @hd.self of
+                            Stmt' (Break' _)
+                                -> @hd.edges
+                            Stmt' (Continue' _)
+                                -> @hd.edges
+                            Stmt' (Return' _)
+                                -> @hd.edges
+                            Block' _
+                                -> @hd.edges ++ @tl.edges
+                                   ++ intraEdges @hd.final @tl.init (-1)
+                            IfThenElse' _ _ _
+                                -> @hd.edges ++ @tl.edges 
+                                   ++ intraEdges @hd.final @tl.init (-1)
+                            While' _ e _
+                                -> let conditional = @hd.guard
+                                       normal      = filter ( \ (f,_) -> conditional /= f) @hd.final in
+                                       condEdge conditional @tl.init (PreNot' e) 0
+                                       ++ 
+                                       concatMap (\ (n,d) -> intraEdge n @tl.init (@hd.currentDepth - d)) normal
+                                       ++
+                                       @hd.edges ++ @tl.edges
+                            _   
+                                -> @hd.edges ++ @tl.edges 
+                                   ++ seqEdges @tl.self @hd.final @tl.init
+                .nodes = @hd.nodes ++ @tl.nodes
+            hd  .label = @lhs.label
+            tl  .label = @hd.label
+            tl  .currentDepth = case @hd.self of
+                                   Block' _ -> @lhs.currentDepth - 1
+                                   _        -> @lhs.currentDepth
+    | Nil   lhs .init  = noNode
+                .final = [(noNode, undefined)]
+
+--------------------------------------------------------------------------------
+-- Compound statements.
+--------------------------------------------------------------------------------
+
+sem CompoundStmt'
+    | Block'        lhs  .label        = @stat.label
+                         .currentDepth = @lhs.currentDepth
+                    stat .label        = @lhs.label
+                         .currentDepth = @lhs.currentDepth + 1
+      
+    | IfThenElse'   lhs  .label    = @stat2.label
+                         .init     = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
+                         .final    = @stat1.final ++ @stat2.final
+                         .nodes    = block (new @exp.label) @self 
+                                     : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
+                         .edges    = let self = block (new @exp.label) @self in
+                                       -- Edge from condition to init of true branch.
+                                       condEdge self @stat1.init @exp.self 1
+                                       ++ -- Edge from condition to init of false branch.
+                                       condEdge self @stat2.init (PreNot' @exp.self) 1
+                                       ++ -- Edge(s) of the branches.
+                                       @stat1.edges ++ @stat2.edges ++ @exp.edges
+                         .currentDepth = @lhs.currentDepth
+                    exp  .label        = @lhs.label
+                         .statNode     = new @exp.label
+                    stat1.label        = new @exp.label
+                         .currentDepth = @lhs.currentDepth + 1 
+                    stat2.label        = @stat1.label
+                         .currentDepth = @lhs.currentDepth + 1 
+
+    | While'        lhs .label     = @body.label
+                        .init      = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
+                        .final     = (block (new @exp.label) @self, @lhs.currentDepth) : filter (isLabelOfThisNode @ident) @body.breaks
+                        .nodes     = block (new @exp.label) @self : @body.nodes ++ @exp.nodes
+                        .edges     = let self      = block (new @exp.label) @self
+                                         continues = filter (isLabelOfThisNode @ident) @body.continues
+                                         init      = if noNode == @exp.init
+                                                        then self else @exp.init in
+                                         -- Edge from condition to the init body.
+                                         condEdge self @body.init (@exp.self) 1
+                                         ++ -- Edge(s) from finals of body to the condition.
+                                         intraEdges @body.final init (-1)
+                                         ++ -- Edge(s) from continues of this loop to the condition.
+                                         concatMap (\ (n,d) -> intraEdge n init (@lhs.currentDepth - d + 2)) continues
+                                         ++ -- Edge(s) of the body.
+                                         @body.edges ++ @exp.edges
+                        .breaks    = filter (not . isLabelOfThisNode @ident) @body.breaks
+                        .continues = filter (not . isLabelOfThisNode @ident) @body.continues
+                        .guard     = block (new @exp.label) @self
+                        .currentDepth = @lhs.currentDepth
+                    exp .label     = @lhs.label
+                        .statNode  = new @exp.label
+                    body.label     = new @exp.label
+                        .currentDepth = @lhs.currentDepth + 1
+
+    | Switch'       lhs  .label    = @cases.label
+                         .init     = if noNode == @exp.init 
+                                        then (block (new @exp.label) @self)
+                                        else @exp.init
+                         .final    = @cases.final ++ filter (isLabelOfThisNode Nothing) @cases.breaks 
+                         .nodes    = block (new @exp.label) @self : @exp.nodes ++ @cases.nodes
+                         .edges    = @exp.edges ++ @cases.edges
+                         .breaks   = filter (not . isLabelOfThisNode Nothing) @cases.breaks
+                    exp  .label    = @lhs.label
+                         .statNode = new @exp.label
+                    cases.label    = new @exp.label
+                         .parent   = block (new @exp.label) @self
+                         .guard    = @exp.self
+                         .previous = []
+
+    | Try'          lhs     .label  = @finally.label
+                            .init   = @stat.init
+                            .final  = case @finally.self of 
+                                         Nothing -> @stat.final ++ @catches.final
+                                         _       -> @finally.final
+                            .nodes  = @stat.nodes ++ @catches.nodes ++ @finally.nodes
+                            .edges  = -- Edges from final of try block to final 
+                                      intraEdges @stat.final @finally.init 0
+                                      ++ -- Edges from final of catch block(s) to final
+                                      intraEdges @catches.final @finally.init 0
+                                      ++ @stat.edges ++ @catches.edges ++ @finally.edges
+                    stat    .label  = @lhs.label
+                    catches .label  = @stat.label
+                    finally .label  = @catches.label
+
+attr SwitchBlocks'
+    inh parent   :: {CFGNode}
+    inh guard    :: Exp'
+    inh previous :: SwitchBlocks'
+                    
+sem SwitchBlocks'
+    | Cons lhs.init     = @hd.init
+              .edges    = -- Edges from expression to each case.
+                          condEdge @lhs.parent @hd.init (caseCondExp @lhs.guard @lhs.previous @hd.self) 1 
+                          ++ -- Edges from final of case to init of the next.
+                          (if noNode == @tl.init
+                               then [] else intraEdges @hd.final @tl.init 0)
+                          -- Edges from the body and rest of the list. 
+                          ++ @hd.edges ++ @tl.edges
+           tl .previous = @hd.self : @lhs.previous 
+
+    | Nil  lhs.final    = []
+              .init     = noNode
+
+sem SwitchBlock'
+    | SwitchBlock' lhs.init  = @stat.init
+                      .final = @stat.final
+
+sem Catches'
+    | Cons  lhs .label  = if noNode == @tl.init
+                            then @hd.label else @tl.label
+                .init   = @hd.init
+                .final  = if [] == @tl.final
+                            then @hd.final else @tl.final
+            hd  .label  = @lhs.label
+
+    | Nil   lhs .final  = []
+                .init   = noNode
+
+sem Catch'
+    | Catch'    lhs .label  = @body.label
+                    .init   = @body.init
+                    .final  = @body.final
+                body.label  = @lhs.label
+
+--------------------------------------------------------------------------------
+-- Statements.
+--------------------------------------------------------------------------------
+
+sem Stmt'
+    | Decl'     lhs .label = new @vars.label
+                    .init  = if noNode == @vars.init 
+                                then (block (new @vars.label) (Stmt' @self))
+                                else @vars.init
+                    .final = [(block (new @vars.label) (Stmt' @self), @lhs.currentDepth)]
+                    .nodes = block (new @vars.label) (Stmt' @self) : @vars.nodes
+                    .edges = @vars.edges
+                vars.label = @lhs.label
+                vars.statNode = 1 + @lhs.label + @vars.numberOfCalls
+
+    | Empty'    lhs .label = new @lhs.label
+                    .init  = block (new @lhs.label) (Stmt' @self)
+                    .final = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
+                    .nodes = [block (new @lhs.label) (Stmt' @self)]
+
+    | ExpStmt'  lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
+
+    | Assert'   lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
+
+    | Assume'   lhs .label = new @exp.label
+                    .init  = if noNode == @exp.init 
+                                then (block (new @exp.label) (Stmt' @self))
+                                else @exp.init
+                    .final = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
+                    .nodes = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges = @exp.edges
+                exp .label = @lhs.label
+                exp .statNode = 1 + @lhs.label + @exp.numberOfCalls
+
+    | Break'    lhs .label  = new @lhs.label
+                    .init   = block (new @lhs.label) (Stmt' @self)
+                    .final  = []
+                    .nodes  = [block (new @lhs.label) (Stmt' @self)]
+                    .breaks = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
+
+    | Continue' lhs .label     = new @lhs.label
+                    .init      = block (new @lhs.label) (Stmt' @self)
+                    .final     = []
+                    .nodes     = [block (new @lhs.label) (Stmt' @self)]
+                    .continues = [(block (new @lhs.label) (Stmt' @self), @lhs.currentDepth)]
+
+    | Return'   lhs .label      = new @exp.label
+                    .init       = if noNode == @exp.init
+                                    then (block (new @exp.label) (Stmt' @self))
+                                    else @exp.init
+                    .final      = []
+                    .nodes      = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges      = @exp.edges
+                    .returns    = [(block (new @exp.label) (Stmt' @self), @lhs.currentDepth)]
+                exp .label      = @lhs.label
+                    .statNode   = 1 + @lhs.label + @exp.numberOfCalls
+
+    | Throw'    lhs .label      = new @exp.label
+                    .init       = if noNode == @exp.init
+                                    then (block (new @exp.label) (Stmt' @self))
+                                    else @exp.init
+                    .final      = []
+                    .nodes      = block (new @exp.label) (Stmt' @self) : @exp.nodes
+                    .edges      = @exp.edges
+                exp .label      = @lhs.label
+                    .statNode   = 1 + @lhs.label + @exp.numberOfCalls
+
+sem VarDecls'
+    | Cons      lhs .init  = if noNode == @hd.init then @tl.init else @hd.init
+    | Nil       lhs .init  = noNode
+                    .final = []
+
+sem VarDecl'
+    | VarDecl'  lhs .label = @init.label
+                    .init  = @init.init
+                    .final = @init.final
+
+sem VarInits'
+    | Cons      lhs .init  = if noNode == @hd.init then @tl.init else @hd.init
+    | Nil       lhs .init  = noNode
+                    .final = []
+
+sem MaybeVarInits'
+    | Nothing   lhs .init  = noNode
+                    .final = []

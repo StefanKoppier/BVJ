@@ -3,11 +3,17 @@ class Main {
         int[] array = { 1 };
 
         try {
-            int x = array[array.length];
-        } catch (IndexOutOfBoundsException e) {
-                
+            throw new Exception();
+        } catch (Exception e) {
+            assert e != null;
         } finally {
-            
+            assert true;
         }
+    }
+}
+
+class Exception {
+    public Exception() {
+
     }
 }

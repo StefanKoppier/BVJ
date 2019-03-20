@@ -1,0 +1,98 @@
+--------------------------------------------------------------------------------
+-- Type gathering
+--
+-- This file is responsible for creating and maintaining the type environment.
+-- This includes the types of the fields of all classes, and the types of the
+-- local declarations made in statements.
+--------------------------------------------------------------------------------
+
+{
+type TypeEnvironment = M.Map Scope Type'
+}
+
+--------------------------------------------------------------------------------
+-- Gathering of the fields and their corresponding type.
+--------------------------------------------------------------------------------
+
+attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
+    syn fieldTypes use {M.union} {M.empty} :: {TypeEnvironment}
+
+sem MemberDecl'
+    | FieldDecl' lhs.fieldTypes = generateTypesFromDecls Nothing @lhs.className @ty.self @var.self
+
+--------------------------------------------------------------------------------
+-- Gathering of the local variables and their corresponding type.
+--------------------------------------------------------------------------------
+
+attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
+        CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
+        MethodInvocation' FieldAccess' VarInits' VarInit' MaybeVarInits' ArrayIndex' 
+        VarDecls' VarDecl' Lhs'
+    inh types :: {TypeEnvironment}
+
+sem CompilationUnit'
+    | CompilationUnit' decls.types = @decls.fieldTypes
+
+sem MemberDecl'
+    | MethodDecl'       body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
+    | ConstructorDecl'  body.types = @lhs.types `M.union` generateTypesFromParams Nothing @lhs.className @params.self
+
+sem CompoundStmts'
+    | Cons  tl.types = @lhs.types `M.union` generateTypesFromStmt Nothing @lhs.className @hd.self
+
+--------------------------------------------------------------------------------
+-- Auxiliary functions on the type environment.
+--------------------------------------------------------------------------------
+
+{
+generateTypesFromDecls :: Maybe Name' -> String -> Type' -> VarDecls' -> TypeEnvironment
+generateTypesFromDecls package className ty
+    = foldr (\ (VarDecl' (VarId' name) _) -> (M.singleton (Scope package className name) ty `M.union`)) M.empty 
+
+generateTypesFromParams :: Maybe Name' -> String -> FormalParams' -> TypeEnvironment
+generateTypesFromParams package className
+    = foldr (\ (FormalParam' _ ty (VarId' name)) -> (M.singleton (Scope package className name) ty `M.union`)) M.empty
+
+generateTypesFromStmt :: Maybe Name' -> String -> CompoundStmt' -> TypeEnvironment
+generateTypesFromStmt package className (Stmt' (Decl' _ ty vars)) 
+    = generateTypesFromDecls package className ty vars
+generateTypesFromStmt _ _ _
+        = M.empty
+
+getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Scope
+getScopeOfCreation _ package _ _ (InstanceCreation' (ClassType' [name]) args)
+    = Scope package name name
+
+getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> String
+getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args))
+    = let scope                       = getScopeOfInvocation unit package className types name
+          (Just method)               = getMethod unit scope
+          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
+          [resultName]                = nameOfRefType ty
+       in resultName
+
+getResultClassNameOfInvocation unit package className types (MethodInv' (PrimaryMethodCall' e name args))
+    = let innerclassName              = getResultClassNameOfInvocation unit package className types e
+          innerScope                  = Scope Nothing innerclassName name
+          (Just method)               = getMethod unit innerScope
+          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
+          [resultName]                = nameOfRefType ty
+       in resultName
+
+getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope
+getScopeOfInvocation _ package className _ [name]
+    = Scope package className name
+
+getScopeOfInvocation ast package className types (name:names)
+    | (Just _) <- findClass name ast 
+        = getScopeOfInvocation ast package name types names
+    | otherwise
+        = case types M.!? Scope package className name of
+            Just ty' ->
+                getScopeOfInvocation ast package (getNameOfType ty') types names
+            Nothing  -> 
+                unknownScope
+
+getNameOfType :: Type' -> String
+getNameOfType (RefType' (ClassRefType' (ClassType' [name]))) = name
+}
