@@ -1,5 +1,6 @@
 module Auxiliary.Pretty(
-      Pretty(..)
+      Verbosity(..)  
+    , Pretty(..)
     , spaces
     , newline
     , newlines
@@ -11,10 +12,27 @@ module Auxiliary.Pretty(
     , printPretty
     , printTitled
     , printText
+    , ProgressBar
+    , progressBar
+    , incProgress
 ) where
 
-import Text.PrettyPrint
-import Auxiliary.Phase
+import           Text.PrettyPrint
+import qualified System.ProgressBar as PB
+--import           Auxiliary.Phase
+
+--------------------------------------------------------------------------------
+-- Verbosity
+--------------------------------------------------------------------------------
+
+data Verbosity
+    = Compact
+    | Informative
+    deriving (Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Pretty printing
+--------------------------------------------------------------------------------
 
 class Pretty a where
     pretty      :: a -> Doc
@@ -54,7 +72,8 @@ dots = hcat . punctuate dot . map pretty
 stars :: Int -> Doc
 stars n = text $ replicate n '*'
 
-printHeader :: String -> IO (Either PhaseError ())
+--printHeader :: String -> IO (Either PhaseError ())
+printHeader :: String -> IO ()
 printHeader header = do
     let width   = 80
     let filling = width - (length header + 6)
@@ -62,20 +81,35 @@ printHeader header = do
                 $+$ text "** " <> text header <> spaces filling <> text  " **"
                 $+$ stars width $+$ space
     print doc
-    return $ Right ()
+    return ()
 
-printPretty :: Pretty a => a -> IO (Either PhaseError ())
+printPretty :: Pretty a => a -> IO ()
 printPretty x = do
     putStrLn $ toString x ++ "\n"
-    return $ Right ()
+    return ()
 
-printTitled :: String -> String -> IO (Either PhaseError ())
+printTitled :: String -> String -> IO ()
 printTitled title content = do
     putStrLn title
     putStrLn $ content ++ "\n"
-    return $ Right ()
+    return ()
 
-printText :: String -> IO (Either PhaseError ())
+printText :: String -> IO ()
 printText content = do
     putStrLn $ content ++ "\n"
-    return $ Right ()
+    return ()
+
+--------------------------------------------------------------------------------
+-- Progress bar
+--------------------------------------------------------------------------------
+
+type ProgressBar = PB.ProgressBar ()
+
+progressBar :: Int -> IO ProgressBar
+progressBar count
+    = let style   = PB.defStyle{PB.styleWidth=PB.ConstantWidth 80} 
+          initial = PB.Progress{PB.progressDone=0, PB.progressTodo=count, PB.progressCustom = ()}
+       in PB.newProgressBar style 2 initial
+
+incProgress :: ProgressBar -> IO ()
+incProgress bar = PB.incProgress bar 1

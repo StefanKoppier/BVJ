@@ -6,11 +6,10 @@ import Parsing.Syntax
 import Parsing.Pretty
 
 data PathStmtInfo = PathStmtInfo {
-     callName  :: String -- ^ The name of the method the statement belongs to,
-                         --   which is unique for every method call.
-    , original :: Scope  -- ^ The original scope the statement belongs to.
-    , depth    :: Int    -- ^ The scope depth of the statement.
-}
+      callName :: String
+    , origin   :: Scope
+    , depth    :: Int
+} deriving (Show)
 
 type PathStmt = (Stmt', PathStmtInfo)
 

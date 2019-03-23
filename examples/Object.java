@@ -1,5 +1,5 @@
 class Main {
-    public static void main() {
+    public static void main(String[] argv) {
         Integer value = new Integer(0);
 
         value.setInt(1);

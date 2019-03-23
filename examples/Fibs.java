@@ -1,5 +1,5 @@
 class Main {
-    public static void main() {
+    public static void main(String[] argv) {
         int[][] fibs = { 
               { 0, fib(0) }
             , { 1, fib(1) }

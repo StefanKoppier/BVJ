@@ -17,7 +17,7 @@ import           Data.Graph.Inductive.Query.DFS      (dfs)
 
 analysisPhase :: Phase CompilationUnit' CFG
 analysisPhase args unit = do 
-    newEitherT $ printHeader "2. PROGRAM ANALYSIS"
+    liftIO $ printHeader "2. PROGRAM ANALYSIS"
     cfg <- controlFlowAnalysisSubphase args unit
     reachabilityAnalysisSubphase args cfg
     
@@ -27,21 +27,21 @@ analysisPhase args unit = do
              
 controlFlowAnalysisSubphase :: Subphase CompilationUnit' CFG
 controlFlowAnalysisSubphase _ unit = do
-    newEitherT $ printHeader "2.a control flow analysis"
-    newEitherT $ printPretty unit
-    return $ cfgOfCompilationUnit unit
+    liftIO $ printHeader "2.a control flow analysis"
+    liftIO $ printPretty unit
+    return (cfgOfCompilationUnit unit)
 
 --------------------------------------------------------------------------------
 -- Reachability Analysis subphase
 --------------------------------------------------------------------------------
 
 reachabilityAnalysisSubphase :: Subphase CFG CFG
-reachabilityAnalysisSubphase Arguments{method} graph@CFG{cfg} = do
-    newEitherT $ printHeader "2.b reachability analysis"
-    newEitherT $ printPretty graph
-    case entryOfMethod method graph of
+reachabilityAnalysisSubphase _ graph@CFG{cfg} = do
+    return $ printHeader "2.b reachability analysis"
+    return $ printPretty graph
+    case entryOfMain graph of
         Just (init, _) -> return CFG{cfg = reachableFrom init cfg}
-        Nothing        -> semanticalError (UndefinedMethodReference method)
+        Nothing        -> semanticalError (UndefinedMethodReference ["main"])
         
 -- | Returns the subgraph containing the nodes that are
 -- reachable from the starting node.

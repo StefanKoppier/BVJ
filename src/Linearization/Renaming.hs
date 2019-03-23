@@ -35,14 +35,14 @@ renameMethodName :: Scope -> Int -> String
 renameMethodName (Scope scopePackage scopeClass scopeMember) callNumber
     = newCallName
     where
-        newCallName = scopeClass ++ "_" ++ scopeMember ++ "$" ++ show callNumber
+        newCallName = scopeClass ++ "_" ++ scopeMember ++ show callNumber
 
 -- TODO: add package name to newCallName.
 renameMethodCall :: Name' -> Scope -> Int -> Name'
 renameMethodCall name s@(Scope scopePackage scopeClass scopeMember) callNumber
     = changeLast newCallName name
     where
-        newCallName = scopeClass ++ "_" ++ scopeMember ++ "$" ++ show callNumber
+        newCallName = scopeClass ++ "_" ++ scopeMember ++ show callNumber
 
 changeLast :: a -> [a] -> [a]
 changeLast x [_]    = [x]

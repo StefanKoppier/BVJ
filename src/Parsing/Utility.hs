@@ -64,7 +64,7 @@ namesOfField :: MemberDecl' -> [String]
 namesOfField (FieldDecl' _ _ var) = map nameOfDecl var
 
 findClass :: String -> CompilationUnit' -> Maybe ClassDecl'
-findClass name (CompilationUnit' _ decls) 
+findClass name (CompilationUnit' _ _ decls) 
     | [c] <- filter (hasClassName name) classes 
         = Just c
     | otherwise
@@ -124,3 +124,20 @@ sizesOfVarInit :: VarInits' -> [Exp']
 sizesOfVarInit []                           = []
 sizesOfVarInit (InitExp' _:xs)              = [Lit' (Int' (fromIntegral (1 + length xs)))]
 sizesOfVarInit (InitArray' (Just inits):xs) = Lit' (Int' (fromIntegral (1 + length xs))) : sizesOfVarInit inits 
+
+findMainClass :: CompilationUnit' -> Maybe String
+findMainClass (CompilationUnit' package _ decls)
+    | Just (ClassDecl' _ name _) <- mainClass
+        = Just $ maybe name (\ p -> intercalate "." (p ++ [name])) package
+    | Nothing <- mainClass
+        = Nothing
+    where
+        mainClass = find (isJust . findMethod "main") classes
+        classes   = getClasses decls
+
+findMainScope :: CompilationUnit' -> Maybe Scope
+findMainScope unit@(CompilationUnit' package _ _)
+    | (Just className) <- findMainClass unit
+        = Just $ Scope package className "main"
+    | otherwise
+        = Nothing

@@ -10,10 +10,21 @@ import Parsing.Syntax
 --------------------------------------------------------------------------------
 
 instance Pretty CompilationUnit' where
-    pretty (CompilationUnit' package decls)
-        = package' $+$ pretty decls
+    pretty (CompilationUnit' package imports decls)
+        = package' $+$ pretty imports $+$ pretty decls
         where
             package' = maybe empty (\ name -> text "package" <+> dots name <> semi) package
+
+instance Pretty ImportDecls' where
+    pretty = foldr (($+$) . pretty) empty
+
+instance Pretty ImportDecl' where
+    pretty (ImportDecl' _ name everything)
+        = text "import" <+> dots name <> everything' <> semi
+        where
+            everything'
+                | everything = ".*"
+                | otherwise  = empty
 
 --------------------------------------------------------------------------------
 -- Declarations
@@ -115,18 +126,19 @@ instance Pretty CompoundStmt' where
         = pretty s
 
 instance Pretty Stmt' where
-    pretty (Decl' ms ty vars)       = pretty ms <+> pretty ty <+> pretty vars <> semi
-    pretty Empty'                   = semi
-    pretty (ExpStmt' exp)           = pretty exp <> semi
-    pretty (Assert' exp mssg)       = text "assert" <+> pretty exp <+> colon <+> text mssg <> semi
-    pretty (Assume' exp)            = text "assume" <+> pretty exp <> semi
-    pretty (Break' (Just ident))    = text "break:" <+> text ident <> semi
-    pretty (Break' Nothing)         = text "break" <> semi
-    pretty (Continue' (Just ident)) = text "continue:" <+> text ident <> semi
-    pretty (Continue' Nothing)      = text "continue" <> semi
-    pretty (Return' Nothing)        = text "return" <> semi
-    pretty (Return' (Just exp))     = text "return" <+> pretty exp <> semi
-    pretty (Throw' exp)             = text "throw" <+> pretty exp <> semi
+    pretty (Decl' ms ty vars)        = pretty ms <+> pretty ty <+> pretty vars <> semi
+    pretty Empty'                    = semi
+    pretty (ExpStmt' exp)            = pretty exp <> semi
+    pretty (Assert' exp Nothing)     = text "assert" <+> pretty exp <> semi
+    pretty (Assert' exp (Just mssg)) = text "assert" <+> pretty exp <+> colon <+> pretty mssg <> semi
+    pretty (Assume' exp)             = text "CProver.assume" <> parens (pretty exp) <> semi
+    pretty (Break' (Just ident))     = text "break:" <+> text ident <> semi
+    pretty (Break' Nothing)          = text "break" <> semi
+    pretty (Continue' (Just ident))  = text "continue:" <+> text ident <> semi
+    pretty (Continue' Nothing)       = text "continue" <> semi
+    pretty (Return' Nothing)         = text "return" <> semi
+    pretty (Return' (Just exp))      = text "return" <+> pretty exp <> semi
+    pretty (Throw' exp)              = text "throw" <+> pretty exp <> semi
 
 instance Pretty SwitchBlocks' where
     pretty = foldr (($+$) . pretty) empty
@@ -186,7 +198,7 @@ instance Pretty Exp' where
     pretty (PreMinus' e)               = char '-' <> pretty e
     pretty (PreBitCompl' e)            = char '~' <> pretty e
     pretty (PreNot' e)                 = char '!' <> pretty e
-    pretty (BinOp' e1 op e2)           = pretty e1 <> pretty op <> pretty e2
+    pretty (BinOp' e1 op e2)           = parens (pretty e1 <> pretty op <> pretty e2)
     pretty (Cond' g e1 e2)             = pretty g <> char '?' <> pretty e1 <> char ':' <> pretty e2
     pretty (Assign' t op e)            = pretty t <> pretty op <> pretty e
 

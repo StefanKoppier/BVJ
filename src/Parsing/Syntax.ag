@@ -4,8 +4,17 @@
 
 data CompilationUnit'
     | CompilationUnit'  package :: {Maybe Name'}
+                        imports :: ImportDecls'
                         decls   :: TypeDecls'
 deriving CompilationUnit' : Eq, Show
+
+type ImportDecls' = [ImportDecl']
+
+data ImportDecl'
+    | ImportDecl'   identifier  :: {Bool}
+                    name        :: Name'
+                    everything  :: {Bool}
+deriving ImportDecl' : Eq, Show
 
 --------------------------------------------------------------------------------
 -- Declarations
@@ -124,7 +133,7 @@ data Stmt'
     | ExpStmt'      exp         :: Exp'
 
     | Assert'       exp         :: Exp'
-                    message     :: {String}
+                    message     :: MaybeExp'
 
     | Assume'       exp         :: Exp'
 

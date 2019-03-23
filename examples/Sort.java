@@ -1,5 +1,5 @@
 class Main {
-    public static void main() {
+    public static void main(String[] argv) {
         int[] elems = new int[] { 2, 1 };
         sort(elems, 0, elems.length - 1);
         assert (elems[0] == 1) && (elems[1] == 2);

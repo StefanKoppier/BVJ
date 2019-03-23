@@ -1,7 +1,7 @@
 module Auxiliary.Phase(
-      module Control.Monad.Trans.Either
+      module Control.Monad.Trans.Except
+    , module Control.Monad.IO.Class
     , module Auxiliary.Arguments
-    , module Auxiliary.Verbosity
 
     , PhaseResult
     , PhaseError
@@ -10,46 +10,49 @@ module Auxiliary.Phase(
     , semanticalError
     , syntacticalError
     , resultError
-
+    , workingDir
     , Phase
     , Subphase
 ) where
 
-import Control.Monad.Trans.Either
+import Control.Monad.Trans.Except
+import Control.Monad.IO.Class
 import Parsing.Syntax
 import Analysis.CFG
-import Auxiliary.Verbosity
 import Auxiliary.Arguments
+
+workingDir :: FilePath
+workingDir = "tmp_verification_folder"
 
 --------------------------------------------------------------------------------
 -- Phasing
 --------------------------------------------------------------------------------
 
-type PhaseResult a = EitherT PhaseError IO a
+type PhaseResult a = ExceptT PhaseError IO a
 
 data PhaseError
-    = ParsingError       String
+    = ParsingError     String
     | SemanticalError  SemanticalError
     | SyntacticalError String
     | ResultError      String
     deriving (Show, Eq)
 
 data SemanticalError
-    = UndefinedMethodReference Scope
+    = UndefinedMethodReference Name'
     | UndefinedClassReference  String
     deriving (Show, Eq)
 
 parsingError :: String -> PhaseResult a
-parsingError = left . ParsingError
+parsingError = throwE . ParsingError
 
 semanticalError :: SemanticalError -> PhaseResult a
-semanticalError = left . SemanticalError
+semanticalError = throwE . SemanticalError
 
 syntacticalError :: String -> PhaseResult a
-syntacticalError = left . SyntacticalError
+syntacticalError = throwE . SyntacticalError
 
 resultError :: String -> PhaseResult a
-resultError = left . ResultError
+resultError = throwE . ResultError
 
 type Phase a b = Arguments -> a -> PhaseResult b
 

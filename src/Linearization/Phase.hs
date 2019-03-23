@@ -10,32 +10,34 @@ import           Data.Maybe
 import           Analysis.CFG
 import           Analysis.Pretty()
 import           Parsing.Syntax
+import           Parsing.Utility
 import           Linearization.Path
 import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-linearizationPhase :: Phase CFG ProgramPaths
-linearizationPhase Arguments{maximumDepth, method, verbosity} graph@CFG{cfg} = do
-    newEitherT $ printInformation verbosity graph
-    case entryOfMethod method graph of
-        Just (entry,_) -> do
-            let (Scope _ _ scopeMember) = method
-            let history   = M.fromList [(n, 0) | (_,Entry n) <- G.labNodes cfg]
-            let callStack = S.singleton (method, scopeMember, -1, 0)
-            let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
-            let ps        = paths acc graph (G.context cfg entry)
-            return . map (clean . reverse) $ ps
-        Nothing        -> semanticalError (UndefinedMethodReference method)
+linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
+linearizationPhase Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
+    | (Just method)     <- entryMethod
+    , (Just (entry, _)) <- entryOfMain graph = do
+        liftIO $ printInformation verbosity graph
+        let history   = M.fromList [(n, 0) | (_,Entry n) <- G.labNodes cfg]
+        let callStack = S.singleton (method, "main", -1, 0)
+        let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
+        let ps        = paths acc graph (G.context cfg entry)
+        return . map (clean . reverse) $ ps
+    | otherwise = do
+        liftIO $ printInformation verbosity graph
+        semanticalError (UndefinedMethodReference ["main"])
+    where
+        entryMethod      = findMainScope unit
 
-printInformation :: Verbosity -> CFG -> IO (Either PhaseError ())
+printInformation :: Verbosity -> CFG -> IO ()
 printInformation verbosity graph = do
     printHeader "3. LINEARIZATION"
     case verbosity of
-        Informative 
-            -> printPretty graph
-        _
-            -> return $ Right ()
+        Informative -> printPretty graph
+        _           -> return ()
 
 clean :: ProgramPath -> ProgramPath
 clean []                   = []
@@ -103,7 +105,7 @@ paths acc graph (_, node, Block s, neighbours)
 next :: PathAccumulator -> CompoundStmt' -> CFG -> CFGEdge -> ProgramPaths
 next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, neighbour, edge) 
     = let (k', s') = (k-1, s + scopeModificationOfEdge edge)
-          pathInfo = PathStmtInfo{callName=callName', original=scope', depth=s}
+          pathInfo = PathStmtInfo{callName=callName', origin=scope', depth=s}
           acc'     = (history, manipulations', callStack, map ((stat4, pathInfo):) ps, k', s')
        in paths acc' graph (G.context cfg neighbour)
     where

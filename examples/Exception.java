@@ -1,5 +1,5 @@
 class Main {
-    public static void main() {
+    public static void main(String[] argv) {
         int[] array = { 1 };
 
         try {
@@ -9,11 +9,5 @@ class Main {
         } finally {
             assert true;
         }
-    }
-}
-
-class Exception {
-    public Exception() {
-
     }
 }

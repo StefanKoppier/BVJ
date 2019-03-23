@@ -14,9 +14,9 @@ allPhases :: Phase String CProverResults
 allPhases args file = do
     ast      <- parsingPhase args file
     cfg      <- analysisPhase args ast
-    paths    <- linearizationPhase args cfg
+    paths    <- linearizationPhase args (ast, cfg)
     programs <- compilationPhase args (ast, paths)
     results  <- verificationPhase args programs
-    newEitherT $ printHeader "FINAL RESULT"
-    newEitherT $ printPretty results
+    liftIO $ printHeader "FINAL RESULT"
+    liftIO $ printPretty results
     return results

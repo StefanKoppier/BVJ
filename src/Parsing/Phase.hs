@@ -15,8 +15,8 @@ import Auxiliary.Pretty
 
 parsingPhase :: Phase String CompilationUnit'
 parsingPhase args content = do
-    newEitherT $ printHeader "1. PARSING"
-    newEitherT $ printTitled "Input program" content
+    liftIO $ printHeader "1. PARSING"
+    liftIO $ printTitled "Input program" content
     case parser compilationUnit content of 
         Right program -> syntaxTransformationSubphase args program
         Left  e       -> parsingError (show e)
@@ -29,12 +29,19 @@ syntaxTransformationSubphase :: Subphase CompilationUnit CompilationUnit'
 syntaxTransformationSubphase _ = transformCompilationUnit
 
 transformCompilationUnit :: CompilationUnit -> PhaseResult CompilationUnit'
-transformCompilationUnit (CompilationUnit p _ dls) 
-    = CompilationUnit' <$> transformPackageDecl p <*> mapM transformTypeDecl dls
+transformCompilationUnit (CompilationUnit package imports types) 
+    = CompilationUnit' 
+    <$> transformPackageDecl package 
+    <*> mapM transformImportdecl imports 
+    <*> mapM transformTypeDecl types
 
 transformPackageDecl :: Maybe PackageDecl -> PhaseResult (Maybe Name')
 transformPackageDecl Nothing                = pure Nothing
 transformPackageDecl (Just (PackageDecl n)) = Just <$> transformName n
+
+transformImportdecl :: ImportDecl -> PhaseResult ImportDecl'
+transformImportdecl (ImportDecl id name everything)
+    = ImportDecl' <$> pure id <*> transformName name <*> pure everything
 
 transformTypeDecl :: TypeDecl -> PhaseResult TypeDecl'
 transformTypeDecl (ClassTypeDecl cls)   = ClassTypeDecl' <$> transformClassDecl cls
@@ -224,8 +231,7 @@ transformStmt = foldStmt alg
               , \ m t i g s     -> syntacticalError "for (iterator)"
               ,                    compound Empty'
               ,                    fmap (Stmt' . ExpStmt') . transformExp
-              , \ g             -> \case Just m  -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformExpToString m --transformExp m
-                                         Nothing -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> pure ""
+              , \ g m           -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformMaybeExp m
               , \ e bs          -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
               , \ s e           -> syntacticalError "do"
               ,                    compound . Break' . transformMaybeIdent

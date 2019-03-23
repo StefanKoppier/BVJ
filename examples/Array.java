@@ -1,5 +1,5 @@
 class Main {
-    public static void main() {
+    public static void main(String[] argv) {
         int[][] array = new int[][] { {1}, {2} };
         
         int i = 0;

@@ -2,87 +2,66 @@ module Verification.Phase(
     verificationPhase
 ) where
     
-import System.Process                      (readProcessWithExitCode)
 import Control.Concurrent.ParallelIO.Local
 import Control.Concurrent
+import Control.Monad
+import System.Command
 import System.Directory
+import System.FilePath.Posix
 import System.IO
-import System.ProgressBar
 import Auxiliary.Phase
 import Auxiliary.Pretty
-import Compilation.CProgram
 import Verification.CBMCResult
-import Compilation.Pretty
+import Parsing.Utility
+import Compilation.CompiledUnit
 
-verificationPhase :: Phase CPrograms CProverResults
+import Debug.Trace
+
+verificationPhase :: Phase CompiledUnits CProverResults
 verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do
-    newEitherT $ printInformation verbosity programs
-    newEitherT createWorkingDir
-    results <- newEitherT $ runAsync args programs
-    if keepOutputFiles
-        then return ()
-        else newEitherT removeWorkingDir
-    return results
+    liftIO $ printInformation verbosity
+    let results = liftIO $ runAsync args programs
+    unless keepOutputFiles
+        (liftIO removeWorkingDir)
+    ExceptT results
     
-printInformation :: Verbosity -> CPrograms -> IO (Either PhaseError ())
-printInformation verbosity programs = do
-    printHeader "5. VERIFICATION"
-    case verbosity of
-        Informative 
-            -> printPretty programs
-        _
-            -> return $ Right ()
+printInformation :: Verbosity -> IO ()
+printInformation _ = printHeader "5. VERIFICATION"
 
-runAsync :: Arguments -> CPrograms -> IO (Either PhaseError CProverResults)
+runAsync :: Arguments -> CompiledUnits -> IO (Either PhaseError CProverResults)
 runAsync args@Arguments{numberOfThreads} programs = do
-    (progress, progressThread) <- startProgress percentage noLabel 80 (toInteger $ length programs)
-    let tasks = map (verify args progress) programs
+    progress <- liftIO $ progressBar (length programs)
+    let tasks = map (return . verify args progress) programs
     results <- withPool numberOfThreads (\ pool -> parallel pool tasks)
-    killThread progressThread
-    putStrLn $ mkProgressBar percentage noLabel 80 1 1
-    putStrLn ""
-    return $ sequence results
+    results' <- mapM runExceptT results
+    liftIO $ putStrLn ""
+    return (sequence results')
 
-verify :: Arguments -> ProgressRef -> CProgram -> IO (Either PhaseError CProverResult)
-verify args progress program = do
-    (path, handle) <- openTempFileWithDefaultPermissions workingDir "main.c"
-    let program' = "#include <stdlib.h>\n" ++ toString program
-    hPutStr handle program'
-    hClose handle
-    (_,result,_) <- readProcessWithExitCode "./tools/cbmc/cbmc" (cbmcArgs path args) ""
-    incProgress progress 1
-    runEitherT $ parseXML result
+verify :: Arguments -> ProgressBar -> CompiledUnit -> PhaseResult CProverResult
+verify args progress (program, file) =
+    case findMainClass program of 
+        Just mainClass -> do
+            result <- jbmc file mainClass args
+            liftIO $ incProgress progress
+            parseXML result
+        Nothing -> return undefined
 
-createWorkingDir :: IO (Either PhaseError ())
-createWorkingDir = do 
-    createDirectoryIfMissing False workingDir
-    return $ Right ()
-
-removeWorkingDir :: IO (Either PhaseError ())
-removeWorkingDir = do 
-    removeDirectoryRecursive workingDir
-    return $ Right ()
-
-workingDir :: FilePath
-workingDir = "tmp_verification_folder"
-
-cbmcArgs :: FilePath -> Arguments -> [String]
-cbmcArgs path args
-    =  [path, "--xml-ui"]
-    ++ includeArgs (includePaths args)
-    ++ unwindArg (maximumUnwind args)
-    ++ ["--no-assertions"         | not $ enableAssertions args  ]
-    ++ ["--bounds-check"          | enableArrayBoundsCheck args  ]
-    ++ ["--pointer-check"         | enablePointerChecks args     ]
-    ++ ["-div-by-zero-check"      | enableDivByZeroCheck args    ]
-    ++ ["--signed-overflow-check" | enableIntOverflowCheck args  ]
-    ++ ["--undefined-shift-check" | enableShiftCheck args        ]
-    ++ ["--float-overflow-check"  | enableFloatOverflowCheck args]
-    ++ ["--nan-check"             | enableNaNCheck args          ] 
+removeWorkingDir :: IO ()
+removeWorkingDir = removeDirectoryRecursive workingDir
+    
+jbmc :: FilePath -> String -> Arguments -> PhaseResult String
+jbmc file mainClass args = do
+    (Exit _, Stdout result) <- liftIO $ command [] "jbmc" jbmcArgs 
+    return result
+    where
+        dir      = dropFileName file
+        jbmcArgs = [ file
+                   , "--xml-ui"
+                   , "--main-class", mainClass
+                   ]
+                   ++ ["--no-assertions" | not $ enableAssertions args]
+                   ++ unwindArg (maximumUnwind args)
 
 unwindArg :: Maybe Int -> [String]
 unwindArg Nothing  = []
 unwindArg (Just n) = ["--unwind", show n]
-
-includeArgs :: [FilePath] -> [String]
-includeArgs = concatMap (\ path -> ["-I", path])
