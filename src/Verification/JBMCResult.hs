@@ -1,12 +1,12 @@
-module Verification.CBMCResult(
+module Verification.JBMCResult(
       parseXML
     , CProverResults  
     , CProverResult(..)
-    , CBMCMessage(..)
+    , JBMCMessage(..)
     , CProverStatus(..)
-    , CBMCMessageType(..)
-    , CBMCResult(..)
-    , CBMCFailure(..)
+    , JBMCMessageType(..)
+    , JBMCResult(..)
+    , JBMCFailure(..)
 ) where
 
 import Data.ByteString.UTF8
@@ -18,31 +18,31 @@ import Auxiliary.Phase
 type CProverResults = [CProverResult]
 
 data CProverResult = CProverResult {
-      _messages :: [CBMCMessage]
-    , _results  :: [CBMCResult]
+      _messages :: [JBMCMessage]
+    , _results  :: [JBMCResult]
     , _status   :: Maybe CProverStatus
 } deriving (Show)
 
 data CProverStatus = Success | Failure 
                    deriving (Show)
 
-data CBMCMessage = CBMCMessage {
-      _type :: CBMCMessageType
+data JBMCMessage = JBMCMessage {
+      _type :: JBMCMessageType
     , _text :: ByteString
 } deriving (Show)
 
-data CBMCMessageType
-    = CBMCStatusMessage
-    | CBMCWarning
-    | CBMCError 
+data JBMCMessageType
+    = JBMCStatusMessage
+    | JBMCWarning
+    | JBMCError 
     deriving (Show)
 
-data CBMCResult = CBMCResult {
+data JBMCResult = JBMCResult {
       _resultProperty :: ByteString
-    , _resultFailures :: [CBMCFailure]
+    , _resultFailures :: [JBMCFailure]
 } deriving (Show)
 
-data CBMCFailure = CBMCFailure {
+data JBMCFailure = JBMCFailure {
       _file     :: ByteString
     , _function :: ByteString
     , _line     :: ByteString
@@ -53,37 +53,37 @@ data CBMCFailure = CBMCFailure {
 parseXML :: String -> PhaseResult CProverResult
 parseXML input 
     = case parse (fromString input) of
-        Left  _    -> throwParsingError "Failed to parse CBMC output."
+        Left  _    -> throwParsingError "Failed to parse JBMC output."
         Right node -> return $ pCProverResult node
 
 pCProverResult :: Node -> CProverResult
 pCProverResult node 
     = let items     = children node
-          messages  = (map pCBMCMessage . filter (withName "message")) items
-          results   = (map pCBMCResult  . filter (withName "result")) items
+          messages  = (map pJBMCMessage . filter (withName "message")) items
+          results   = (map pJBMCResult  . filter (withName "result")) items
           status    = (pCProverStatus . find (withName "cprover-status")) items
        in CProverResult { _messages = messages
                         , _results  = results
                         , _status   = status }   
 
-pCBMCMessage :: Node -> CBMCMessage
-pCBMCMessage node
+pJBMCMessage :: Node -> JBMCMessage
+pJBMCMessage node
     = let ty       = fromJust $ lookup "type" (attributes node)
           textNode = fromJust $ find (withName "text") (children node)
           text     = textFromNode textNode
-       in CBMCMessage { _type = messageTypeFromString ty
+       in JBMCMessage { _type = messageTypeFromString ty
                       , _text = text }
 
-pCBMCResult :: Node -> CBMCResult
-pCBMCResult node
+pJBMCResult :: Node -> JBMCResult
+pJBMCResult node
     = let traces   = filter (withName "goto_trace") (children node)
           property = fromJust $ lookup "property" (attributes node)
-          failures = (map pCBMCFailure . filter (withName "failure")) (concatMap children traces)
-       in CBMCResult { _resultProperty = property
+          failures = (map pJBMCFailure . filter (withName "failure")) (concatMap children traces)
+       in JBMCResult { _resultProperty = property
                      , _resultFailures = failures }
 
-pCBMCFailure :: Node -> CBMCFailure
-pCBMCFailure node
+pJBMCFailure :: Node -> JBMCFailure
+pJBMCFailure node
     = let location     = fromJust $ find (withName "location") (children node)
           locationAttr = attributes location
           nodeAttr     = attributes node
@@ -92,7 +92,7 @@ pCBMCFailure node
           line         = fromJust $ lookup "line" locationAttr
           property     = fromJust $ lookup "property" nodeAttr
           reason       = fromJust $ lookup "reason" nodeAttr
-       in CBMCFailure { _file      = file
+       in JBMCFailure { _file      = file
                       ,  _function = function
                       , _line      = line
                       , _property  = property
@@ -111,12 +111,12 @@ textFromNode node
     = case head $ contents node of
         (Text s) -> s
 
-messageTypeFromString :: ByteString -> CBMCMessageType
+messageTypeFromString :: ByteString -> JBMCMessageType
 messageTypeFromString string 
     = case string of
-         "STATUS-MESSAGE" -> CBMCStatusMessage
-         "ERROR"          -> CBMCError
-         "WARNING"        -> CBMCWarning
+         "STATUS-MESSAGE" -> JBMCStatusMessage
+         "ERROR"          -> JBMCError
+         "WARNING"        -> JBMCWarning
 
 withName :: ByteString -> Node -> Bool
 withName name' node = name node == name'

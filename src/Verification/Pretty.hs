@@ -3,7 +3,7 @@ module Verification.Pretty where
 import qualified Data.ByteString.UTF8 as UTF8
 import           Text.PrettyPrint
 import           Auxiliary.Pretty
-import           Verification.CBMCResult
+import           Verification.JBMCResult
 
 instance Pretty CProverResults where
     pretty results
@@ -29,17 +29,17 @@ instance Pretty CProverResult where
         | Nothing        <- _status
             = newline <> foldr (($+$) . pretty) empty errorMessages
         where
-            errorMessages = [m | m@(CBMCMessage CBMCError _) <- _messages]
+            errorMessages = [m | m@(JBMCMessage JBMCError _) <- _messages]
 
-instance Pretty CBMCMessage where
-    pretty CBMCMessage{_text} = pretty _text
+instance Pretty JBMCMessage where
+    pretty JBMCMessage{_text} = pretty _text
 
-instance Pretty CBMCResult where
-    pretty CBMCResult{_resultFailures}
+instance Pretty JBMCResult where
+    pretty JBMCResult{_resultFailures}
         = foldr (($+$) . pretty) empty _resultFailures
 
-instance Pretty CBMCFailure where
-    pretty CBMCFailure{_file,_function,_line,_property,_reason}
+instance Pretty JBMCFailure where
+    pretty JBMCFailure{_file,_function,_line,_property,_reason}
         = text "Failed property" <+> property <+> text "with reason" <+> reason
         $+$ tab (text "at file" <+> file <> comma 
         <+> text "function" <+> function <> comma

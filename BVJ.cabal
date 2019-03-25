@@ -35,7 +35,7 @@ library
                        Compilation.Phase
                        Compilation.CompiledUnit
                        Verification.Phase
-                       Verification.CBMCResult
+                       Verification.JBMCResult
                        Verification.Pretty
                        Auxiliary.Phase
                        Auxiliary.Pretty

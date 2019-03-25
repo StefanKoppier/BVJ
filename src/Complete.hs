@@ -7,7 +7,7 @@ import Analysis.Phase
 import Linearization.Phase
 import Compilation.Phase
 import Verification.Phase
-import Verification.CBMCResult
+import Verification.JBMCResult
 import Verification.Pretty
 
 allPhases :: Phase String CProverResults

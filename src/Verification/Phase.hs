@@ -11,7 +11,7 @@ import System.FilePath.Posix
 import System.IO
 import Auxiliary.Phase
 import Auxiliary.Pretty
-import Verification.CBMCResult
+import Verification.JBMCResult
 import Parsing.Utility
 import Compilation.CompiledUnit
 
