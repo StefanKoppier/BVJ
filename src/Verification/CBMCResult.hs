@@ -53,7 +53,7 @@ data CBMCFailure = CBMCFailure {
 parseXML :: String -> PhaseResult CProverResult
 parseXML input 
     = case parse (fromString input) of
-        Left  _    -> parsingError "Failed to parse CBMC output."
+        Left  _    -> throwParsingError "Failed to parse CBMC output."
         Right node -> return $ pCProverResult node
 
 pCProverResult :: Node -> CProverResult

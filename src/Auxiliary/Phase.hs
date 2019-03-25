@@ -4,12 +4,13 @@ module Auxiliary.Phase(
     , module Auxiliary.Arguments
 
     , PhaseResult
-    , PhaseError
+    , PhaseError(..)
     , SemanticalError(..)
-    , parsingError
-    , semanticalError
-    , syntacticalError
-    , resultError
+    , throwParsingError
+    , throwSemanticalError
+    , throwSyntacticalError
+    , throwResultError
+    , throwExternalError
     , workingDir
     , Phase
     , Subphase
@@ -35,6 +36,7 @@ data PhaseError
     | SemanticalError  SemanticalError
     | SyntacticalError String
     | ResultError      String
+    | ExternalError    String
     deriving (Show, Eq)
 
 data SemanticalError
@@ -42,17 +44,20 @@ data SemanticalError
     | UndefinedClassReference  String
     deriving (Show, Eq)
 
-parsingError :: String -> PhaseResult a
-parsingError = throwE . ParsingError
+throwParsingError :: String -> PhaseResult a
+throwParsingError = throwE . ParsingError
 
-semanticalError :: SemanticalError -> PhaseResult a
-semanticalError = throwE . SemanticalError
+throwSemanticalError :: SemanticalError -> PhaseResult a
+throwSemanticalError = throwE . SemanticalError
 
-syntacticalError :: String -> PhaseResult a
-syntacticalError = throwE . SyntacticalError
+throwSyntacticalError :: String -> PhaseResult a
+throwSyntacticalError = throwE . SyntacticalError
 
-resultError :: String -> PhaseResult a
-resultError = throwE . ResultError
+throwResultError :: String -> PhaseResult a
+throwResultError = throwE . ResultError
+
+throwExternalError :: String -> PhaseResult a
+throwExternalError = throwE . ExternalError
 
 type Phase a b = Arguments -> a -> PhaseResult b
 

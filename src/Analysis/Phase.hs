@@ -37,11 +37,11 @@ controlFlowAnalysisSubphase _ unit = do
 
 reachabilityAnalysisSubphase :: Subphase CFG CFG
 reachabilityAnalysisSubphase _ graph@CFG{cfg} = do
-    return $ printHeader "2.b reachability analysis"
-    return $ printPretty graph
+    liftIO $ printHeader "2.b reachability analysis"
+    liftIO $ printPretty graph
     case entryOfMain graph of
         Just (init, _) -> return CFG{cfg = reachableFrom init cfg}
-        Nothing        -> semanticalError (UndefinedMethodReference ["main"])
+        Nothing        -> throwSemanticalError (UndefinedMethodReference ["main"])
         
 -- | Returns the subgraph containing the nodes that are
 -- reachable from the starting node.

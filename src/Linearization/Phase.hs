@@ -28,7 +28,7 @@ linearizationPhase Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
         return . map (clean . reverse) $ ps
     | otherwise = do
         liftIO $ printInformation verbosity graph
-        semanticalError (UndefinedMethodReference ["main"])
+        throwSemanticalError (UndefinedMethodReference ["main"])
     where
         entryMethod      = findMainScope unit
 

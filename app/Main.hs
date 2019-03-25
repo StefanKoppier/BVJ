@@ -14,7 +14,7 @@ perform args file = do
 
 arguments :: Arguments
 arguments = defaultArgs {
-      verbosity       = {-Informative-} Compact
+      verbosity       = Informative {-Compact-}
     , numberOfThreads = 4
     , maximumDepth    = 20
     , maximumUnwind   = Nothing

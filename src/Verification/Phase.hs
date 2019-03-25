@@ -51,10 +51,9 @@ removeWorkingDir = removeDirectoryRecursive workingDir
     
 jbmc :: FilePath -> String -> Arguments -> PhaseResult String
 jbmc file mainClass args = do
-    (Exit _, Stdout result) <- liftIO $ command [] "jbmc" jbmcArgs 
+    (Stdout result, Exit _, Stderr _) <- liftIO $ command [] "jbmc" jbmcArgs 
     return result
     where
-        dir      = dropFileName file
         jbmcArgs = [ file
                    , "--xml-ui"
                    , "--main-class", mainClass

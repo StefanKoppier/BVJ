@@ -3,6 +3,7 @@ module Compilation.Compiler where
 import System.Directory
 import System.FilePath.Posix
 import System.Command
+import System.Exit
 import System.IO
 import Data.List
 import Data.Maybe
@@ -47,22 +48,25 @@ buildClass :: CompilationUnit' -> [PathStmt] -> PhaseResult TypeDecl'
 buildClass unit path = do
     let methodGroups = (groupBy ((==) `on` (callName . snd)) . sortOn (callName . snd)) path
     methods <- mapM (buildMethod unit) methodGroups
-    return (ClassTypeDecl' (ClassDecl' modifiers name methods))
+    let fields = [f | f@(MemberDecl' FieldDecl'{}) <- members]
+    let members = fields ++ methods
+    return (ClassTypeDecl' (ClassDecl' modifiers name members))
     where
-        name                       = className (head path)
-        (ClassDecl' modifiers _ _) = fromJust $ findClass name unit
-
-buildConstructor :: CompilationUnit' -> [PathStmt] -> PhaseResult Decl'
-buildConstructor = undefined
+        name                             = className (head path)
+        (ClassDecl' modifiers _ members) = fromJust $ findClass name unit
 
 buildMethod :: CompilationUnit' -> [PathStmt] -> PhaseResult Decl'
 buildMethod unit path = do
     let name = callName . snd . head $ path
     let body = map (Stmt' . fst) path
-    return (MemberDecl' (MethodDecl' modifiers ty name params body))
+    case method of
+        MethodDecl' modifiers ty _ params _
+            -> return (MemberDecl' (MethodDecl' modifiers ty name params body))
+        ConstructorDecl' modifiers _ params _
+            -> return (MemberDecl' (ConstructorDecl' modifiers name params body))
     where
-        scope                                 = (origin . snd . head) path
-        (MethodDecl' modifiers ty _ params _) = fromJust $ getMethod unit scope
+        scope  = (origin . snd . head) path
+        method = fromJust $ getMethod unit scope
 
 className :: PathStmt -> String
 className (_,PathStmtInfo{origin})
@@ -82,8 +86,10 @@ methodName (_,PathStmtInfo{origin})
 
 javac :: FilePath -> PhaseResult ()
 javac file = do
-    (Stdout _, Exit _, Stderr _) <- liftIO $ command [] "javac" args
-    return ()
+    (Stdout _, Exit e, Stderr _) <- liftIO $ command [] "javac" args
+    case e of
+        ExitSuccess   -> return ()
+        ExitFailure _ -> throwExternalError "java compilation to bytecode (javac) failed"
     where
         dir  = dropFileName file
         args = [ file
@@ -92,7 +98,11 @@ javac file = do
                ]
 
 jar :: FilePath -> PhaseResult ()
-jar file = liftIO $ command_ [Cwd dir] "jar" args
+jar file = do
+    (Stdout _, Exit e, Stderr _) <- liftIO $ command [Cwd dir] "jar" args
+    case e of
+        ExitSuccess   -> return ()
+        ExitFailure _ -> throwExternalError "jar creation (jar) failed."
     where
         dir = dropFileName file
         args = [ "cfe"

@@ -7,7 +7,7 @@ import Parsing.Syntax
 import Debug.Trace
 
 class WithModifiers a where
-    isStatic :: a -> Bool
+    isStatic     :: a -> Bool
 
 instance WithModifiers MemberDecl' where
     isStatic (FieldDecl'       ms _ _)     = Static' `elem` ms
