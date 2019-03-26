@@ -5,6 +5,8 @@ import Auxiliary.Phase
 import Auxiliary.Pretty
 import Parsing.Syntax
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- Files
 --------------------------------------------------------------------------------
@@ -37,10 +39,19 @@ instance Pretty TypeDecl' where
     pretty (ClassTypeDecl' decl) = pretty decl
 
 instance Pretty ClassDecl' where
-    pretty (ClassDecl' ms n body) = header' $+$ body'
+    pretty (ClassDecl' ms name body) = pPre $+$ pHeader $+$ pBody
         where
-            header' = pretty ms <+> text "class" <+> text n
-            body'   = lbrace $+$ tab (pretty body) $+$ rbrace
+            (pre, inline) = preAndInlineModifiers ([], []) ms
+            pPre          = foldr (($+$) . pretty) empty pre
+            pHeader       = pretty inline <+> text "class" <+> text name
+            pBody         = lbrace $+$ tab (pretty body) $+$ rbrace
+
+preAndInlineModifiers :: (Modifiers', Modifiers') -> Modifiers' -> (Modifiers', Modifiers')
+preAndInlineModifiers acc []                 = acc
+preAndInlineModifiers (l1, l2) (m@(Annotation' a):ms)
+    = preAndInlineModifiers (l1 ++ [m], l2) ms
+preAndInlineModifiers (l1, l2) (m:ms)
+    = (l1, l2 ++ (m:ms))
 
 instance Pretty Decls' where
     pretty = foldr (($+$) . pretty) empty
@@ -49,25 +60,31 @@ instance Pretty Decl' where
     pretty (MemberDecl' decl) = pretty decl
 
 instance Pretty MemberDecl' where
-    pretty (FieldDecl' ms ty var) = pretty ms <+> pretty ty <+> pretty var <> semi
+    pretty (FieldDecl' modifiers ty var) 
+        = pretty modifiers $+$ pretty ty <+> pretty var <> semi
 
-    pretty (MethodDecl' ms ty n ps b)   
-        = header' $+$ body'
+    pretty (MethodDecl' modifiers ty name params body)
+        = pPre $+$ pHeader $+$ pBody
         where
-            header' = pretty ms <+> pretty ty <+> pretty n <> parens (pretty ps)
-            body'   = lbrace $+$ tab (pretty b) $+$ rbrace
+            (pre, inline) = preAndInlineModifiers ([], []) modifiers
+            pPre          = foldr (($+$) . pretty) empty pre
+            pHeader       = pretty inline <+> pretty ty <+> pretty name <> parens (pretty params)
+            pBody         = lbrace $+$ tab (pretty body) $+$ rbrace
 
-    pretty (ConstructorDecl' ms n ps b) 
-        = header' $+$ body'
+    pretty (ConstructorDecl' modifiers name params body) 
+        = pPre $+$ pHeader $+$ pBody
         where
-            header' = pretty ms <+> pretty n <> parens (pretty ps)
-            body'   = lbrace $+$ tab (pretty b) $+$ rbrace
+            (pre, inline) = preAndInlineModifiers ([], []) modifiers
+            pPre          = foldr (($+$) . pretty) empty pre
+            pHeader       = pretty inline <+> pretty name <> parens (pretty params)
+            pBody         = lbrace $+$ tab (pretty body) $+$ rbrace
 
 instance Pretty [FormalParam'] where
     pretty = commas
 
 instance Pretty FormalParam' where
-    pretty (FormalParam' ms ty id) = pretty ms <+> pretty ty <+> pretty id
+    pretty (FormalParam' modifiers ty name) 
+        = pretty modifiers <+> pretty ty <+> pretty name
 
 --------------------------------------------------------------------------------
 -- Types
@@ -93,7 +110,7 @@ instance Pretty PrimType' where
 
 instance Pretty RefType' where
     pretty (ClassRefType' ty) = pretty ty 
-    pretty (ArrayType' ty)    = pretty ty <> brackets empty
+    pretty (ArrayType'    ty) = pretty ty <> brackets empty
 
 instance Pretty ClassType' where
     pretty (ClassType' ty) = dots ty
@@ -103,8 +120,11 @@ instance Pretty ClassType' where
 --------------------------------------------------------------------------------
 
 instance Pretty CompoundStmts' where
-    pretty []     = empty
-    pretty (s:ss) = pretty s $+$ pretty ss
+    pretty []     
+        = empty
+
+    pretty (stat:stats) 
+        = pretty stat $+$ pretty stats
 
 instance Pretty CompoundStmt' where
     pretty (Block' s)                
@@ -173,7 +193,7 @@ instance Pretty VarInit' where
     pretty (InitArray' inits) = pretty inits
 
 instance Pretty MaybeVarInits' where
-    pretty (Just es) = braces . commas $ es
+    pretty (Just es) = braces (commas es)
     pretty Nothing   = empty
 
 --------------------------------------------------------------------------------
@@ -261,6 +281,7 @@ instance Pretty ArrayIndex' where
 instance Pretty FieldAccess' where
     pretty (PrimaryFieldAccess' exp field)
         = pretty exp <> dot <> text field
+
     pretty (ClassFieldAccess' ty field)
         = dots ty <> dot <> text field
 
@@ -284,8 +305,38 @@ instance Pretty [Modifier'] where
     pretty = hcat . punctuate space . map pretty
 
 instance Pretty Modifier' where
-    pretty Public'    = text "public"
-    pretty Private'   = text "private"
-    pretty Protected' = text "protected"
-    pretty Final'     = text "final"
-    pretty Static'    = text "static"
+    pretty Public'         = text "public"
+    pretty Private'        = text "private"
+    pretty Protected'      = text "protected"
+    pretty Abstract'       = text "abstract"
+    pretty Final'          = text "final"
+    pretty Static'         = text "static"
+    pretty StrictFP'       = text "strictfp"
+    pretty Transient'      = text "transient"
+    pretty Volatile'       = text "volatile"
+    pretty (Annotation' a) = pretty a
+    pretty Synchronized'   = text "synchronized"
+
+instance Pretty Annotation' where
+    pretty (NormalAnnotation' name values)
+        = char '@' <> dots name <> parens (pretty values)
+
+    pretty (SingleElementAnnotation' name value)
+        = char '@' <> dots name <> parens (pretty value)
+
+    pretty (MarkerAnnotation' name)
+        = char '@' <> dots name
+
+instance Pretty AnnotationKeyValues' where
+    pretty = commas
+
+instance Pretty AnnotationKeyValue' where
+    pretty (key, value)
+        = pretty key <+> char '=' <+> pretty value
+
+instance Pretty ElementValue' where
+    pretty (ElementValue' init) 
+        = pretty init
+
+    pretty (ElementAnnotation' annotation)
+        = trace "element annotation" undefined

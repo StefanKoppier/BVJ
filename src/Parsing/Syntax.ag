@@ -326,15 +326,40 @@ deriving MethodInvocation' : Eq, Show
 -- Miscellaneous
 --------------------------------------------------------------------------------
 
+type Modifiers' = [Modifier']
+
 data Modifier'
     | Public'
     | Private'
     | Protected'
+    | Abstract'
     | Final'
     | Static'
+    | StrictFP'
+    | Transient'
+    | Volatile'
+    | Annotation'   annotation :: Annotation'
+    | Synchronized'
 deriving Modifier' : Eq, Show
 
-type Modifiers' = [Modifier']
+type AnnotationKeyValue' = (String, ElementValue')
+
+type AnnotationKeyValues' = [AnnotationKeyValue']
+
+data Annotation'
+    | NormalAnnotation'         name   :: Name'
+                                values :: AnnotationKeyValues'
+
+    | SingleElementAnnotation'  name  :: Name'
+                                value :: ElementValue'
+
+    | MarkerAnnotation'         name  :: Name'
+deriving Annotation' : Eq, Show
+
+data ElementValue'
+    | ElementValue'      init       :: VarInit'
+    | ElementAnnotation' annotation :: Annotation'
+deriving ElementValue' : Eq, Show
 
 type Name' = [String]
 

@@ -3,19 +3,14 @@ module Verification.Phase(
 ) where
     
 import Control.Concurrent.ParallelIO.Local
-import Control.Concurrent
 import Control.Monad
 import System.Command
 import System.Directory
-import System.FilePath.Posix
-import System.IO
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Verification.JBMCResult
 import Parsing.Utility
 import Compilation.CompiledUnit
-
-import Debug.Trace
 
 verificationPhase :: Phase CompiledUnits CProverResults
 verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do

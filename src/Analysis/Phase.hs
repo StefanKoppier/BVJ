@@ -1,8 +1,11 @@
-module Analysis.Phase where
+module Analysis.Phase(
+      analysisPhase
+    , controlFlowAnalysisSubphase
+    , reachabilityAnalysisSubphase
+) where
 
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
-import           Auxiliary.Arguments
 import           Parsing.Syntax
 import           Parsing.Pretty
 import           Analysis.CFA

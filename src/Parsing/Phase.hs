@@ -9,6 +9,8 @@ import Parsing.Utility
 import Auxiliary.Phase
 import Auxiliary.Pretty
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- Parsing phase
 --------------------------------------------------------------------------------
@@ -18,7 +20,9 @@ parsingPhase args content = do
     liftIO $ printHeader "1. PARSING"
     liftIO $ printTitled "Input program" content
     case parser compilationUnit content of 
-        Right program -> syntaxTransformationSubphase args program
+        Right program -> do
+            liftIO $ print program
+            syntaxTransformationSubphase args program
         Left  e       -> throwParsingError (show e)
 
 --------------------------------------------------------------------------------
@@ -133,17 +137,31 @@ transformModifiers :: [Modifier] -> PhaseResult [Modifier']
 transformModifiers = mapM transformModifier
 
 transformModifier :: Modifier -> PhaseResult Modifier'
-transformModifier Public        = pure Public'
-transformModifier Private       = pure Private'
-transformModifier Protected     = pure Protected'
-transformModifier Abstract      = throwSyntacticalError "abstract modifier"
-transformModifier Final         = pure Final'
-transformModifier Static        = pure Static'
-transformModifier StrictFP      = throwSyntacticalError "strictfp modifier"
-transformModifier Transient     = throwSyntacticalError "transient modifier"
-transformModifier Volatile      = throwSyntacticalError "volatile modifier"
-transformModifier Annotation{}  = throwSyntacticalError "annotation"
-transformModifier Synchronized_ = throwSyntacticalError "synchronized modifier"
+transformModifier Public         = pure Public'
+transformModifier Private        = pure Private'
+transformModifier Protected      = pure Protected'
+transformModifier Abstract       = pure Abstract'
+transformModifier Final          = pure Final'
+transformModifier Static         = pure Static'
+transformModifier StrictFP       = pure StrictFP'
+transformModifier Transient      = pure Transient'
+transformModifier Volatile       = pure Volatile'
+transformModifier (Annotation a) = Annotation' <$> transformAnnotation a
+transformModifier Synchronized_  = pure Synchronized'
+
+transformAnnotation :: Annotation -> PhaseResult Annotation'
+transformAnnotation (NormalAnnotation name values)
+    = NormalAnnotation' <$> transformName name <*> mapM (\ (Ident name, v) -> (name,) <$> transformElementValue v) values
+transformAnnotation (SingleElementAnnotation name value)
+    = SingleElementAnnotation' <$> transformName name <*> transformElementValue value
+transformAnnotation (MarkerAnnotation name)
+    = MarkerAnnotation' <$> transformName name
+
+transformElementValue :: ElementValue -> PhaseResult ElementValue'
+transformElementValue (EVVal init) 
+    = ElementValue' <$> transformVarInit init
+transformElementValue (EVAnn annotation) 
+    = ElementAnnotation' <$> transformAnnotation annotation
 
 transformMaybeType :: Maybe Type -> PhaseResult (Maybe Type')
 transformMaybeType (Just ty) = Just <$> transformType ty
