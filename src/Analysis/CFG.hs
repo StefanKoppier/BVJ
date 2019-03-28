@@ -18,6 +18,7 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 
 data CFGNodeValue 
     = Block CompoundStmt' -- ^ The statement of the node.
+    | Catch Catch'        -- ^ The catch of the node.
     | Call  Scope         -- ^ The method that is being called.
             Node          -- ^ The node containing the statement this call belongs to
             Name'         -- ^ The method invocation this call belongs to.

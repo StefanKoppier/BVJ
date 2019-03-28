@@ -18,6 +18,7 @@ instance Pretty CFGContext where
 
 instance Pretty CFGNodeValue where
     pretty (Block s)    = pretty s
+    pretty (Catch c)    = pretty c
     pretty (Call s n _) = "call of"  <+> quotes (pretty s) <+> "belonging to" <+> pretty n
     pretty (Entry s)    = "entry of" <+> quotes (pretty s)
     pretty (Exit s)     = "exit of"  <+> quotes (pretty s)

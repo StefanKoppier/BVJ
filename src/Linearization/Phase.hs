@@ -16,6 +16,8 @@ import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
+import Debug.Trace
+
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
 linearizationPhase Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
     | (Just method)     <- entryMethod
@@ -40,10 +42,10 @@ printInformation verbosity graph = do
         _           -> return ()
 
 clean :: ProgramPath -> ProgramPath
-clean []                   = []
-clean ((Continue' _,i):ps) = (Empty', i) : clean ps
-clean ((Break' _   ,i):ps) = (Empty', i) : clean ps
-clean (s              :ps) = s : clean ps
+clean []                               = []
+clean ((PathStmt (Continue' _), i):ps) = (PathStmt Empty', i) : clean ps
+clean ((PathStmt (Break' _)   , i):ps) = (PathStmt Empty', i) : clean ps
+clean (s:ps)                           = s : clean ps
 
 --------------------------------------------------------------------------------
 -- Program path generation
@@ -70,8 +72,10 @@ paths (_,_,_,_,0,_) _ (_, _, _, _:_)
     = []
 
 -- Case: the final statement.
-paths (_,_,_,ps,_,_)  _ (_,_,Exit _, [])
-    = ps
+paths (_,_,callStack,ps,_,_)  _ (_,_,Exit _, [])
+    = let (method, name, _, _) = fromJust $ S.peek callStack
+          entry = (PathExit $ ETMethod name method, (method, name))
+       in map (entry :) ps
 
 -- Case: the entry of the unknown method.
 paths _ _ (_,_, Entry scope, [])
@@ -79,14 +83,19 @@ paths _ _ (_,_, Entry scope, [])
 
 -- Case: the entry of an method.
 paths (history, manipulations, callStack, ps, k, _) graph@CFG{cfg} (_,_,Entry _,[(_,neighbour)])
-    = let acc' = (history, manipulations, callStack, ps, k, 0)
-       in paths acc' graph (G.context cfg neighbour)
+    = let (method, name, _, _) = fromJust $ S.peek callStack
+          acc1  = (history, manipulations, callStack, ps, k, 0)
+          entry = (PathEntry $ ETMethod name method, (method, name))
+          acc2  = prepend entry False acc1
+       in paths acc2 graph (G.context cfg neighbour)
     
 -- Case: the exit of an method.
 paths (history, manipulations, callStack, ps, k, _) graph@CFG{cfg} (_,_,Exit _,_)
-    = let (_, _, destination, s) = fromJust $ S.peek callStack
-          acc'                   = (history, manipulations, S.pop callStack, ps, k, s)
-       in paths acc' graph (G.context cfg destination)
+    = let (method, name, destination, s) = fromJust $ S.peek callStack
+          acc1                   = (history, manipulations, S.pop callStack, ps, k, s)
+          entry                  = (PathExit $ ETMethod name method, (method, name))
+          acc2                   = prepend entry False acc1
+       in paths acc2 graph (G.context cfg destination)
 
 -- Case: the call of an method.
 paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,node, Call method statNode name, [(_,neighbour)])
@@ -95,18 +104,32 @@ paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_,node, Call
           newName        = renameMethodName method callNumber
           manipulations' = insertManipulation statNode name (method, callNumber) manipulations
           callStack'     = S.push (method, newName, node + 1, s) callStack
-          acc'           = (history', manipulations', callStack', ps, k, s)
-       in paths acc' graph (G.context cfg neighbour)
+          acc1           = (history', manipulations', callStack', ps, k, s)
+       in paths acc1 graph (G.context cfg neighbour)
 
 -- Case: a statement.
 paths acc graph (_, node, Block s, neighbours)
     = concatMap (\ (edge, neighbour) -> next acc s graph (node, neighbour, edge)) neighbours
 
+paths (history, manipulations, callStack, ps, k, s) graph@CFG{cfg} (_, node, Catch (Catch' c _), [(_,neighbour)])
+    = let (scope, callName, _, _) = fromJust $ S.peek callStack
+          metaInfo                = (scope, callName)
+          entries                 = [(PathEntry (ETCatch c), metaInfo), (PathExit ETTry, metaInfo)]
+          acc1                    = (history, manipulations, callStack, map (entries ++) ps, k, s)
+       in paths acc1 graph (G.context cfg neighbour)
+
 next :: PathAccumulator -> CompoundStmt' -> CFG -> CFGEdge -> ProgramPaths
-next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, neighbour, edge) 
-    = let (k', s') = (k-1, s + scopeModificationOfEdge edge)
-          pathInfo = PathStmtInfo{callName=callName', origin=scope', depth=s}
-          acc'     = (history, manipulations', callStack, map ((stat4, pathInfo):) ps, k', s')
+next (history, manipulations, callStack, ps, k, s) Try'{} graph@CFG{cfg} (node, neighbour, edge)
+    = let (scope, callName, _, _) = fromJust $ S.peek callStack
+          metaInfo                = (scope, callName)
+          entry                   = (PathEntry ETTry, metaInfo)
+          acc1                    = (history, manipulations, callStack, map (entry:) ps, k, s)
+       in paths acc1 graph (G.context cfg neighbour)
+
+next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, neighbour, edge)
+    = let (k', s') = (k-1, s)
+          metaInfo = (scope', callName')
+          acc'     = (history, manipulations', callStack, map ((stat4, metaInfo):) ps, k', s')
        in paths acc' graph (G.context cfg neighbour)
     where
         renaming                             = manipulations M.!? node
@@ -114,9 +137,16 @@ next (history, manipulations, callStack, ps, k, s) stat1 graph@CFG{cfg} (node, n
         (scope', callName', _, _)            = fromJust $ S.peek callStack
         stat3 | ConditionalEdge e _ <- edge  = Assume' e
               | (Stmt' stat2)       <- stat1 = stat2
-        (renaming', stat4) = maybe (M.empty, stat3) (runAccumulator (renameStmt stat3)) renaming
+        (renaming', stat4) 
+            = PathStmt <$> maybe (M.empty, stat3) (runAccumulator (renameStmt stat3)) renaming
 
 scopeModificationOfEdge :: CFGEdgeValue -> Int
 scopeModificationOfEdge (InterEdge _ s)       = s
 scopeModificationOfEdge (ConditionalEdge _ s) = s
 scopeModificationOfEdge (IntraEdge s)         = s
+
+prepend :: PathStmt -> Bool -> PathAccumulator -> PathAccumulator
+prepend stat decreaseK (history, manipulations', callStack, ps, k, s)
+    = (history, manipulations', callStack, map (stat:) ps, k', s)
+    where
+        k' = if decreaseK then k-1 else k

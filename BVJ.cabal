@@ -17,7 +17,6 @@ extra-source-files:  src/Analysis/CFA.ag
                    , src/Analysis/CFA/Expression.ag
                    , src/Analysis/CFA/Methods.ag
                    , src/Analysis/CFA/Type.ag
-                   , src/Analysis/CFA/Exception.ag
                    , src/Parsing/Syntax.ag
                    , Makefile
                    , README.md
@@ -43,10 +42,15 @@ library
                        Complete
   other-modules:       Language.Java.Fold
                        Parsing.Utility
+                       Parsing.Fold
                        Analysis.CFA
                        Analysis.CFA.Utility
                        Linearization.Renaming
                        Compilation.Compiler
+                       Compilation.Compiler.Class
+                       Compilation.Compiler.Method
+                       Compilation.Compiler.Statement
+                       Compilation.Compiler.Expression
                        Data.Stack
                        Data.Accumulator
   -- other-extensions:    

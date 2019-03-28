@@ -39,6 +39,9 @@ call n scope statNode name = (n, Call scope statNode name)
 block :: Node -> CompoundStmt' -> CFGNode
 block n s = (n, Block s)
 
+catch :: Node -> Catch' -> CFGNode
+catch n c = (n, Catch c)
+
 entry :: Node -> Scope -> CFGNode
 entry n scope = (n, Entry scope)
 

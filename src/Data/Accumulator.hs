@@ -21,5 +21,8 @@ instance Monad (Accumulator a) where
 getAccumulator :: Accumulator a a
 getAccumulator = Accumulator (\ a -> (a, a))
 
+setAccumulator :: a -> Accumulator a ()
+setAccumulator a = Accumulator (const (a, ()))
+
 updateAccumulator :: (a -> a) -> Accumulator a ()
 updateAccumulator f = Accumulator (\ a -> (f a, ()))

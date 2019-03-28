@@ -12,7 +12,7 @@ include "../Parsing/Syntax.ag"
 attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' MaybeCompoundStmts' 
         CompoundStmts' CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
         MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
-        ArrayIndex' Lhs' FieldAccess' 
+        ArrayIndex' Lhs' FieldAccess' Catches' Catch'
     inh ast :: CompilationUnit'
 
 sem CompilationUnit'
@@ -43,7 +43,6 @@ include "CFA/Statement.ag"
 include "CFA/Methods.ag"
 include "CFA/Type.ag"
 include "CFA/Expression.ag"
-include "CFA/Exception.ag"
 
 --------------------------------------------------------------------------------
 -- Construction of the final control flow graph.

@@ -46,13 +46,6 @@ instance Pretty ClassDecl' where
             pHeader       = pretty inline <+> text "class" <+> text name
             pBody         = lbrace $+$ tab (pretty body) $+$ rbrace
 
-preAndInlineModifiers :: (Modifiers', Modifiers') -> Modifiers' -> (Modifiers', Modifiers')
-preAndInlineModifiers acc []                 = acc
-preAndInlineModifiers (l1, l2) (m@(Annotation' a):ms)
-    = preAndInlineModifiers (l1 ++ [m], l2) ms
-preAndInlineModifiers (l1, l2) (m:ms)
-    = (l1, l2 ++ (m:ms))
-
 instance Pretty Decls' where
     pretty = foldr (($+$) . pretty) empty
 
@@ -61,7 +54,10 @@ instance Pretty Decl' where
 
 instance Pretty MemberDecl' where
     pretty (FieldDecl' modifiers ty var) 
-        = pretty modifiers $+$ pretty ty <+> pretty var <> semi
+        = pPre $+$ pretty inline <+> pretty ty <+> pretty var <> semi
+        where
+            (pre, inline) = preAndInlineModifiers ([], []) modifiers
+            pPre          = foldr (($+$) . pretty) empty pre
 
     pretty (MethodDecl' modifiers ty name params body)
         = pPre $+$ pHeader $+$ pBody
@@ -86,6 +82,14 @@ instance Pretty FormalParam' where
     pretty (FormalParam' modifiers ty name) 
         = pretty modifiers <+> pretty ty <+> pretty name
 
+preAndInlineModifiers :: (Modifiers', Modifiers') -> Modifiers' -> (Modifiers', Modifiers')
+preAndInlineModifiers acc []
+    = acc
+preAndInlineModifiers (l1, l2) (m@(Annotation' a):ms)
+    = preAndInlineModifiers (l1 ++ [m], l2) ms
+preAndInlineModifiers (l1, l2) (m:ms)
+    = (l1, l2 ++ (m:ms))
+        
 --------------------------------------------------------------------------------
 -- Types
 --------------------------------------------------------------------------------

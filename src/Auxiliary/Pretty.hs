@@ -19,7 +19,6 @@ module Auxiliary.Pretty(
 
 import           Text.PrettyPrint
 import qualified System.ProgressBar as PB
---import           Auxiliary.Phase
 
 --------------------------------------------------------------------------------
 -- Verbosity

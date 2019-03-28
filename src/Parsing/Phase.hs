@@ -256,11 +256,10 @@ transformStmt = foldStmt alg
               ,                    compound . Continue' . transformMaybeIdent
               , \ e             -> Stmt' . Return' <$> transformMaybeExp e
               , \ e s           -> throwSyntacticalError "synchronized"
-              , \ e             -> throwSyntacticalError "throw"
-              , \ (Block b) c f -> throwSyntacticalError "try catch"
+              , \ e             -> Stmt' . Throw' <$> transformExp e
+              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f 
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
-
         labelize l (While' _ g s) = While' l g s
 
 -- | Transforms a for loop into a an equivalent while loop.

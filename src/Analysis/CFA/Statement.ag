@@ -60,6 +60,10 @@ sem CompoundStmts'
     | Nil   lhs .init  = noNode
                 .final = [(noNode, undefined)]
 
+sem MaybeCompoundStmts'
+    | Nothing   lhs.init  = noNode
+                   .final = []
+
 --------------------------------------------------------------------------------
 -- Compound statements.
 --------------------------------------------------------------------------------
@@ -135,17 +139,23 @@ sem CompoundStmt'
                          .previous = []
 
     | Try'          lhs     .label  = @finally.label
-                            .init   = @stat.init
+                            .init   = block (new @lhs.label) @self
                             .final  = case @finally.self of 
-                                         Nothing -> @stat.final ++ @catches.final
+                                         Nothing -> @catches.final
                                          _       -> @finally.final
-                            .nodes  = @stat.nodes ++ @catches.nodes ++ @finally.nodes
-                            .edges  = -- Edges from final of try block to final 
-                                      intraEdges @stat.final @finally.init 0
-                                      ++ -- Edges from final of catch block(s) to final
-                                      intraEdges @catches.final @finally.init 0
-                                      ++ @stat.edges ++ @catches.edges ++ @finally.edges
-                    stat    .label  = @lhs.label
+                            .nodes  = let self    = block (new @lhs.label) @self in
+                                        self : @stat.nodes ++ @catches.nodes ++ @finally.nodes
+                            .edges  = let self = block (new @lhs.label) @self in
+                                        -- Edge from self to init of stat
+                                        intraEdge self @stat.init 1
+                                        ++ -- Edge from final of stat to init of catches
+                                        intraEdges @stat.final @catches.init 0
+                                        -- ++ -- Edges from final of try block to finally 
+                                        -- intraEdges @stat.final @finally.init 0
+                                        ++ -- Edges from final of catch block(s) to finally
+                                        intraEdges @catches.final @finally.init 0
+                                        ++ @stat.edges ++ @catches.edges ++ @finally.edges
+                    stat    .label  = new @lhs.label
                     catches .label  = @stat.label
                     finally .label  = @catches.label
 
@@ -178,6 +188,9 @@ sem Catches'
                 .init   = @hd.init
                 .final  = if [] == @tl.final
                             then @hd.final else @tl.final
+                .edges  = if noNode == @tl.init
+                            then @hd.edges
+                            else @hd.edges ++ intraEdges @hd.final @tl.init 0
             hd  .label  = @lhs.label
 
     | Nil   lhs .final  = []
@@ -185,9 +198,13 @@ sem Catches'
 
 sem Catch'
     | Catch'    lhs .label  = @body.label
-                    .init   = @body.init
+                    .init   = catch (new @lhs.label) @self
                     .final  = @body.final
-                body.label  = @lhs.label
+                    .nodes  = let self = catch (new @lhs.label) @self in
+                                self : @body.nodes
+                    .edges  = let self = catch (new @lhs.label) @self in
+                                intraEdge self @body.init 1
+                body.label  = new @lhs.label
 
 --------------------------------------------------------------------------------
 -- Statements.

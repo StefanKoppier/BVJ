@@ -6,14 +6,16 @@ import System.Command
 import System.Exit
 import System.IO
 import Data.List
-import Data.Maybe
 import Data.Function         (on)
 import Auxiliary.Phase
 import Parsing.Syntax
 import Parsing.Utility
+import Parsing.Fold
 import Auxiliary.Pretty
 import Linearization.Path
 import Compilation.CompiledUnit
+import Compilation.Compiler.Class
+import Compilation.Compiler.Method
 
 import Debug.Trace
 
@@ -37,48 +39,12 @@ create progress program dir id = do
 
 build :: CompilationUnit' -> ProgramPath -> PhaseResult CompilationUnit'
 build unit@(CompilationUnit' package originalImports _) path = do
-    let classGroups = (groupBy ((==) `on` className) . sortOn (callName . snd)) path
+    let classGroups = (groupBy ((==) `on` className) . sortOn (snd . snd)) path
     classes <- mapM (buildClass unit) classGroups
     let imports = defaultImports ++ originalImports
     return $ CompilationUnit' package imports classes
     where
         defaultImports = [ImportDecl' False ["org", "cprover"] True]
-
-buildClass :: CompilationUnit' -> [PathStmt] -> PhaseResult TypeDecl'
-buildClass unit path = do
-    let methodGroups = (groupBy ((==) `on` (callName . snd)) . sortOn (callName . snd)) path
-    methods <- mapM (buildMethod unit) methodGroups
-    let fields = [f | f@(MemberDecl' FieldDecl'{}) <- members]
-    let members = fields ++ methods
-    return (ClassTypeDecl' (ClassDecl' modifiers name members))
-    where
-        name                             = className (head path)
-        (ClassDecl' modifiers _ members) = fromJust $ findClass name unit
-
-buildMethod :: CompilationUnit' -> [PathStmt] -> PhaseResult Decl'
-buildMethod unit path = do
-    let name = callName . snd . head $ path
-    let body = map (Stmt' . fst) path
-    case method of
-        MethodDecl' modifiers ty _ params _
-            -> return (MemberDecl' (MethodDecl' modifiers ty name params body))
-        ConstructorDecl' modifiers _ params _
-            -> return (MemberDecl' (ConstructorDecl' modifiers name params body))
-    where
-        scope  = (origin . snd . head) path
-        method = fromJust $ getMethod unit scope
-
-className :: PathStmt -> String
-className (_,PathStmtInfo{origin})
-    = c
-    where
-        (Scope _ c _) = origin
-  
-methodName :: PathStmt -> String
-methodName (_,PathStmtInfo{origin})
-    = m
-    where
-        (Scope _ _ m) = origin
 
 --------------------------------------------------------------------------------
 -- Java compiler and jar calls
