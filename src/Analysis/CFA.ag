@@ -5,6 +5,7 @@ import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Parsing.Utility
 import           Analysis.CFA.Utility
+import           Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"
@@ -52,7 +53,7 @@ attr    CompilationUnit'
     syn cfg :: {CFG}
 
 sem CompilationUnit'
-    | CompilationUnit' lhs.cfg = constructCFG (unknownNode : @decls.nodes) @decls.edges
+    | CompilationUnit' lhs.cfg = constructCFG @decls.nodes @decls.edges
 
 {
 cfgOfCompilationUnit :: CompilationUnit' -> CFG

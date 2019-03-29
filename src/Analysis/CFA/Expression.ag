@@ -47,19 +47,23 @@ sem Exp'
     | This'             lhs .init   = noNode
                             .final  = []
 
-    | InstanceCreation' lhs .label = new @args.label
-                            .init  = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+    | InstanceCreation' lhs .label = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
+                                            if unknownScope == scope then @args.label else new @args.label
+                            .init  = let scope    = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self
+                                         callNode = call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self) in
                                         if noNode == @args.init
-                                            then call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self)
+                                            then if null callNode
+                                                    then noNode
+                                                    else head $ callNode
                                             else @args.init 
                             .final = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
-                                        [(call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self), 0)]
+                                        map (,0) (call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self))
                             .nodes = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
-                                        call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self) : @args.nodes
+                                        call (new @args.label) scope @lhs.statNode (nameOfClassType @ty.self) ++ @args.nodes
                             .edges = let scope = getScopeOfCreation @lhs.ast Nothing @lhs.className @lhs.types @self in
                                         -- Inter edge from the call to the entry
                                         callEdge (new @args.label, scope) @lhs.methods
-                                        : -- Inter edge from the exit to the next node
+                                        ++ -- Inter edge from the exit to the next node
                                         returnEdge (scope, new (new @args.label))  @lhs.methods
                                         ++ @args.edges
                         args.label = @lhs.label
@@ -95,44 +99,53 @@ sem Exp'
                         exp2 .label = @exp1.label
 
 sem MethodInvocation'
-    | MethodCall' lhs.label  = new @args.label
-                     .init   = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
-                                    if noNode == @args.init
-                                        then call (new @args.label) scope @lhs.statNode @name.self
+    | MethodCall' lhs.label  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
+                                    if unknownScope == scope then @args.label else new @args.label
+                     .init   = let scope    = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self
+                                   callNode = call (new @args.label) scope @lhs.statNode @name.self in
+                                    if trace (show callNode) (noNode == @args.init)
+                                        then if null callNode
+                                                    then noNode
+                                                    else head $ callNode
                                         else @args.init
                      .final  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
-                                    [(call (new @args.label) scope @lhs.statNode @name.self, 0)]
+                                    map (,0) (call (new @args.label) scope @lhs.statNode @name.self)
                      .nodes  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
-                                    call (new @args.label) scope @lhs.statNode @name.self : @args.nodes
+                                    call (new @args.label) scope @lhs.statNode @name.self ++ @args.nodes
                      .edges  = let scope = getScopeOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @name.self in
                                     -- Inter edge from the call to the entry
                                     callEdge (new @args.label, scope) @lhs.methods
-                                    : -- Inter edge from the exit to the next node
+                                    ++ -- Inter edge from the exit to the next node
                                     returnEdge (scope, new (new @args.label))  @lhs.methods
                                     -- The edges of the call arguments.
                                     ++ @args.edges
                   args.label = @lhs.label
 
-    | PrimaryMethodCall' lhs .label = new @args.label
-                             .init  = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+    | PrimaryMethodCall' lhs .label = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
+                                            if unknownScope == scope then @args.label else new @args.label
+                             .init  = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
+                                          scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name]
+                                          callNode  = call (new @args.label) scope @lhs.statNode [@name] in
                                             if noNode == @exp.init
                                                 then if noNode == @args.init
-                                                        then call (new @args.label) scope @lhs.statNode [@name]
+                                                        then if null callNode
+                                                                then noNode
+                                                                else head $ callNode
                                                         else @args.init
                                                 else @exp.init
                              .final = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
-                                            [(call (new @args.label) scope @lhs.statNode [@name], 0)]
+                                            map ((,0)) (call (new @args.label) scope @lhs.statNode [@name])
                              .nodes = let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                           scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
                                             call (new @args.label) scope @lhs.statNode [@name]
-                                            : @exp.nodes ++ @args.nodes
+                                            ++ @exp.nodes ++ @args.nodes
                              .edges =  let className = getResultClassNameOfInvocation @lhs.ast Nothing @lhs.className @lhs.types @exp.self
                                            scope     = getScopeOfInvocation @lhs.ast Nothing className @lhs.types [@name] in
                                             -- Inter edge from the call to the entry
                                             callEdge (new @args.label, scope) @lhs.methods
-                                            : -- Inter edge from the exit to the next node
+                                            ++ -- Inter edge from the exit to the next node
                                             returnEdge (scope, new (new @args.label)) @lhs.methods
                                             -- The edges of the exp and call arguments.
                                             ++ @exp.edges ++ @args.edges

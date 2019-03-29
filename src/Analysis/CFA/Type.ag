@@ -80,8 +80,12 @@ getResultClassNameOfInvocation unit package className types (MethodInv' (Primary
        in resultName
 
 getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope
-getScopeOfInvocation _ package className _ [name]
-    = Scope package className name
+getScopeOfInvocation _ package className types [name]
+    | Just _ <- ty = scope
+    | otherwise    = unknownScope
+    where
+        scope = Scope package className name
+        ty    = types M.!? scope
 
 getScopeOfInvocation ast package className types (name:names)
     | (Just _) <- findClass name ast 

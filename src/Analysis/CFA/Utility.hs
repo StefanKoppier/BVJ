@@ -21,11 +21,11 @@ caseCondExp e1 _ (SwitchBlock' (Just e2) _)
 unknownScope :: Scope
 unknownScope = Scope Nothing "UNKNOWN" "UNKNOWN"
 
-unknownNode :: (Node, CFGNodeValue)
-unknownNode = (-1, Entry unknownScope)
+--unknownNode :: (Node, CFGNodeValue)
+--unknownNode = (-1, Entry unknownScope)
 
 noNode :: (Node, CFGNodeValue)
-noNode = (-2, undefined)
+noNode = (-1, undefined)
 
 new :: Node -> Node
 new = (1+)
@@ -33,8 +33,10 @@ new = (1+)
 newIfJust :: Maybe a -> Node -> Node
 newIfJust = maybe id (const new)
 
-call :: Node -> Scope -> Node -> Name' -> CFGNode
-call n scope statNode name = (n, Call scope statNode name)
+call :: Node -> Scope -> Node -> Name' -> CFGNodes
+call n scope statNode name 
+    | unknownScope == scope = []
+    | otherwise             = [(n, Call scope statNode name)]
 
 block :: Node -> CompoundStmt' -> CFGNode
 block n s = (n, Block s)
@@ -70,21 +72,21 @@ intraEdges xs' y s
     where
         xs = map fst xs'
 
-callEdge :: (Node, Scope) -> Methods -> CFGEdge
+callEdge :: (Node, Scope) -> Methods -> CFGEdges
 callEdge (node, scope) methods
-    | scope == unknownScope
-        = (node, fst unknownNode, InterEdge unknownScope 0)
+--    | scope == unknownScope
+--        = []--(node, fst unknownNode, InterEdge unknownScope 0)
     | Just method' <- method
-        = (node, fst method', InterEdge scope 0)
+        = [(node, fst method', InterEdge scope 0)]
     | Nothing  <- method
-        = (node, fst unknownNode, InterEdge unknownScope 0)
+        = [] --(node, fst unknownNode, InterEdge unknownScope 0)
     where
         method = methods M.!? scope
 
 returnEdge :: (Scope, Node) -> Methods -> CFGEdges
 returnEdge (scope, node) methods
-    | scope == unknownScope
-        = []
+--    | scope == unknownScope
+--        = []
     | Just method' <- method
         = [(snd method', node, InterEdge scope 0)]
     | Nothing      <- method
