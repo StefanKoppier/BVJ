@@ -18,16 +18,20 @@ import           Auxiliary.Pretty
 
 import Debug.Trace
 
+--------------------------------------------------------------------------------
+-- Linearization phase
+--------------------------------------------------------------------------------
+
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
-linearizationPhase Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
+linearizationPhase args@Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
     | (Just method)     <- entryMethod
     , (Just (entry, _)) <- entryOfMain graph = do
         liftIO $ printInformation verbosity graph
         let history   = M.fromList [(n, 0) | (_,Entry n) <- G.labNodes cfg]
         let callStack = S.singleton (method, "main", -1, 0)
         let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
-        let ps        = paths acc graph (G.context cfg entry)
-        return . map (clean . reverse) $ ps
+        let ps        = map (clean . reverse) $ paths acc graph (G.context cfg entry)
+        filteringPhase args (unit, ps)
     | otherwise = do
         liftIO $ printInformation verbosity graph
         throwSemanticalError (UndefinedMethodReference ["main"])
@@ -46,6 +50,12 @@ clean []                               = []
 clean ((PathStmt (Continue' _), i):ps) = (PathStmt Empty', i) : clean ps
 clean ((PathStmt (Break' _)   , i):ps) = (PathStmt Empty', i) : clean ps
 clean (s:ps)                           = s : clean ps
+
+-- | Placeholder subphase to allow filtering of specific program paths.
+-- currently implemented as doing nothing.
+filteringPhase :: Subphase (CompilationUnit', ProgramPaths) ProgramPaths
+filteringPhase _ (unit, paths)
+    = return paths
 
 --------------------------------------------------------------------------------
 -- Program path generation
