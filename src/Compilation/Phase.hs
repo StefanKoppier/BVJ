@@ -4,11 +4,13 @@ module Compilation.Phase(
 ) where
 
 import Control.Concurrent.ParallelIO.Local
+import Control.Monad
 import Data.Dates
 import System.Directory
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Linearization.Path
+import Linearization.Pretty
 import Compilation.Compiler
 import Parsing.Syntax
 import Data.Accumulator
@@ -23,9 +25,10 @@ compilationPhase args@Arguments{verbosity} (unit, paths) = do
 printInformation :: Verbosity -> ProgramPaths -> IO ()
 printInformation verbosity paths = do
     printHeader "4. COMPILATION"
-    printText $ "Compiling " ++ show (length paths) ++ " program paths"
+    printText $ "Compiling " ++ show (length paths) ++ " program path(s)."
     case verbosity of
-        Informative -> printPretty paths
+        Informative -> unless (null paths) 
+                            (printPretty paths)
         _           -> return ()   
 
 runAsync :: Arguments -> CompilationUnit' -> ProgramPaths -> IO (Either PhaseError CompiledUnits)

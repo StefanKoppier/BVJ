@@ -14,14 +14,16 @@ import Compilation.CompiledUnit
 
 verificationPhase :: Phase CompiledUnits CProverResults
 verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do
-    liftIO $ printInformation verbosity
+    liftIO $ printInformation verbosity programs
     let results = liftIO $ runAsync args programs
     unless keepOutputFiles
         (liftIO removeWorkingDir)
     ExceptT results
     
-printInformation :: Verbosity -> IO ()
-printInformation _ = printHeader "5. VERIFICATION"
+printInformation :: Verbosity -> CompiledUnits -> IO ()
+printInformation _ compiledUnits = do
+    printHeader "5. VERIFICATION"
+    printText ("Verifying " ++ show (length compiledUnits) ++ " program(s).")
 
 runAsync :: Arguments -> CompiledUnits -> IO (Either PhaseError CProverResults)
 runAsync args@Arguments{numberOfThreads} programs = do
@@ -53,8 +55,13 @@ jbmc file mainClass args = do
                    , "--xml-ui"
                    , "--main-class", mainClass
                    ]
-                   ++ ["--no-assertions" | not $ enableAssertions args]
-                   ++ unwindArg (maximumUnwind args)
+                   ++ ["--no-assertions" | not $ jbmcEnableAssertions args]
+                   ++ depthArg  (jbmcDepth args)
+                   ++ unwindArg (jbmcUnwind args)
+
+depthArg :: Maybe Int -> [String]
+depthArg Nothing  = []
+depthArg (Just n) = ["--depth", show n]
 
 unwindArg :: Maybe Int -> [String]
 unwindArg Nothing  = []

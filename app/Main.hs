@@ -16,9 +16,9 @@ arguments :: Arguments
 arguments = defaultArgs {
       verbosity       = Informative {-Compact-}
     , numberOfThreads = 4
-    , maximumDepth    = 20
-    , maximumUnwind   = Nothing
     , keepOutputFiles = True
+    , maximumDepth    = 40
+    , pathFilter      = const id
     }
 
 main :: IO ()

@@ -31,7 +31,10 @@ linearizationPhase args@Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg}
         let callStack = S.singleton (method, "main", -1, 0)
         let acc       = (history, M.empty, callStack, [[]], maximumDepth, 0)
         let ps        = map (clean . reverse) $ paths acc graph (G.context cfg entry)
-        filteringPhase args (unit, ps)
+        liftIO $ printText ("Generated " ++ show (length ps) ++ " program path(s).")
+        filteredPs <- filteringPhase args (unit, ps)
+        liftIO $ printText ("After filtering " ++ show (length filteredPs) ++ " program path(s) remain.")
+        return filteredPs
     | otherwise = do
         liftIO $ printInformation verbosity graph
         throwSemanticalError (UndefinedMethodReference ["main"])
@@ -51,11 +54,10 @@ clean ((PathStmt (Continue' _), i):ps) = (PathStmt Empty', i) : clean ps
 clean ((PathStmt (Break' _)   , i):ps) = (PathStmt Empty', i) : clean ps
 clean (s:ps)                           = s : clean ps
 
--- | Placeholder subphase to allow filtering of specific program paths.
--- currently implemented as doing nothing.
+-- | Subphase allowing filtering of paths.
 filteringPhase :: Subphase (CompilationUnit', ProgramPaths) ProgramPaths
-filteringPhase _ (unit, paths)
-    = return paths
+filteringPhase Arguments{pathFilter} (unit, paths)
+    = return (pathFilter unit paths)
 
 --------------------------------------------------------------------------------
 -- Program path generation

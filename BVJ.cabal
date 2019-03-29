@@ -31,6 +31,7 @@ library
                        Analysis.Pretty
                        Linearization.Phase
                        Linearization.Path
+                       Linearization.Pretty
                        Compilation.Phase
                        Compilation.CompiledUnit
                        Verification.Phase
