@@ -26,3 +26,10 @@ setAccumulator a = Accumulator (const (a, ()))
 
 updateAccumulator :: (a -> a) -> Accumulator a ()
 updateAccumulator f = Accumulator (\ a -> (f a, ()))
+
+keepOldAccumulator :: Accumulator a b -> Accumulator a b
+keepOldAccumulator f = do
+    acc    <- getAccumulator
+    result <- f
+    setAccumulator acc
+    return result

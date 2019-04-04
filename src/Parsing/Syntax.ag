@@ -368,5 +368,3 @@ data Scope
             scopeClass   :: {String}
             scopeMember  :: {String}
 deriving Scope : Show, Eq, Ord
-
-type ProgramPath' = [Stmt']

@@ -19,11 +19,16 @@ import Compilation.Compiler.Method
 
 import Debug.Trace
 
-compile :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> PhaseResult CompiledUnit
+compile :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
 compile progress unit dir id path = do
-    program <- build unit path
-    file    <- create progress program dir id
-    return (program, file)
+    program <- runExceptT $ build unit path
+    case program of
+        Left  fProgram -> return $ Left fProgram
+        Right sProgram -> do
+            file <- runExceptT $ create progress sProgram dir id
+            case file of
+                Left  fFile -> return $ Left fFile
+                Right sFile -> return $ Right (sProgram, sFile)
 
 create :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> PhaseResult FilePath
 create progress program dir id = do
@@ -32,8 +37,8 @@ create progress program dir id = do
     let jarPath     = actualDir ++ "/Program.jar"
     liftIO $ createDirectory (dropFileName programPath)
     liftIO $ writeFile programPath (toString program)
-    javac programPath
-    jar jarPath
+    liftIO $ javac programPath
+    liftIO $ jar jarPath
     liftIO $ incProgress progress
     return jarPath
 
@@ -50,12 +55,12 @@ build unit@(CompilationUnit' package originalImports _) path = do
 -- Java compiler and jar calls
 --------------------------------------------------------------------------------
 
-javac :: FilePath -> PhaseResult ()
+javac :: FilePath -> IO (Either PhaseError ())
 javac file = do
-    (Stdout _, Exit e, Stderr _) <- liftIO $ command [] "javac" args
+    (Stdout _, Exit e, Stderr _) <- command [] "javac" args
     case e of
-        ExitSuccess   -> return ()
-        ExitFailure _ -> throwExternalError "java compilation to bytecode (javac) failed"
+        ExitSuccess   -> return $ Right ()
+        ExitFailure _ -> return $ Left (ExternalError "java compilation to bytecode (javac) failed")
     where
         dir  = dropFileName file
         args = [ file
@@ -63,12 +68,12 @@ javac file = do
                , "-classpath", "./lib/core-models.jar"
                ]
 
-jar :: FilePath -> PhaseResult ()
+jar :: FilePath -> IO (Either PhaseError ())
 jar file = do
-    (Stdout _, Exit e, Stderr _) <- liftIO $ command [Cwd dir] "jar" args
+    (Stdout _, Exit e, Stderr _) <- command [Cwd dir] "jar" args
     case e of
-        ExitSuccess   -> return ()
-        ExitFailure _ -> throwExternalError "jar creation (jar) failed."
+        ExitSuccess   -> return $ Right ()
+        ExitFailure _ -> return $ Left (ExternalError "jar creation (jar) failed.")
     where
         dir = dropFileName file
         args = [ "cfe"

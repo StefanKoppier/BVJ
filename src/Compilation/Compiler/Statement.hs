@@ -10,92 +10,204 @@ import Compilation.CompiledUnit
 import Debug.Trace
 
 --------------------------------------------------------------------------------
+-- Method block building
+--------------------------------------------------------------------------------
+
+buildStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator CompoundStmts'
+buildStmts _ [] 
+    = return []
+
+buildStmts statBuilder (PathStmt Empty':stats) 
+    = buildStmts statBuilder stats
+
+buildStmts statBuilder (PathStmt stat:stats) = do
+    stat'  <- statBuilder stat
+    stats' <- buildStmts statBuilder stats
+    return (stat' : stats')
+
+buildStmts statBuilder (entry@(PathEntry (ConditionalEntryType e)):stats) = do
+    let index = findIndex 0 0 entry stats
+    let (blockBody, restStats) = splitAt index stats
+    block <- keepOldAccumulator (Block' <$> buildStmts statBuilder blockBody)
+    restStats' <- buildStmts statBuilder restStats
+    return (block : restStats')
+    
+buildStmts statBuilder (entry@(PathEntry BlockEntryType):stats) = do
+    let index                  = findIndex 0 0 entry stats
+    let (blockBody, restStats) = splitAt index stats
+    block <- keepOldAccumulator (Block' <$> buildStmts statBuilder blockBody)
+    restStats' <- buildStmts statBuilder restStats
+    return (block : restStats')
+
+buildStmts statBuilder stats@(entry@(PathEntry TryEntryType):_) = do
+    (try, restStats) <- keepOldAccumulator (buildTryCatchStmts statBuilder stats)
+    restStats'       <- buildStmts statBuilder restStats
+    return (try : restStats')
+
+buildStmts statBuilder (PathExit _:stats) 
+    = buildStmts statBuilder stats
+
+buildStmts statBuilder (PathExitEntry _ entry:stats)
+    = buildStmts statBuilder (PathEntry entry:stats)
+
+buildTryCatchStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (CompoundStmt', [PathType])
+buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
+    let index                = findIndex 0 0 entry stats
+    let (tryBody, restStats) = splitAt index stats
+    try              <- keepOldAccumulator (buildStmts statBuilder tryBody)
+    (catches, rest1) <- keepOldAccumulator (buildCatches statBuilder restStats)
+    (finally, rest2) <- keepOldAccumulator (buildFinally statBuilder rest1)
+    return (Try' try catches finally, rest2)
+
+buildCatches :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (Catches', [PathType])
+buildCatches statBuilder (ty@(PathExitEntry _ (CatchEntryType (Just e))):stats) = do
+    let index                  = findIndex 0 0 ty stats
+    let (catchBody, restStats) = splitAt index stats
+    catchStats <- keepOldAccumulator (buildStmts statBuilder catchBody)
+    let catch = Catch' e catchStats
+    (catches, restStats2) <- keepOldAccumulator (buildCatches statBuilder restStats)
+    return (catch:catches, restStats2)
+
+buildCatches _ stats = return ([], stats)
+
+buildFinally :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (MaybeCompoundStmts', [PathType])
+buildFinally statBuilder (ty@(PathExitEntry exit FinallyEntryType):stats) = do
+    let index                    = findIndex  0 0 ty stats
+    let (finallyBody, restStats) = splitAt index stats
+    finallyStats <- keepOldAccumulator (buildStmts statBuilder finallyBody)
+    let finally = Just finallyStats
+    return (finally, restStats)
+
+buildFinally _ stats = return (Nothing, stats)
+
+-- TODO: improve, very ugly function, but it works for now.
+findIndex :: Int -> Int -> PathType -> [PathType] -> Int
+findIndex _ _ _ [] = trace "no according exit block found" undefined
+
+findIndex x i (PathEntry ty) (PathStmt _:rest)
+    = findIndex x (i+1) (PathEntry ty) rest
+
+findIndex x i (PathEntry ty) (PathEntry entry:rest)
+    | ty == entry = findIndex (x+1) (i+1) (PathEntry ty) rest 
+    | otherwise   = findIndex x (i+1) (PathEntry ty) rest
+
+findIndex x i (PathEntry ty) (PathExit exit:rest)
+    | ty == exit && x == 0 = i 
+    | ty == exit           = findIndex (x-1) (i+1) (PathEntry ty) rest
+    | otherwise            = findIndex x (i+1) (PathEntry ty) rest
+ 
+findIndex x i (PathEntry ty) (PathExitEntry exit entry:rest)
+    | ty == exit && x == 0      = i
+    | ty == exit && ty == entry = findIndex x (i+1) (PathEntry ty) rest
+    | ty == exit                = findIndex (x-1) (i+1) (PathEntry ty) rest
+    | ty == entry               = findIndex (x+1) (i+1) (PathEntry ty) rest
+    | otherwise                 = findIndex x (i+1) (PathEntry ty) rest
+
+findIndex x i (PathExitEntry exit ty) (PathStmt _:rest)
+    = findIndex x (i+1) (PathExitEntry exit ty) rest
+
+findIndex x i (PathExitEntry exit ty) (PathEntry entry:rest)
+    | ty == entry = findIndex (x+1) (i+1) (PathExitEntry exit ty) rest 
+    | otherwise   = findIndex x (i+1) (PathExitEntry exit ty) rest
+
+findIndex x i (PathExitEntry exit' ty) (PathExit exit:rest)
+    | ty == exit && x == 0 = i 
+    | ty == exit           = findIndex (x-1) (i+1) (PathExitEntry exit' ty) rest
+    | otherwise            = findIndex x (i+1) (PathExitEntry exit' ty) rest
+ 
+findIndex x i (PathExitEntry exit' ty) (PathExitEntry exit entry:rest)
+    | ty == exit && x == 0      = i
+    | ty == exit && ty == entry = findIndex x (i+1) (PathExitEntry exit' ty) rest
+    | ty == exit                = findIndex (x-1) (i+1) (PathExitEntry exit' ty) rest
+    | ty == entry               = findIndex (x+1) (i+1) (PathExitEntry exit' ty) rest
+    | otherwise                 = findIndex x (i+1) (PathExitEntry exit' ty) rest
+
+--------------------------------------------------------------------------------
 -- Method statement building
 --------------------------------------------------------------------------------
 
-buildMethodStmt :: PathStmt -> MethodAccumulator CompoundStmt'
-buildMethodStmt (PathStmt s, _) = buildMethodStmt' s
-buildMethodStmt x               = trace (show x) undefined
-
-buildMethodStmt' (Decl' modifiers ty vars)
-    = Stmt' . Decl' modifiers ty <$> mapM buildMethodDecl vars
-buildMethodStmt' Empty'
+buildMethodStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundStmt'
+buildMethodStmt unit (Decl' modifiers ty vars)
+    = Stmt' . Decl' modifiers ty <$> mapM (buildMethodDecl unit) vars
+buildMethodStmt _ Empty'
     = return $ Stmt' Empty'
-buildMethodStmt' (ExpStmt' exp) = do
+buildMethodStmt unit (ExpStmt' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (ExpStmt' (buildMethodExp locals exp))
-buildMethodStmt' (Assert' exp message) = do
+    return $ Stmt' (ExpStmt' (buildMethodExp unit locals exp))
+buildMethodStmt unit (Assert' exp message) = do
     locals <- getAccumulator
-    return $ Stmt' (Assert' (buildMethodExp locals exp) message)
-buildMethodStmt' (Assume' exp) = do
+    return $ Stmt' (Assert' (buildMethodExp unit locals exp) message)
+buildMethodStmt unit (Assume' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (Assume' (buildMethodExp locals exp))
-buildMethodStmt' (Return' (Just exp)) = do
+    return $ Stmt' (Assume' (buildMethodExp unit locals exp))
+buildMethodStmt unit (Return' (Just exp)) = do
     locals <- getAccumulator
-    return $ Stmt' (Return' (Just (buildMethodExp locals exp)))
-buildMethodStmt' (Return' Nothing) =
+    return $ Stmt' (Return' (Just (buildMethodExp unit locals exp)))
+buildMethodStmt _ (Return' Nothing) =
     return $ Stmt' (Return' Nothing)
-buildMethodStmt' (Throw' exp) = do
+buildMethodStmt unit (Throw' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (Throw' (buildMethodExp locals exp))
+    return $ Stmt' (Throw' (buildMethodExp unit locals exp))
     
-buildMethodDecl :: VarDecl' -> MethodAccumulator VarDecl'
-buildMethodDecl (VarDecl' id init) 
-    = VarDecl' id <$> buildMethodVarInit init
+buildMethodDecl :: CompilationUnit' -> VarDecl' -> MethodAccumulator VarDecl'
+buildMethodDecl unit (VarDecl' id init) 
+    = VarDecl' id <$> buildMethodVarInit unit init
 
-buildMethodVarInit :: VarInit' -> MethodAccumulator VarInit'
-buildMethodVarInit (InitExp' exp) = do
+buildMethodVarInit :: CompilationUnit' -> VarInit' -> MethodAccumulator VarInit'
+buildMethodVarInit unit (InitExp' exp) = do
     locals <- getAccumulator
-    return $ InitExp' (buildMethodExp locals exp)
+    return $ InitExp' (buildMethodExp unit locals exp)
     
-buildVarInit (InitArray' Nothing) 
+buildVarInit _ (InitArray' Nothing) 
     = return $ InitArray' Nothing
     
-buildVarInit (InitArray' (Just inits)) 
-    = InitArray' . Just <$> mapM buildMethodVarInit inits
+buildVarInit unit (InitArray' (Just inits)) 
+    = InitArray' . Just <$> mapM (buildMethodVarInit unit) inits
 
 --------------------------------------------------------------------------------
 -- Constructor statement building
 --------------------------------------------------------------------------------
     
-buildConstructorStmt :: PathStmt -> MethodAccumulator CompoundStmt'
-buildConstructorStmt (PathStmt s, _) = buildConstructorStmt' s
-buildConstructorStmt x               = trace (show x) undefined
+{-
+buildConstructorStmt :: CompilationUnit' -> PathStmt -> MethodAccumulator CompoundStmt'
+buildConstructorStmt unit (PathStmt s, _) = buildConstructorStmt' unit s
+buildConstructorStmt _ x                  = trace (show x) undefined
+-}
 
-buildConstructorStmt' :: Stmt' -> MethodAccumulator CompoundStmt'
-buildConstructorStmt' (Decl' modifiers ty vars) = do
-    vars' <- mapM buildConstructorDecl vars
+buildConstructorStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundStmt'
+buildConstructorStmt unit (Decl' modifiers ty vars) = do
+    vars' <- mapM (buildConstructorDecl unit) vars
     return $ Stmt' (Decl' modifiers ty vars')
-buildConstructorStmt' Empty'
+buildConstructorStmt _ Empty'
     = return (Stmt' Empty')
-buildConstructorStmt' (ExpStmt' exp) = do
+buildConstructorStmt unit (ExpStmt' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (ExpStmt' (buildConstructorExp locals exp))
-buildConstructorStmt' (Assert' exp message) = do
+    return $ Stmt' (ExpStmt' (buildConstructorExp unit locals exp))
+buildConstructorStmt unit (Assert' exp message) = do
     locals <- getAccumulator
-    return $ Stmt' (Assert' (buildConstructorExp locals exp) message)
-buildConstructorStmt' (Assume' exp) = do
+    return $ Stmt' (Assert' (buildConstructorExp unit locals exp) message)
+buildConstructorStmt unit (Assume' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (Assume' (buildConstructorExp locals exp))
-buildConstructorStmt' (Return' _)
+    return $ Stmt' (Assume' (buildConstructorExp unit locals exp))
+buildConstructorStmt _ (Return' _)
     = return $ Stmt' (Return' (Just (ExpName' ["_thisObj__"])))
-buildConstructorStmt' (Throw' exp) = do
+buildConstructorStmt unit (Throw' exp) = do
     locals <- getAccumulator
-    return $ Stmt' (Throw' (buildConstructorExp locals exp))
+    return $ Stmt' (Throw' (buildConstructorExp unit locals exp))
     
-buildConstructorDecl :: VarDecl' -> MethodAccumulator VarDecl'
-buildConstructorDecl (VarDecl' id init) = do
+buildConstructorDecl :: CompilationUnit' -> VarDecl' -> MethodAccumulator VarDecl'
+buildConstructorDecl unit (VarDecl' id init) = do
     updateAccumulator (id:)
-    init' <- buildConstructorVarInit init
+    init' <- buildConstructorVarInit unit init
     return (VarDecl' id init')
 
-buildConstructorVarInit :: VarInit' -> MethodAccumulator VarInit'
-buildConstructorVarInit (InitExp' exp) = do
+buildConstructorVarInit :: CompilationUnit' -> VarInit' -> MethodAccumulator VarInit'
+buildConstructorVarInit unit (InitExp' exp) = do
     locals <- getAccumulator
-    return $ InitExp' (buildConstructorExp locals exp)
+    return $ InitExp' (buildConstructorExp unit locals exp)
 
-buildConstructorVarInit (InitArray' Nothing) 
+buildConstructorVarInit _ (InitArray' Nothing) 
     = pure $ InitArray' Nothing
     
-buildConstructorVarInit (InitArray' (Just inits)) 
-    = InitArray' . Just <$> mapM buildConstructorVarInit inits
+buildConstructorVarInit unit (InitArray' (Just inits)) 
+    = InitArray' . Just <$> mapM (buildConstructorVarInit unit) inits

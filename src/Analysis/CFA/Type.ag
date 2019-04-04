@@ -27,7 +27,9 @@ sem MemberDecl'
 attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
         CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
         MethodInvocation' FieldAccess' VarInits' VarInit' MaybeVarInits' ArrayIndex' 
-        VarDecls' VarDecl' Lhs'
+        VarDecls' VarDecl' Lhs' Catches' Catch' MaybeCompoundStmts' ElementValue'
+        AnnotationKeyValues' AnnotationKeyValue' Annotation' FormalParams' FormalParam'
+        Modifiers' Modifier'
     inh types :: {TypeEnvironment}
 
 sem CompilationUnit'
@@ -59,43 +61,43 @@ generateTypesFromStmt package className (Stmt' (Decl' _ ty vars))
 generateTypesFromStmt _ _ _
         = M.empty
 
-getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Scope
-getScopeOfCreation _ package _ _ (InstanceCreation' (ClassType' [name]) args)
-    = Scope package name name
+getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Maybe String
+getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args)) = do
+    scope         <- getScopeOfInvocation unit package (Just className) types name
+    method        <- getMethod unit scope
+    nonVoidTy     <- getReturnTypeOfMethod method
+    (RefType' ty) <- nonVoidTy
+    let [resultName] = nameOfRefType ty
+    return resultName
 
-getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> String
-getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args))
-    = let scope                       = getScopeOfInvocation unit package className types name
-          (Just method)               = getMethod unit scope
-          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
-          [resultName]                = nameOfRefType ty
-       in resultName
+getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Maybe Scope
+getScopeOfCreation unit package _ _ (InstanceCreation' (ClassType' [name]) args)
+    | Just _ <- findClass name unit
+        = Just $ Scope package name name
+    | otherwise
+        = Nothing
 
-getResultClassNameOfInvocation unit package className types (MethodInv' (PrimaryMethodCall' e name args))
-    = let innerclassName              = getResultClassNameOfInvocation unit package className types e
-          innerScope                  = Scope Nothing innerclassName name
-          (Just method)               = getMethod unit innerScope
-          (Just (Just (RefType' ty))) = getReturnTypeOfMethod method
-          [resultName]                = nameOfRefType ty
-       in resultName
-
-getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Name' -> Scope
-getScopeOfInvocation _ package className types [name]
-    | Just _ <- ty = scope
-    | otherwise    = unknownScope
-    where
-        scope = Scope package className name
-        ty    = types M.!? scope
+getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> Maybe String -> TypeEnvironment -> Name' -> Maybe Scope
+getScopeOfInvocation unit package className types [name]
+    | Just className' <- className
+    , Just classDecl  <- findClass className' unit
+    , Just _          <- findMethod name classDecl
+        = Just (Scope package className' name)
+        
+    | otherwise    
+        = Nothing
 
 getScopeOfInvocation ast package className types (name:names)
-    | (Just _) <- findClass name ast 
-        = getScopeOfInvocation ast package name types names
-    | otherwise
-        = case types M.!? Scope package className name of
+    | Just _ <- findClass name ast 
+        = getScopeOfInvocation ast package (Just name) types names
+    | Just className' <- className
+        = case types M.!? Scope package className' name of
             Just ty' ->
-                getScopeOfInvocation ast package (getNameOfType ty') types names
+                getScopeOfInvocation ast package (Just $ getNameOfType ty') types names
             Nothing  -> 
-                unknownScope
+                Nothing
+    | otherwise
+        = Nothing
 
 getNameOfType :: Type' -> String
 getNameOfType (RefType' (ClassRefType' (ClassType' [name]))) = name

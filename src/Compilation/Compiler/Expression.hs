@@ -1,24 +1,26 @@
 module Compilation.Compiler.Expression where
 
 import Data.Either
+import Data.List
+import Data.Maybe
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Parsing.Syntax
 import Parsing.Pretty
 import Parsing.Fold
+import Parsing.Utility
 
 import Debug.Trace
 
-buildMethodExp :: [VarDeclId'] -> Exp' -> Exp'
-buildMethodExp locals
+buildMethodExp :: CompilationUnit' -> [VarDeclId'] -> Exp' -> Exp'
+buildMethodExp unit locals
     = foldExp alg
     where
         alg :: ExpAlgebra' Exp'
         alg = ExpAlgebra' {
           lit              = Lit'
         , this             = This'
-        , instanceCreation = \ ty args
-            -> MethodInv' (MethodCall' (createConstructorCallName ty) args)
+        , instanceCreation = modifyInstanceCreation unit
         , arrayCreate      = ArrayCreate'
         , arrayCreateInit  = ArrayCreateInit'
         , fieldAccess      = FieldAccess' 
@@ -38,16 +40,15 @@ buildMethodExp locals
         , assign           = Assign'
         }
 
-buildConstructorExp :: [VarDeclId'] -> Exp' -> Exp'
-buildConstructorExp locals
+buildConstructorExp :: CompilationUnit' -> [VarDeclId'] -> Exp' -> Exp'
+buildConstructorExp unit locals
     = foldExp alg
     where
         alg :: ExpAlgebra' Exp'
         alg = ExpAlgebra' {
           lit            = Lit'
         , this             = ExpName' ["_thisObj__"]
-        , instanceCreation = \ ty args
-            -> MethodInv' (MethodCall' (createConstructorCallName ty) args)
+        , instanceCreation = modifyInstanceCreation unit
         , arrayCreate      = ArrayCreate'
         , arrayCreateInit  = ArrayCreateInit'
         , fieldAccess      = FieldAccess'
@@ -65,14 +66,21 @@ buildConstructorExp locals
         , binOp            = BinOp'
         , cond             = Cond' 
         , assign           = \ lhs op e
-            -> Assign' (buildConstructorLhs locals lhs) op e
+            -> Assign' (buildConstructorLhs unit locals lhs) op e
         }
 
-buildConstructorLhs :: [VarDeclId'] -> Lhs' -> Lhs'
-buildConstructorLhs locals (Field' (PrimaryFieldAccess' e field))
-    = Field' $ PrimaryFieldAccess' (buildConstructorExp locals e) field
+modifyInstanceCreation :: CompilationUnit' -> ClassType' -> Exps' -> Exp'
+modifyInstanceCreation unit@(CompilationUnit' _ _ decls) ty@(ClassType' name) args
+    | isDefinedConstructor unit ty
+        = MethodInv' (MethodCall' (createConstructorCallName ty) args)
+    | otherwise
+        = InstanceCreation' ty args
 
-buildConstructorLhs locals f@(Name' name)
+buildConstructorLhs :: CompilationUnit' -> [VarDeclId'] -> Lhs' -> Lhs'
+buildConstructorLhs unit locals (Field' (PrimaryFieldAccess' e field))
+    = Field' $ PrimaryFieldAccess' (buildConstructorExp unit locals e) field
+
+buildConstructorLhs _ locals f@(Name' name)
     -- Case: the variable is not a local declaration.
     | [variable] <- name
     , not (isLocalDeclaration variable locals)
@@ -86,10 +94,16 @@ isLocalDeclaration :: String -> [VarDeclId'] -> Bool
 isLocalDeclaration variable declarations
     = variable `elem` [s | (VarId' s) <- declarations]
 
+isDefinedConstructor :: CompilationUnit' -> ClassType' -> Bool
+isDefinedConstructor unit@(CompilationUnit' _ _ decls) (ClassType' name)
+    = let className = toClassName "" (last name) 
+       in isJust (findClass className unit)
+
 createConstructorCallName :: ClassType' -> Name'
 createConstructorCallName (ClassType' name)
-    = init name ++ [createAcc "" (last name), last name]
-    where
-        createAcc :: String -> String -> String
-        createAcc acc ('_':xs) = acc
-        createAcc acc (x:xs)   = createAcc (acc ++ [x]) xs
+    = init name ++ [toClassName "" (last name), last name]
+    
+toClassName :: String -> String -> String
+toClassName acc []       = acc
+toClassName acc ('_':xs) = acc
+toClassName acc (x:xs)   = toClassName (acc ++ [x]) xs

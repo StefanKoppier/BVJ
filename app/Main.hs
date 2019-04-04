@@ -14,10 +14,10 @@ perform args file = do
 
 arguments :: Arguments
 arguments = defaultArgs {
-      verbosity       = Informative {-Compact-}
+      verbosity       = {-Informative-} Compact
     , numberOfThreads = 4
     , keepOutputFiles = True
-    , maximumDepth    = 40
+    , maximumDepth    = 30
     , pathFilter      = const id
     }
 

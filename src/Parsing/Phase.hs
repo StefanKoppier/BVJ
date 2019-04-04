@@ -20,9 +20,7 @@ parsingPhase args content = do
     liftIO $ printHeader "1. PARSING"
     liftIO $ printTitled "Input program" content
     case parser compilationUnit content of 
-        Right program -> do
-            liftIO $ print program
-            syntaxTransformationSubphase args program
+        Right program -> syntaxTransformationSubphase args program
         Left  e       -> throwParsingError (show e)
 
 --------------------------------------------------------------------------------
@@ -109,22 +107,23 @@ transformMaybeBlock (Just (Block [])) = pure Nothing
 transformMaybeBlock (Just (Block b))  = Just <$> transformBlockStmts b
 
 transformBlockStmts :: [BlockStmt] -> PhaseResult CompoundStmts'
-transformBlockStmts []     = pure []
-transformBlockStmts (s:ss) = 
+transformBlockStmts []     = return []
+transformBlockStmts (s:ss) = do
+    s'  <- transformBlockStmt s
+    ss' <- transformBlockStmts ss
     case s of
-        BlockStmt StmtBlock{} -> do
-            s' <- transformBlockStmt s
-            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
-        BlockStmt While{} -> do
-            s' <- transformBlockStmt s
-            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
-        BlockStmt BasicFor{} -> do
-            s' <- transformBlockStmt s
-            ([emptyStmt,s',emptyStmt] ++) <$> transformBlockStmts ss
-        _     -> do
-            s' <- transformBlockStmt s
-            (s':) <$> transformBlockStmts ss
-        
+        BlockStmt StmtBlock{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        BlockStmt While{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        BlockStmt BasicFor{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        BlockStmt IfThenElse{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        BlockStmt IfThen{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        _   -> return (s' : ss')
+
 transformBlockStmt :: BlockStmt -> PhaseResult CompoundStmt'
 transformBlockStmt (BlockStmt s)        = transformStmt s
 transformBlockStmt (LocalClass _)       = throwSyntacticalError "local class"
@@ -242,8 +241,8 @@ transformStmt = foldStmt alg
     where
         alg :: StmtAlgebra (PhaseResult CompoundStmt')
         alg = (                    transformBlock
-              , \ g s           -> IfThenElse' <$> transformExp g <*> s <*> pure (Stmt' Empty')
-              , \ g s1 s2       -> IfThenElse' <$> transformExp g <*> s1 <*> s2
+              ,                    transformIf
+              ,                    transformIfThenElse
               , \ g s           -> While' Nothing <$> transformExp g <*> s
               ,                    transformFor
               , \ m t i g s     -> throwSyntacticalError "for (iterator)"
@@ -262,7 +261,24 @@ transformStmt = foldStmt alg
               )
         labelize l (While' _ g s) = While' l g s
 
--- | Transforms a for loop into a an equivalent while loop.
+transformIf :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
+transformIf guard stat = transformIfThenElse guard stat (pure $ Block' [emptyStmt])
+
+transformIfThenElse :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt' 
+transformIfThenElse guard stat1 stat2 = do
+    guard' <- transformExp guard
+    stat1' <- transformToBlock stat1
+    stat2' <- transformToBlock stat2
+    return $ IfThenElse' guard' stat1' stat2'
+    
+transformToBlock :: PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
+transformToBlock stat = do
+    stat' <- stat
+    case stat' of
+        Block' _ -> stat
+        _        -> return $ Block' [emptyStmt, stat', emptyStmt]
+
+-- | Transforms a for loop into an equivalent while loop.
 transformFor :: Maybe ForInit -> Maybe Exp -> Maybe [Exp] -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformFor init guard update body = do
     init'     <- maybe (pure emptyStmt) transformForInit init

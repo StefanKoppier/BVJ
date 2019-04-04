@@ -8,17 +8,17 @@ class Main {
 }
 
 class Integer {
-    private int value;
+    private int x;
 
     public Integer(int value) {
-        this.value = value;
+        x = value;
     }
 
     public int getInt() {
-        return this.value;
+        return this.x;
     }
 
     public void setInt(int value) {
-        this.value = value;
+        this.x = value;
     }
 }

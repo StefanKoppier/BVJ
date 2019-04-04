@@ -344,3 +344,11 @@ instance Pretty ElementValue' where
 
     pretty (ElementAnnotation' annotation)
         = trace "element annotation" undefined
+        
+instance Pretty Scope where
+    pretty (Scope scopePackage scopeClass scopeMember)
+        = maybe empty (const (package' <> dot)) scopePackage <> dots [class', member']
+        where
+            package' = maybe empty dots scopePackage
+            class'   = text scopeClass
+            member'  = text scopeMember

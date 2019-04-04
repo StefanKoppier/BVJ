@@ -3,8 +3,11 @@ module Data.Stack (
     , push
     , pop
     , peek
+    , update
     , empty
     , singleton
+    , toList
+    , fromList
 ) where
 
 newtype Stack a = Stack [a]
@@ -30,8 +33,18 @@ peek :: Stack a -> Maybe a
 peek (Stack [])    = Nothing
 peek (Stack (x:_)) = Just x
 
+-- | Update the top element of the stack.
+update :: a -> Stack a -> Stack a
+update x = push x . pop
+
 empty :: Stack a
 empty = Stack []
 
 singleton :: a -> Stack a
 singleton x = Stack [x]
+
+toList :: Stack a -> [a]
+toList (Stack xs) = xs
+
+fromList :: [a] -> Stack a
+fromList = Stack

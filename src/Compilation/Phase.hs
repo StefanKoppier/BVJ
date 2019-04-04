@@ -34,15 +34,14 @@ printInformation verbosity paths = do
 runAsync :: Arguments -> CompilationUnit' -> ProgramPaths -> IO (Either PhaseError CompiledUnits)
 runAsync args@Arguments{numberOfThreads} unit paths = do
     let pathsWithIndices = zip paths [0..]    
-    progress <- liftIO $ progressBar (length paths)
+    progress <- progressBar (length paths)
     time     <- getCurrentDateTime
     let dir   = workingDir ++ "/" ++ timeString time ++ "/"
     createDirectory dir
-    let tasks = map (\ (path, index) -> return $ compile progress unit dir index path) pathsWithIndices
+    let tasks = map (\ (path, index) -> compile progress unit dir index path) pathsWithIndices
     results  <- withPool numberOfThreads (\ pool -> parallel pool tasks)
-    results' <- mapM runExceptT results
     putStrLn ""
-    return  (sequence results')
+    return  (sequence results)
 
 createWorkingDir :: IO ()
 createWorkingDir = do 

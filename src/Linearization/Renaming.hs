@@ -8,6 +8,8 @@ module Linearization.Renaming(
 
 import qualified Data.Map                   as M
 import qualified Data.Graph.Inductive.Graph as G
+import           Data.Function
+import           Data.List
 import           Data.Accumulator
 import           Parsing.Syntax
 import           Analysis.Pretty                 ()
@@ -24,20 +26,18 @@ type RenamingAcc a = Accumulator RenamingOperations a
 insertManipulation :: G.Node -> Name' -> (Scope, Int) -> StmtManipulations -> StmtManipulations
 insertManipulation node name value manipulations
     | Just oldValue' <- oldValue
-         = M.insert node (M.insertWith (flip (++)) name [value] oldValue') manipulations
+         = M.insert node (M.insertWith (++) name [value] oldValue') manipulations
     | Nothing <- oldValue
         = M.insert node (M.singleton name [value]) manipulations
     where
         oldValue  = manipulations M.!? node
 
--- TODO: add package name to newCallName.
 renameMethodName :: Scope -> Int -> String
 renameMethodName (Scope scopePackage scopeClass scopeMember) callNumber
     = newCallName
     where
-        newCallName = scopeClass ++ "_" ++ scopeMember ++ show callNumber
+        newCallName = scopeClass ++ "_" ++  scopeMember ++ show callNumber
 
--- TODO: add package name to newCallName.
 renameMethodCall :: Name' -> Scope -> Int -> Name'
 renameMethodCall name s@(Scope scopePackage scopeClass scopeMember) callNumber
     = changeLast newCallName name
@@ -48,12 +48,20 @@ changeLast :: a -> [a] -> [a]
 changeLast x [_]    = [x]
 changeLast x (v:xs) = v : changeLast x xs 
 
+findAndRemoveMaximumCallNumber :: [(Scope, Int)] -> ((Scope, Int), [(Scope, Int)])
+findAndRemoveMaximumCallNumber elems
+    = let zipped    = zip elems [0..]
+          (maxi, i) = maximumBy (compare `on` (snd . fst)) zipped
+       in (maxi, map fst (filter ((i /=) . snd) zipped))
+
 rename :: Name' -> RenamingAcc Name'
 rename name = do
     acc <- getAccumulator
-    let ((scope, callNumber):renames) = acc M.! name
-    let acc' = M.insert name renames acc
-    updateAccumulator (const acc') 
+    let renames = acc M.! name
+    let ((scope, callNumber), renames2) = findAndRemoveMaximumCallNumber renames
+    --let ((scope, callNumber):renames) = acc M.! name
+    let acc2 = M.insert name renames2 acc
+    updateAccumulator (const acc2) 
     return $ renameMethodCall name scope callNumber
 
 renameStmt :: Stmt' -> RenamingAcc Stmt'

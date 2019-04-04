@@ -17,13 +17,14 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 --------------------------------------------------------------------------------
 
 data CFGNodeValue 
-    = Block CompoundStmt' -- ^ The statement of the node.
-    | Catch Catch'        -- ^ The catch of the node.
-    | Call  Scope         -- ^ The method that is being called.
-            Node          -- ^ The node containing the statement this call belongs to
-            Name'         -- ^ The method invocation this call belongs to.
-    | Entry Scope
-    | Exit  Scope
+    = StatNode        CompoundStmt'  -- ^ The statement of the node.
+    | CatchNode       Catch'         -- ^ The catch of the node.
+    | FinallyNode     CompoundStmts' -- ^ The finally of the node.
+    | CallNode        Scope          -- ^ The method that is being called.
+                      Node           -- ^ The node containing the statement this call belongs to.
+                      Name'          -- ^ The method invocation this call belongs to.
+    | MethodEntryNode Scope          -- ^ The method that this entry belongs to.
+    | MethodExitNode  Scope          -- ^ The method that this exit belongs to.
     deriving (Show, Eq)
     
 type CFGNode = LNode CFGNodeValue
@@ -31,12 +32,29 @@ type CFGNode = LNode CFGNodeValue
 type CFGNodes = [CFGNode]
 
 data CFGEdgeValue
-    = InterEdge       Scope
-                      Int
-    | ConditionalEdge Exp'
-                      Int
-    | IntraEdge       Int
+    = InterEdge           Scope
+    | IntraEdge       
+    | BlockEntryEdge      BlockEntryType
+    | BlockExitEdge       BlockEntryType
+    | BlockExitEntryEdge  BlockEntryType 
+                          BlockEntryType
     deriving (Show, Eq)
+
+data BlockEntryType
+    = TryEntryType
+    | CatchEntryType       (Maybe FormalParam')
+    | ConditionalEntryType (Maybe Exp')
+    | FinallyEntryType
+    | BlockEntryType
+    deriving (Show)
+
+instance Eq BlockEntryType where
+    TryEntryType == TryEntryType = True
+    (CatchEntryType _) == (CatchEntryType _) = True
+    (ConditionalEntryType _) == (ConditionalEntryType _) = True
+    FinallyEntryType == FinallyEntryType = True
+    BlockEntryType == BlockEntryType = True
+    _ == _ = False
 
 type CFGEdge = LEdge CFGEdgeValue
 
@@ -56,23 +74,16 @@ entryOfMain CFG{cfg}
     | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
     | otherwise = Nothing
     where
-        entry = nodes $ labfilter (\case (Entry (Scope _ _ method)) 
+        entry = nodes $ labfilter (\case (MethodEntryNode (Scope _ _ method)) 
                                             -> method == "main"
                                          _  -> False) cfg
 
-{-
-entryOfMethod :: Scope -> CFG -> Maybe CFGNode
-entryOfMethod scope CFG{cfg}
-    | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
-    | otherwise         = Nothing
-    where
-        entry = nodes $ labfilter (\case (Entry scope') -> scope == scope'
-                                         _              -> False) cfg
--}
+isIntraEdge :: CFGEdgeValue -> Bool
+isIntraEdge IntraEdge                = True
+isIntraEdge (BlockEntryEdge _)       = True
+isIntraEdge (BlockExitEdge _)        = True
+isIntraEdge (BlockExitEntryEdge _ _) = True
+isIntraEdge (InterEdge _)            = False
 
-isIntraEdge, isInterEdge :: CFGEdgeValue -> Bool
-isIntraEdge (ConditionalEdge _ _) = True
-isIntraEdge (IntraEdge _)         = True
-isIntraEdge (InterEdge _ _)       = False
-
+isInterEdge :: CFGEdgeValue -> Bool
 isInterEdge = not . isIntraEdge

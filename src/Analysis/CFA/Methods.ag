@@ -8,54 +8,54 @@ sem MemberDecl'
     | MethodDecl'       lhs .label   = new @body.label
                             .methods = let scope = Scope Nothing @lhs.className @name
                                         in M.singleton scope (new @lhs.label, new @body.label)
-                            .nodes   = let scope = Scope Nothing @lhs.className @name in
-                                            -- Entry node of the method.
-                                            entry (new @lhs.label) scope
-                                            : -- Exit node of the method.
-                                            exit (new @body.label) scope
-                                            : -- Nodes of the body.
-                                            @body.nodes
-                            .edges   = let scope  = Scope Nothing @lhs.className @name
-                                           entry' = entry (new @lhs.label) scope
-                                           exit'  = exit (new @body.label) scope in
-                                           -- Edge from entry of method to body.
-                                           intraEdge entry' @body.init 0
-                                           ++ -- Edge(s) from final of body to exit of method.
-                                           intraEdges @body.final exit' 0
-                                           ++ -- Edge(s) from returns to exit of method.
-                                           intraEdges @body.returns exit' 0
-                                           ++ -- If the body is empty add an edge from entry to exit.
-                                           (if null @body.nodes then
-                                                intraEdge entry' exit' 0 else [])
-                                           ++ -- Edges of the body.
-                                           @body.edges
+                            .nodes   = let scope = Scope Nothing @lhs.className @name 
+                                        in -- Entry node of the method.
+                                           methodEntryNode (new @lhs.label) scope
+                                           : -- Exit node of the method.
+                                           methodExitNode (new @body.label) scope
+                                           : -- Nodes of the body.
+                                           @body.nodes
+                            .edges   = let scope     = Scope Nothing @lhs.className @name
+                                           entryNode = methodEntryNode (new @lhs.label) scope
+                                           exitNode  = methodExitNode (new @body.label) scope
+                                        in @body.edges
+                                           ++ -- Edge from entry of method to body.
+                                           seqEdge (entryNode, @body.init) Nothing @body.self
+                                           ++ -- Edge from final of body to exit of method.
+                                           seqEdges (@body.final, exitNode) Nothing []
+                                           -- ++ -- Edges from return statements to exit of method.
+                                           -- intraEdges (@body.returns, exitNode)
+                                           ++ -- if the body if empty, add an edge from entry to exit.
+                                           if null @body.nodes 
+                                            then intraEdge (entryNode, exitNode)
+                                            else []
                         body.label   = new @lhs.label
                             .method  = [@name]
 
     | ConstructorDecl'  lhs .label   = new @body.label
                             .methods = let scope = Scope Nothing @lhs.className @name
                                         in M.singleton scope (new @lhs.label, new @body.label)
-                            .nodes   = let scope = Scope Nothing @lhs.className @name in
-                                            -- Entry node of the method.
-                                            entry (new @lhs.label) scope
-                                            : -- Exit node of the method.
-                                            exit (new @body.label) scope
-                                            : -- Nodes of the body.
-                                            @body.nodes
-                            .edges   = let scope  = Scope Nothing @lhs.className @name 
-                                           entry' = entry (new @lhs.label) scope
-                                           exit'  = exit (new @body.label) scope in 
-                                           -- Edge from entry of method to body.
-                                           intraEdge entry' @body.init 0
-                                           ++ -- Edge(s) from final of body to exit of method.
-                                           intraEdges @body.final exit' 0
-                                           ++ -- Edge(s) from returns to exit of method.
-                                           intraEdges @body.returns exit' 0
-                                           ++ -- If the body is empty add an edge from entry to exit.
-                                           (if null @body.nodes then
-                                                intraEdge entry' exit' 0 else [])
-                                           ++ -- Edges of the body.
-                                           @body.edges
+                            .nodes   = let scope = Scope Nothing @lhs.className @name 
+                                        in -- Entry node of the method.
+                                           methodEntryNode (new @lhs.label) scope
+                                           : -- Exit node of the method.
+                                           methodExitNode (new @body.label) scope
+                                           : -- Nodes of the body.
+                                           @body.nodes
+                            .edges   =  let scope     = Scope Nothing @lhs.className @name
+                                            entryNode = methodEntryNode (new @lhs.label) scope
+                                            exitNode  = methodExitNode (new @body.label) scope
+                                         in @body.edges
+                                            ++ -- Edge from entry of method to body.
+                                            intraEdge (entryNode, @body.init)
+                                            ++ -- Edge from final of body to exit of method.
+                                            intraEdges (@body.final, exitNode)
+                                            -- ++ -- Edges from return statements to exit of method.
+                                            -- intraEdges (@body.returns, exitNode)
+                                            ++ -- if the body if empty, add an edge from entry to exit.
+                                            if null @body.nodes 
+                                                then intraEdge (entryNode, exitNode)
+                                                else []
                         body.label   = new @lhs.label
                             .method  = [@name]
 
@@ -66,10 +66,8 @@ sem CompilationUnit'
     | CompilationUnit' decls.methods = @decls.methods
 
 sem MemberDecl'
-    | MethodDecl'       body.currentDepth = 0
-                            .methods = let scope = Scope Nothing @lhs.className @name
+    | MethodDecl'       body.methods = let scope = Scope Nothing @lhs.className @name
                                         in M.insert scope (new @lhs.label, new @body.label) @lhs.methods
 
-    | ConstructorDecl'  body.currentDepth = 0
-                            .methods = let scope = Scope Nothing @lhs.className @name
+    | ConstructorDecl'  body.methods = let scope = Scope Nothing @lhs.className @name
                                         in M.insert scope (new @lhs.label, new @body.label) @lhs.methods

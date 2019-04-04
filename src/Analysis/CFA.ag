@@ -13,7 +13,9 @@ include "../Parsing/Syntax.ag"
 attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' MaybeCompoundStmts' 
         CompoundStmts' CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
         MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
-        ArrayIndex' Lhs' FieldAccess' Catches' Catch'
+        ArrayIndex' Lhs' FieldAccess' Catches' Catch' AnnotationKeyValues' 
+        AnnotationKeyValue' ElementValue' Annotation' Modifiers' Modifier'
+        FormalParams' FormalParam'
     inh ast :: CompilationUnit'
 
 sem CompilationUnit'
@@ -29,15 +31,20 @@ attr    CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl
 attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts' 
         CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
         MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
-        Lhs' ArrayIndex' FieldAccess'
+        Lhs' ArrayIndex' FieldAccess' AnnotationKeyValues' AnnotationKeyValue' 
+        ElementValue' Annotation' Catches' Catch' Modifiers' Modifier' 
+        FormalParams' FormalParam' MaybeCompoundStmts'
     inh methods :: {Methods}
               
 attr    Decls' Decl' MemberDecl' CompoundStmts' CompoundStmt' Stmt' MaybeExp' Exps' 
         Exp' MethodInvocation' VarDecls' VarDecl' MaybeVarInits' VarInits' VarInit' 
-        Lhs' ArrayIndex' FieldAccess' SwitchBlocks' SwitchBlock'
+        Lhs' ArrayIndex' FieldAccess' SwitchBlocks' SwitchBlock' Catches' Catch'
+        AnnotationKeyValues' AnnotationKeyValue'  ElementValue' Annotation' 
+        Modifiers' Modifier' FormalParams' FormalParam' MaybeCompoundStmts'
     inh className :: {String}
 
 attr    CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
+        Catches' Catch'
     syn methods use {M.union} {M.empty} :: {Methods} 
 
 include "CFA/Statement.ag"

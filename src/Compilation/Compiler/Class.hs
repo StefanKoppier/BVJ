@@ -21,10 +21,3 @@ buildClass unit path = do
     where
         name                             = className (head path)
         (ClassDecl' modifiers _ members) = fromJust $ findClass name unit
-
-{-
-getMethodEntryType :: PathStmt -> Maybe EntryType
-getMethodEntryType (PathEntry e@(ETMethod _ _)) = Just e
-getMethodEntryType (PathExit  e@(ETMethod _ _)) = Just e
-getMethodEntryType s                            = Nothing
--}

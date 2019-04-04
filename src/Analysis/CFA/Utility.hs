@@ -5,11 +5,157 @@ import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Analysis.CFG
 
+import           Debug.Trace
+
+-- | Map containing the entry nodes and exit nodes of all methods.
 type Methods = M.Map Scope (Node, Node)
 
-type CFGDepthNode  = (CFGNode, Int)
+-- | Node representation of a non-existing node.
+noneNode :: CFGNode
+noneNode = (-1, trace "access of noneNode" undefined)
 
-type CFGDepthNodes = [CFGDepthNode]
+ifNoneNode :: CFGNode -> CFGNode -> CFGNode
+ifNoneNode node alternative
+    | node == noneNode = alternative
+    | otherwise        = node
+
+-- | List node representation of non-existing nodes.
+noneNodes :: CFGNodes
+noneNodes = [noneNode]
+
+ifNoneNodes :: CFGNodes -> CFGNodes -> CFGNodes
+ifNoneNodes node alternative
+    | node == noneNodes = alternative
+    | otherwise         = node
+
+addMaybeNode :: Maybe CFGNode -> CFGNodes -> CFGNodes
+addMaybeNode Nothing     = id
+addMaybeNode (Just node) = (node :)
+
+addMaybeEdge :: Maybe CFGEdge -> CFGEdges -> CFGEdges
+addMaybeEdge Nothing     = id
+addMaybeEdge (Just edge) = (edge :)
+
+--------------------------------------------------------------------------------
+-- Node creation
+--------------------------------------------------------------------------------
+
+-- | Create a new label, assuming the labels 
+-- greater than the given label are not used.
+new :: Node -> Node
+new = (1+)
+
+-- | Create a new CFG statement node.
+statNode :: Node -> CompoundStmt' -> CFGNode
+statNode node stat = (node, StatNode stat)
+
+-- | Create a new CFG catch node.
+catchNode :: Node -> Catch' -> CFGNode
+catchNode node catch = (node, CatchNode catch)
+
+-- | Create a new CFG finally node, if the block exists.
+finallyNode :: Node -> MaybeCompoundStmts' -> Maybe CFGNode
+finallyNode _    Nothing        = Nothing
+finallyNode node (Just finally) = Just (node, FinallyNode finally)
+
+-- | Create a new CFG call node, if the given method exists.
+callNode :: Node -> Maybe Scope -> Node -> Name' -> Maybe CFGNode
+callNode _ Nothing _ _ 
+    = Nothing
+
+callNode node (Just scope) expressionNode name
+    = Just (node, CallNode scope expressionNode name)
+
+-- | Create a new CFG method entry node.
+methodEntryNode :: Node -> Scope -> CFGNode
+methodEntryNode node scope = (node, MethodEntryNode scope)
+
+-- | Create a new CFG method exit node.
+methodExitNode :: Node -> Scope -> CFGNode
+methodExitNode node scope = (node, MethodExitNode scope)
+
+--------------------------------------------------------------------------------
+-- Edge creation
+--------------------------------------------------------------------------------
+
+callEdge :: (Node, Maybe Scope) -> Methods -> Maybe CFGEdge
+callEdge (from, Nothing) _ = Nothing
+callEdge (from, Just to) methods = do
+    toNode <- fst <$> (methods M.!? to)
+    return (from, toNode, InterEdge to)
+
+returnEdge :: (Maybe Scope, Node) -> Methods -> Maybe CFGEdge
+returnEdge (Nothing, to) _ = Nothing
+returnEdge (Just from, to) methods = do
+    fromNode <- snd <$> (methods M.!? from)
+    return (fromNode, to, InterEdge from)
+
+intraEdges :: (CFGNodes, CFGNode) -> CFGEdges
+intraEdges (froms, to)
+    = concatMap (\ from -> intraEdge (from, to)) froms
+
+intraEdge :: (CFGNode, CFGNode) -> CFGEdges
+intraEdge (fromNode@(from, _), toNode@(to, _))
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = [(from, to, IntraEdge)]
+
+blockEntryEdge :: (CFGNode, CFGNode) -> BlockEntryType -> CFGEdges
+blockEntryEdge (fromNode@(from, _), toNode@(to, _)) entryType
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = [(from, to, BlockEntryEdge entryType)]
+
+blockExitEdges :: (CFGNodes, CFGNode) -> BlockEntryType -> CFGEdges
+blockExitEdges (froms, to) entryType
+    = concatMap (\ from -> blockExitEdge (from, to) entryType) froms
+
+blockExitEdge :: (CFGNode, CFGNode) -> BlockEntryType -> CFGEdges
+blockExitEdge (fromNode@(from, _), toNode@(to, _)) entryType
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = [(from, to, BlockExitEdge entryType)]
+
+blockExitEntryEdges :: (CFGNodes, CFGNode) -> BlockEntryType -> BlockEntryType -> CFGEdges
+blockExitEntryEdges (froms, to) exit entry
+    = concatMap (\ from -> blockExitEntryEdge (from, to) exit entry) froms
+
+blockExitEntryEdge :: (CFGNode, CFGNode) -> BlockEntryType -> BlockEntryType -> CFGEdges
+blockExitEntryEdge (fromNode@(from, _), toNode@(to, _)) exit entry 
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = [(from, to, BlockExitEntryEdge exit entry)]
+
+seqEdges :: (CFGNodes, CFGNode) -> Maybe CompoundStmt' -> CompoundStmts' -> CFGEdges
+seqEdges (froms, to) currentStat nextStats 
+    = concatMap (\ from -> seqEdge (from, to) currentStat nextStats) froms
+
+seqEdge :: (CFGNode, CFGNode) -> Maybe CompoundStmt' -> CompoundStmts' -> CFGEdges
+seqEdge edge@(fromNode@(from, fromInfo), toNode@(to, toInfo)) currentStat nextStats
+    -- Case: no destination node.
+    | fromNode == noneNode || toNode == noneNode
+        = []
+        
+    -- Case: We're entering a block.
+    | (Block' _:_) <- nextStats
+        = blockEntryEdge edge BlockEntryType
+    
+    -- Case: we're leaving a catch or finally block.
+    | Just (Try' _ _ finally) <- currentStat
+        = case finally of
+            Just _  -> blockExitEdge edge FinallyEntryType
+            Nothing -> blockExitEdge edge (CatchEntryType Nothing)
+
+    | otherwise
+        = intraEdge edge
+
+--------------------------------------------------------------------------------
+-- Auxiliary functions
+--------------------------------------------------------------------------------
 
 caseCondExp :: Exp' -> [SwitchBlock'] -> SwitchBlock' -> Exp'
 caseCondExp e1 previous (SwitchBlock' Nothing _)   
@@ -18,93 +164,19 @@ caseCondExp e1 previous (SwitchBlock' Nothing _)
 caseCondExp e1 _ (SwitchBlock' (Just e2) _) 
     = BinOp' e1 Equal' e2
 
-unknownScope :: Scope
-unknownScope = Scope Nothing "UNKNOWN" "UNKNOWN"
-
---unknownNode :: (Node, CFGNodeValue)
---unknownNode = (-1, Entry unknownScope)
-
-noNode :: (Node, CFGNodeValue)
-noNode = (-1, undefined)
-
-new :: Node -> Node
-new = (1+)
-
-newIfJust :: Maybe a -> Node -> Node
-newIfJust = maybe id (const new)
-
-call :: Node -> Scope -> Node -> Name' -> CFGNodes
-call n scope statNode name 
-    | unknownScope == scope = []
-    | otherwise             = [(n, Call scope statNode name)]
-
-block :: Node -> CompoundStmt' -> CFGNode
-block n s = (n, Block s)
-
-catch :: Node -> Catch' -> CFGNode
-catch n c = (n, Catch c)
-
-entry :: Node -> Scope -> CFGNode
-entry n scope = (n, Entry scope)
-
-exit :: Node -> Scope -> CFGNode
-exit n scope =  (n, Exit scope)
-
-seqEdges :: CompoundStmts' -> CFGDepthNodes -> CFGNode -> CFGEdges
-seqEdges [] _ _ = []
-seqEdges (stat:_) final init
-    | init == noNode
-        = []
-    | Block' _ <- stat
-        = intraEdges final init 1
-    | otherwise
-        = intraEdges final init 0
-
-intraEdge :: CFGNode -> CFGNode -> Int -> CFGEdges
-intraEdge (x,_) yNode@(y,_) s 
-    | noNode == yNode = []
-    | otherwise       = [(x, y, IntraEdge s)]
-
-intraEdges :: CFGDepthNodes -> CFGNode -> Int -> CFGEdges
-intraEdges xs' y s
-    | noNode == y = []
-    | otherwise   = concatMap (\ x -> intraEdge x y s) xs
-    where
-        xs = map fst xs'
-
-callEdge :: (Node, Scope) -> Methods -> CFGEdges
-callEdge (node, scope) methods
---    | scope == unknownScope
---        = []--(node, fst unknownNode, InterEdge unknownScope 0)
-    | Just method' <- method
-        = [(node, fst method', InterEdge scope 0)]
-    | Nothing  <- method
-        = [] --(node, fst unknownNode, InterEdge unknownScope 0)
-    where
-        method = methods M.!? scope
-
-returnEdge :: (Scope, Node) -> Methods -> CFGEdges
-returnEdge (scope, node) methods
---    | scope == unknownScope
---        = []
-    | Just method' <- method
-        = [(snd method', node, InterEdge scope 0)]
-    | Nothing      <- method
-        = []
-    where
-        method = methods M.!? scope
-
-condEdge :: CFGNode -> CFGNode -> Exp' -> Int -> CFGEdges
-condEdge (x,_) yNode@(y,_) e s 
-    | yNode == noNode = []
-    | otherwise       = [(x, y, ConditionalEdge e s)]
-
-isLabelOfThisNode :: Maybe String -> CFGDepthNode -> Bool
-isLabelOfThisNode _        ((_, Block (Stmt' (Break' Nothing))), _)      = True
-isLabelOfThisNode _        ((_, Block (Stmt' (Continue' Nothing))), _)   = True
-isLabelOfThisNode Nothing  ((_, Block (Stmt' (Break' (Just _)))), _)     = False
-isLabelOfThisNode Nothing  ((_, Block (Stmt' (Continue' (Just _)))), _)  = False
-isLabelOfThisNode (Just l) ((_, Block (Stmt' (Break' (Just l')))), _)    = l == l'
-isLabelOfThisNode (Just l) ((_, Block (Stmt' (Continue' (Just l')))), _) = l == l'
-isLabelOfThisNode _        _                                             = error "Not a break or continue statement."
+isLabelOfThisNode :: Maybe String -> CFGNode -> Bool
+isLabelOfThisNode _        (_, StatNode (Stmt' (Break' Nothing)))      
+    = True
+isLabelOfThisNode _        (_, StatNode (Stmt' (Continue' Nothing)))   
+    = True
+isLabelOfThisNode Nothing  (_, StatNode (Stmt' (Break' (Just _))))    
+    = False
+isLabelOfThisNode Nothing  (_, StatNode (Stmt' (Continue' (Just _))))  
+    = False
+isLabelOfThisNode (Just l) (_, StatNode (Stmt' (Break' (Just l'))))    
+    = l == l'
+isLabelOfThisNode (Just l) (_, StatNode (Stmt' (Continue' (Just l')))) 
+    = l == l'
+isLabelOfThisNode _        _                                             
+    = error "Not a break or continue statement."
     
