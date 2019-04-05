@@ -23,5 +23,5 @@ data PathType
     = PathStmt      Stmt'
     | PathEntry     BlockEntryType
     | PathExit      BlockEntryType
-    | PathExitEntry BlockEntryType BlockEntryType
+--    | PathExitEntry BlockEntryType BlockEntryType
     deriving (Show, Eq)

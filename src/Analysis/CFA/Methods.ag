@@ -31,6 +31,7 @@ sem MemberDecl'
                                             else []
                         body.label   = new @lhs.label
                             .method  = [@name]
+                            .scopeEntries = []
 
     | ConstructorDecl'  lhs .label   = new @body.label
                             .methods = let scope = Scope Nothing @lhs.className @name
@@ -58,6 +59,7 @@ sem MemberDecl'
                                                 else []
                         body.label   = new @lhs.label
                             .method  = [@name]
+                            .scopeEntries = []
 
 sem ClassDecl'
     | ClassDecl' body.className = @name

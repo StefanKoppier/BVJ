@@ -36,6 +36,7 @@ data CFGEdgeValue
     | IntraEdge       
     | BlockEntryEdge      BlockEntryType
     | BlockExitEdge       BlockEntryType
+    | BlockExitsEdge      [BlockEntryType]
     | BlockExitEntryEdge  BlockEntryType 
                           BlockEntryType
     deriving (Show, Eq)
@@ -49,12 +50,12 @@ data BlockEntryType
     deriving (Show)
 
 instance Eq BlockEntryType where
-    TryEntryType == TryEntryType = True
-    (CatchEntryType _) == (CatchEntryType _) = True
+    TryEntryType             == TryEntryType             = True
+    (CatchEntryType _)       == (CatchEntryType _)       = True
     (ConditionalEntryType _) == (ConditionalEntryType _) = True
-    FinallyEntryType == FinallyEntryType = True
-    BlockEntryType == BlockEntryType = True
-    _ == _ = False
+    FinallyEntryType         == FinallyEntryType         = True
+    BlockEntryType           == BlockEntryType           = True
+    _                        == _                        = False
 
 type CFGEdge = LEdge CFGEdgeValue
 

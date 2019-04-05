@@ -140,19 +140,33 @@ next acc graph@CFG{cfg} (currentNode, destinationNode, edgeValue)
             IntraEdge      
                 -> paths acc graph neighbour
             BlockEntryEdge entry 
-                -> case entry of
-                    ConditionalEntryType (Just e)
-                        -> let acc1 = (prepend currentNode (PathEntry entry) . prepend currentNode (PathStmt $ Assume' e)) acc
-                            in paths acc1 graph neighbour
-                    _   -> paths (prepend currentNode (PathEntry entry) acc) graph neighbour
-            BlockExitEdge entry 
-                -> paths (prepend currentNode (PathExit entry) acc) graph neighbour
-            BlockExitEntryEdge exit entry 
-                -> case entry of
-                    ConditionalEntryType (Just e)
-                        -> let acc1 = (prepend currentNode (PathExitEntry exit entry) . prepend currentNode (PathStmt $ Assume' e)) acc
-                            in paths acc1 graph neighbour
-                    _   -> paths (prepend currentNode (PathExitEntry exit entry) acc) graph neighbour
+                -> let acc1 = prepends currentNode acc (getEdgeValues [BlockEntryEdge entry]) 
+                    in paths acc1 graph neighbour
+            BlockExitEdge exit
+                -> let acc1 = prepends currentNode acc (getEdgeValues [BlockExitEdge exit]) 
+                    in paths acc1 graph neighbour
+            BlockExitsEdge exits
+                -> let acc1 = prepends currentNode acc (getEdgeValues (map BlockExitEdge exits)) 
+                    in paths acc1 graph neighbour
+            BlockExitEntryEdge exit entry
+                -> let acc1 = prepends currentNode acc (getEdgeValues [ BlockEntryEdge entry
+                                                                      , BlockExitEdge exit])  
+                    in paths acc1 graph neighbour
+
+getEdgeValues :: [CFGEdgeValue] -> [PathType]
+getEdgeValues []
+    = []
+getEdgeValues (BlockEntryEdge entry : stats) 
+    = PathEntry entry : conditionalAssumption entry ++ getEdgeValues stats
+getEdgeValues (BlockExitEdge exit : stats)
+    = PathExit exit : conditionalAssumption exit ++ getEdgeValues stats
+        
+conditionalAssumption :: BlockEntryType -> [PathType]
+conditionalAssumption (ConditionalEntryType (Just e)) = [PathStmt $ Assume' e] 
+conditionalAssumption _                               = [] 
+
+prepends :: Node -> PathAccumulator -> [PathType]  -> PathAccumulator
+prepends currentNode = foldr (prepend currentNode)
 
 -- | Prepend a path item to all program paths and rename the method calls in the
 -- expression of the statement if necessary.

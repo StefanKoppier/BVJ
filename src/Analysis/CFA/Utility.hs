@@ -119,6 +119,9 @@ blockExitEdge (fromNode@(from, _), toNode@(to, _)) entryType
     | otherwise 
         = [(from, to, BlockExitEdge entryType)]
 
+--blockExitsEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
+--blockExitsEdges = undefined
+
 blockExitEntryEdges :: (CFGNodes, CFGNode) -> BlockEntryType -> BlockEntryType -> CFGEdges
 blockExitEntryEdges (froms, to) exit entry
     = concatMap (\ from -> blockExitEntryEdge (from, to) exit entry) froms
@@ -153,6 +156,22 @@ seqEdge edge@(fromNode@(from, fromInfo), toNode@(to, toInfo)) currentStat nextSt
     | otherwise
         = intraEdge edge
 
+continueExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
+continueExitEdges (froms, to) entries 
+    = {-trace (show entries) $-} concatMap (\ (from, entries') ->{- trace (show entries') $-} continueExitEdge ((from, exits entries'), to)) froms
+    where
+        exits entries' = take (length entries' - length entries) entries'
+
+continueExitEdge :: ((CFGNode, [BlockEntryType]), CFGNode) -> CFGEdges
+continueExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = trace (show [(from, to, BlockExitsEdge entries)]) [(from, to, BlockExitsEdge entries)]
+
+--breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
+--breakExitEdges = undefined
+
 --------------------------------------------------------------------------------
 -- Auxiliary functions
 --------------------------------------------------------------------------------
@@ -179,4 +198,3 @@ isLabelOfThisNode (Just l) (_, StatNode (Stmt' (Continue' (Just l'))))
     = l == l'
 isLabelOfThisNode _        _                                             
     = error "Not a break or continue statement."
-    

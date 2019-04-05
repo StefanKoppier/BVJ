@@ -58,6 +58,9 @@ instance Pretty CFGEdgeValue where
         = "scope exit and entry edge of" 
             <+> quotes (pretty exitType) <+> "to" <+> quotes (pretty entryType)
 
+    pretty (BlockExitsEdge exits)
+        = "scope exits"
+
 instance Pretty BlockEntryType where
     pretty TryEntryType = "try"
 

@@ -47,20 +47,24 @@ buildStmts statBuilder stats@(entry@(PathEntry TryEntryType):_) = do
 buildStmts statBuilder (PathExit _:stats) 
     = buildStmts statBuilder stats
 
-buildStmts statBuilder (PathExitEntry _ entry:stats)
-    = buildStmts statBuilder (PathEntry entry:stats)
+buildStmts _ (stat:stats)
+    = trace (show stat) undefined
+
+--buildStmts statBuilder (PathExitEntry _ entry:stats)
+--    = buildStmts statBuilder (PathEntry entry:stats)
 
 buildTryCatchStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (CompoundStmt', [PathType])
 buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
     let index                = findIndex 0 0 entry stats
     let (tryBody, restStats) = splitAt index stats
     try              <- keepOldAccumulator (buildStmts statBuilder tryBody)
-    (catches, rest1) <- keepOldAccumulator (buildCatches statBuilder restStats)
-    (finally, rest2) <- keepOldAccumulator (buildFinally statBuilder rest1)
+    (catches, rest1) <- keepOldAccumulator (buildCatches statBuilder (drop 1 restStats))
+    (finally, rest2) <- keepOldAccumulator (buildFinally statBuilder (drop 1 rest1))
     return (Try' try catches finally, rest2)
 
 buildCatches :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (Catches', [PathType])
-buildCatches statBuilder (ty@(PathExitEntry _ (CatchEntryType (Just e))):stats) = do
+buildCatches statBuilder (ty@(PathEntry (CatchEntryType (Just e))):stats) = do
+--buildCatches statBuilder (ty@(PathExitEntry _ (CatchEntryType (Just e))):stats) = do
     let index                  = findIndex 0 0 ty stats
     let (catchBody, restStats) = splitAt index stats
     catchStats <- keepOldAccumulator (buildStmts statBuilder catchBody)
@@ -71,7 +75,8 @@ buildCatches statBuilder (ty@(PathExitEntry _ (CatchEntryType (Just e))):stats) 
 buildCatches _ stats = return ([], stats)
 
 buildFinally :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (MaybeCompoundStmts', [PathType])
-buildFinally statBuilder (ty@(PathExitEntry exit FinallyEntryType):stats) = do
+buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
+--buildFinally statBuilder (ty@(PathExitEntry exit FinallyEntryType):stats) = do
     let index                    = findIndex  0 0 ty stats
     let (finallyBody, restStats) = splitAt index stats
     finallyStats <- keepOldAccumulator (buildStmts statBuilder finallyBody)
@@ -96,6 +101,7 @@ findIndex x i (PathEntry ty) (PathExit exit:rest)
     | ty == exit           = findIndex (x-1) (i+1) (PathEntry ty) rest
     | otherwise            = findIndex x (i+1) (PathEntry ty) rest
  
+{-
 findIndex x i (PathEntry ty) (PathExitEntry exit entry:rest)
     | ty == exit && x == 0      = i
     | ty == exit && ty == entry = findIndex x (i+1) (PathEntry ty) rest
@@ -121,6 +127,7 @@ findIndex x i (PathExitEntry exit' ty) (PathExitEntry exit entry:rest)
     | ty == exit                = findIndex (x-1) (i+1) (PathExitEntry exit' ty) rest
     | ty == entry               = findIndex (x+1) (i+1) (PathExitEntry exit' ty) rest
     | otherwise                 = findIndex x (i+1) (PathExitEntry exit' ty) rest
+-}
 
 --------------------------------------------------------------------------------
 -- Method statement building

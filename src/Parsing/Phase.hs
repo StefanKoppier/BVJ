@@ -87,14 +87,16 @@ transformParam (FormalParam _ _ True _)
     = throwSyntacticalError "variable arity parameter"
 
 transformConstructorBody :: ConstructorBody -> PhaseResult CompoundStmts'
-transformConstructorBody (ConstructorBody Nothing ss)
-    = transformBlockStmts ss
+transformConstructorBody (ConstructorBody Nothing ss) = do
+    ss' <- transformBlockStmts ss
+    return $ [emptyStmt] ++ ss' ++ [emptyStmt]
 transformConstructorBody (ConstructorBody (Just _) _) 
     = throwSyntacticalError "base class constructor call"
 
 transformMethodBody :: MethodBody -> PhaseResult CompoundStmts'
-transformMethodBody (MethodBody (Just (Block b))) 
-    = transformBlockStmts b
+transformMethodBody (MethodBody (Just (Block b)))  = do
+    b' <- transformBlockStmts b
+    return $ [emptyStmt] ++ b' ++ [emptyStmt]
 transformMethodBody (MethodBody Nothing)  
     = throwSyntacticalError "method without implementation"
 
@@ -256,10 +258,17 @@ transformStmt = foldStmt alg
               , \ e             -> Stmt' . Return' <$> transformMaybeExp e
               , \ e s           -> throwSyntacticalError "synchronized"
               , \ e             -> Stmt' . Throw' <$> transformExp e
-              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f 
+              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
         labelize l (While' _ g s) = While' l g s
+        labelize l (Block' ss)    = Block' (labelizeFirstWhile l ss)
+
+labelizeFirstWhile :: Maybe String -> CompoundStmts' -> CompoundStmts'
+labelizeFirstWhile l (While' _ guard body:stats) 
+    = While' l guard body : stats
+labelizeFirstWhile l (stat:stats)
+    = stat : labelizeFirstWhile l stats
 
 transformIf :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformIf guard stat = transformIfThenElse guard stat (pure $ Block' [emptyStmt])
