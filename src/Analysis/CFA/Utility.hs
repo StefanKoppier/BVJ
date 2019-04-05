@@ -119,9 +119,6 @@ blockExitEdge (fromNode@(from, _), toNode@(to, _)) entryType
     | otherwise 
         = [(from, to, BlockExitEdge entryType)]
 
---blockExitsEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
---blockExitsEdges = undefined
-
 blockExitEntryEdges :: (CFGNodes, CFGNode) -> BlockEntryType -> BlockEntryType -> CFGEdges
 blockExitEntryEdges (froms, to) exit entry
     = concatMap (\ from -> blockExitEntryEdge (from, to) exit entry) froms
@@ -158,7 +155,7 @@ seqEdge edge@(fromNode@(from, fromInfo), toNode@(to, toInfo)) currentStat nextSt
 
 continueExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
 continueExitEdges (froms, to) entries 
-    = {-trace (show entries) $-} concatMap (\ (from, entries') ->{- trace (show entries') $-} continueExitEdge ((from, exits entries'), to)) froms
+    = concatMap (\ (from, entries') -> continueExitEdge ((from, exits entries'), to)) froms
     where
         exits entries' = take (length entries' - length entries) entries'
 
@@ -167,10 +164,20 @@ continueExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
     | fromNode == noneNode || toNode == noneNode
         = []
     | otherwise 
-        = trace (show [(from, to, BlockExitsEdge entries)]) [(from, to, BlockExitsEdge entries)]
+        = [(from, to, BlockExitsEdge entries)]
 
 --breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
 --breakExitEdges = undefined
+
+returnExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
+returnExitEdges (froms, to) = concatMap ( \ from -> returnExitEdge (from, to)) froms
+
+returnExitEdge :: ((CFGNode, [BlockEntryType]), CFGNode) -> CFGEdges
+returnExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise 
+        = [(from, to, BlockExitsEdge entries)]
 
 --------------------------------------------------------------------------------
 -- Auxiliary functions

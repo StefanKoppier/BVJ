@@ -12,7 +12,7 @@ attr    MaybeCompoundStmts' CompoundStmts' CompoundStmt' Stmt'
     syn final                      :: {CFGNodes}
     syn breaks       use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
     syn continues    use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
---    syn returns      use {++} {[]} :: {CFGNodes}
+    syn returns      use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
 
 attr    CompoundStmt'
     syn guard :: {CFGNode}
@@ -286,11 +286,11 @@ sem Stmt'
     | Return'   lhs .label      = new @exp.label
                     .init       = let self = statNode (new @exp.label) (Stmt' @self)
                                     in ifNoneNode @exp.init self 
-                    .final      = [statNode (new @exp.label) (Stmt' @self)]
+                    .final      = []
                     .nodes      = let self = statNode (new @exp.label) (Stmt' @self)
                                     in self : @exp.nodes
                     .edges      = @exp.edges
-                --    .returns    = [statNode (new @exp.label) (Stmt' @self)]
+                    .returns    = [(statNode (new @exp.label) (Stmt' @self), @lhs.scopeEntries)]
                 exp .label      = @lhs.label
                     .statNode   = 1 + @lhs.label + @exp.numberOfCalls
 
