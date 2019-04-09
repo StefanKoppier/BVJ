@@ -141,8 +141,8 @@ seqEdge edge@(fromNode@(from, fromInfo), toNode@(to, toInfo)) currentStat nextSt
         = []
         
     -- Case: We're entering a block.
-    | (Block' _:_) <- nextStats
-        = blockEntryEdge edge BlockEntryType
+    | (Block' _ _:_) <- nextStats
+        = blockEntryEdge edge (BlockEntryType Nothing)
     
     -- Case: we're leaving a catch or finally block.
     | Just (Try' _ _ finally) <- currentStat
@@ -166,8 +166,16 @@ continueExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
     | otherwise 
         = [(from, to, BlockExitsEdge entries)]
 
---breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
---breakExitEdges = undefined
+breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
+breakExitEdges (froms, to)
+    = concatMap ( \ from -> returnExitEdge (from, to)) froms
+
+breakExitEdge :: ((CFGNode, [BlockEntryType]), CFGNode) -> CFGEdges
+breakExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise
+        = [(from, to, BlockExitsEdge entries)]
 
 returnExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
 returnExitEdges (froms, to) = concatMap ( \ from -> returnExitEdge (from, to)) froms

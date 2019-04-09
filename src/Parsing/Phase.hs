@@ -101,7 +101,7 @@ transformMethodBody (MethodBody Nothing)
     = throwSyntacticalError "method without implementation"
 
 transformBlock :: Block -> PhaseResult CompoundStmt'
-transformBlock (Block ss) = Block' <$> transformBlockStmts ss
+transformBlock (Block ss) = Block' Nothing <$> transformBlockStmts ss
 
 transformMaybeBlock :: Maybe Block -> PhaseResult MaybeCompoundStmts'
 transformMaybeBlock Nothing           = pure Nothing
@@ -123,6 +123,8 @@ transformBlockStmts (s:ss) = do
         BlockStmt IfThenElse{}
             -> return ([emptyStmt, s', emptyStmt] ++ ss')
         BlockStmt IfThen{}
+            -> return ([emptyStmt, s', emptyStmt] ++ ss')
+        BlockStmt Try{}
             -> return ([emptyStmt, s', emptyStmt] ++ ss')
         _   -> return (s' : ss')
 
@@ -262,7 +264,7 @@ transformStmt = foldStmt alg
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
         labelize l (While' _ g s) = While' l g s
-        labelize l (Block' ss)    = Block' (labelizeFirstWhile l ss)
+        labelize l (Block' _ ss)  = Block' Nothing (labelizeFirstWhile l ss)
 
 labelizeFirstWhile :: Maybe String -> CompoundStmts' -> CompoundStmts'
 labelizeFirstWhile l (While' _ guard body:stats) 
@@ -271,7 +273,7 @@ labelizeFirstWhile l (stat:stats)
     = stat : labelizeFirstWhile l stats
 
 transformIf :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
-transformIf guard stat = transformIfThenElse guard stat (pure $ Block' [emptyStmt])
+transformIf guard stat = transformIfThenElse guard stat (pure $ Block' Nothing [emptyStmt])
 
 transformIfThenElse :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt' 
 transformIfThenElse guard stat1 stat2 = do
@@ -284,8 +286,8 @@ transformToBlock :: PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformToBlock stat = do
     stat' <- stat
     case stat' of
-        Block' _ -> stat
-        _        -> return $ Block' [emptyStmt, stat', emptyStmt]
+        Block' _ _ -> stat
+        _          -> return $ Block' Nothing [emptyStmt, stat', emptyStmt]
 
 -- | Transforms a for loop into an equivalent while loop.
 transformFor :: Maybe ForInit -> Maybe Exp -> Maybe [Exp] -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
@@ -296,17 +298,17 @@ transformFor init guard update body = do
     body'     <- body
     whileBody <- transformForBody body' update'
     let while = While' Nothing guard' whileBody
-    pure (Block' [init', while, emptyStmt])
+    pure (Block' Nothing [init', while, emptyStmt])
 
 transformForInit :: ForInit -> PhaseResult CompoundStmt'
 transformForInit (ForLocalVars ms ty ds)
     = (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds
 
 transformForBody :: CompoundStmt' -> CompoundStmts' -> PhaseResult CompoundStmt'
-transformForBody (Block' ss) update 
-    = pure $ Block' (ss ++ update)
+transformForBody (Block' _ ss) update -- TODO: check this ident
+    = pure $ Block' Nothing (ss ++ update)
 transformForBody s update
-    = pure $ Block' (s : update)
+    = pure $ Block' Nothing (s : update)
 
 transformForUpdate :: [Exp] -> PhaseResult CompoundStmts'
 transformForUpdate es = do

@@ -17,7 +17,7 @@ arguments = defaultArgs {
       verbosity       = Informative {-Compact-}
     , numberOfThreads = 4
     , keepOutputFiles = True
-    , maximumDepth    = 11
+    , maximumDepth    = 20
     , pathFilter      = const id
     }
 

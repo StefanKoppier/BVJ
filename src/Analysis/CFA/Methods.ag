@@ -23,8 +23,8 @@ sem MemberDecl'
                                            seqEdge (entryNode, @body.init) Nothing @body.self
                                            ++ -- Edge from final of body to exit of method.
                                            seqEdges (@body.final, exitNode) Nothing []
-                                           ++ -- Edges from return statements to exit of method.
-                                           returnExitEdges (@body.returns, exitNode)
+                                           -- ++ -- Edges from return statements to exit of method.
+                                           -- returnExitEdges (@body.returns, exitNode)
                                            ++ -- if the body if empty, add an edge from entry to exit.
                                            if null @body.nodes 
                                             then intraEdge (entryNode, exitNode)
@@ -51,8 +51,8 @@ sem MemberDecl'
                                             intraEdge (entryNode, @body.init)
                                             ++ -- Edge from final of body to exit of method.
                                             intraEdges (@body.final, exitNode)
-                                            ++ -- Edges from return statements to exit of method.
-                                            returnExitEdges (@body.returns, exitNode)
+                                            -- ++ -- Edges from return statements to exit of method.
+                                            -- returnExitEdges (@body.returns, exitNode)
                                             ++ -- if the body if empty, add an edge from entry to exit.
                                             if null @body.nodes 
                                                 then intraEdge (entryNode, exitNode)

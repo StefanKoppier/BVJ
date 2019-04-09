@@ -101,7 +101,8 @@ deriving ClassType' : Ord, Eq, Show
 type CompoundStmts' = [CompoundStmt']
 
 data CompoundStmt'
-    | Block'        stat    :: CompoundStmts'
+    | Block'        ident   :: {Maybe String}
+                    stat    :: CompoundStmts'
 
     | IfThenElse'   exp     :: Exp'
                     stat1   :: CompoundStmt'

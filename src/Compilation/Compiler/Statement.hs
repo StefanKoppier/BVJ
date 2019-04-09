@@ -28,14 +28,14 @@ buildStmts statBuilder (PathStmt stat:stats) = do
 buildStmts statBuilder (entry@(PathEntry (ConditionalEntryType e)):stats) = do
     let index = findIndex 0 0 entry stats
     let (blockBody, restStats) = splitAt index stats
-    block <- keepOldAccumulator (Block' <$> buildStmts statBuilder blockBody)
+    block <- keepOldAccumulator (Block' Nothing <$> buildStmts statBuilder blockBody)
     restStats' <- buildStmts statBuilder restStats
     return (block : restStats')
     
-buildStmts statBuilder (entry@(PathEntry BlockEntryType):stats) = do
+buildStmts statBuilder (entry@(PathEntry (BlockEntryType label)):stats) = do
     let index                  = findIndex 0 0 entry stats
     let (blockBody, restStats) = splitAt index stats
-    block <- keepOldAccumulator (Block' <$> buildStmts statBuilder blockBody)
+    block <- keepOldAccumulator (Block' label <$> buildStmts statBuilder blockBody)
     restStats' <- buildStmts statBuilder restStats
     return (block : restStats')
 
@@ -50,9 +50,6 @@ buildStmts statBuilder (PathExit _:stats)
 buildStmts _ (stat:stats)
     = trace (show stat) undefined
 
---buildStmts statBuilder (PathExitEntry _ entry:stats)
---    = buildStmts statBuilder (PathEntry entry:stats)
-
 buildTryCatchStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (CompoundStmt', [PathType])
 buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
     let index                = findIndex 0 0 entry stats
@@ -64,7 +61,6 @@ buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
 
 buildCatches :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (Catches', [PathType])
 buildCatches statBuilder (ty@(PathEntry (CatchEntryType (Just e))):stats) = do
---buildCatches statBuilder (ty@(PathExitEntry _ (CatchEntryType (Just e))):stats) = do
     let index                  = findIndex 0 0 ty stats
     let (catchBody, restStats) = splitAt index stats
     catchStats <- keepOldAccumulator (buildStmts statBuilder catchBody)
@@ -76,7 +72,6 @@ buildCatches _ stats = return ([], stats)
 
 buildFinally :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (MaybeCompoundStmts', [PathType])
 buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
---buildFinally statBuilder (ty@(PathExitEntry exit FinallyEntryType):stats) = do
     let index                    = findIndex  0 0 ty stats
     let (finallyBody, restStats) = splitAt index stats
     finallyStats <- keepOldAccumulator (buildStmts statBuilder finallyBody)
@@ -85,7 +80,6 @@ buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
 
 buildFinally _ stats = return (Nothing, stats)
 
--- TODO: improve, very ugly function, but it works for now.
 findIndex :: Int -> Int -> PathType -> [PathType] -> Int
 findIndex _ _ _ [] = trace "no according exit block found" undefined
 
@@ -101,34 +95,6 @@ findIndex x i (PathEntry ty) (PathExit exit:rest)
     | ty == exit           = findIndex (x-1) (i+1) (PathEntry ty) rest
     | otherwise            = findIndex x (i+1) (PathEntry ty) rest
  
-{-
-findIndex x i (PathEntry ty) (PathExitEntry exit entry:rest)
-    | ty == exit && x == 0      = i
-    | ty == exit && ty == entry = findIndex x (i+1) (PathEntry ty) rest
-    | ty == exit                = findIndex (x-1) (i+1) (PathEntry ty) rest
-    | ty == entry               = findIndex (x+1) (i+1) (PathEntry ty) rest
-    | otherwise                 = findIndex x (i+1) (PathEntry ty) rest
-
-findIndex x i (PathExitEntry exit ty) (PathStmt _:rest)
-    = findIndex x (i+1) (PathExitEntry exit ty) rest
-
-findIndex x i (PathExitEntry exit ty) (PathEntry entry:rest)
-    | ty == entry = findIndex (x+1) (i+1) (PathExitEntry exit ty) rest 
-    | otherwise   = findIndex x (i+1) (PathExitEntry exit ty) rest
-
-findIndex x i (PathExitEntry exit' ty) (PathExit exit:rest)
-    | ty == exit && x == 0 = i 
-    | ty == exit           = findIndex (x-1) (i+1) (PathExitEntry exit' ty) rest
-    | otherwise            = findIndex x (i+1) (PathExitEntry exit' ty) rest
- 
-findIndex x i (PathExitEntry exit' ty) (PathExitEntry exit entry:rest)
-    | ty == exit && x == 0      = i
-    | ty == exit && ty == entry = findIndex x (i+1) (PathExitEntry exit' ty) rest
-    | ty == exit                = findIndex (x-1) (i+1) (PathExitEntry exit' ty) rest
-    | ty == entry               = findIndex (x+1) (i+1) (PathExitEntry exit' ty) rest
-    | otherwise                 = findIndex x (i+1) (PathExitEntry exit' ty) rest
--}
-
 --------------------------------------------------------------------------------
 -- Method statement building
 --------------------------------------------------------------------------------

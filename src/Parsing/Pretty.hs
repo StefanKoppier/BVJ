@@ -131,8 +131,10 @@ instance Pretty CompoundStmts' where
         = pretty stat $+$ pretty stats
 
 instance Pretty CompoundStmt' where
-    pretty (Block' s)                
+    pretty (Block' Nothing s)                
         = lbrace $+$ nest 4 (pretty s) $+$ rbrace
+    pretty (Block' (Just ident) s)                
+        = text ident <> colon <+> lbrace $+$ nest 4 (pretty s) $+$ rbrace
     pretty (IfThenElse' g s1 s2)     
         = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" $+$  pretty s2
     pretty (While' (Just ident) g s) 

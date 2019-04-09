@@ -46,7 +46,7 @@ data BlockEntryType
     | CatchEntryType       (Maybe FormalParam')
     | ConditionalEntryType (Maybe Exp')
     | FinallyEntryType
-    | BlockEntryType
+    | BlockEntryType       (Maybe String)
     deriving (Show)
 
 instance Eq BlockEntryType where
@@ -54,7 +54,7 @@ instance Eq BlockEntryType where
     (CatchEntryType _)       == (CatchEntryType _)       = True
     (ConditionalEntryType _) == (ConditionalEntryType _) = True
     FinallyEntryType         == FinallyEntryType         = True
-    BlockEntryType           == BlockEntryType           = True
+    (BlockEntryType _)       == (BlockEntryType _)       = True
     _                        == _                        = False
 
 type CFGEdge = LEdge CFGEdgeValue

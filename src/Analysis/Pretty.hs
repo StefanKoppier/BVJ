@@ -72,4 +72,4 @@ instance Pretty BlockEntryType where
         
     pretty FinallyEntryType = "finally"
 
-    pretty BlockEntryType = "block"
+    pretty (BlockEntryType _) = "block"
