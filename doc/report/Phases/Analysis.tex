@@ -1,39 +1,39 @@
-\section{Analysis}
+\chapter{Analysis}
 
-\subsection{Control Flow Analysis}
-We Control Flow Analysis (CFA) is the first step in the analysis process. We 
-take the abstract syntax tree of the input program and transform it into the 
-control flow graph (CFG).
-
-\begin{definition}
-The Control Flow Graph (CFG) of a program $P$ is a directed graph $G_P=(V,E)$
-where
-
-\begin{itemize}
-    \item $V$ is the set of nodes. Each node is one of either: the entry point 
-    of a method, the exit point of a method, a method call, or a basic block.
-
-    \item $E$ is the set of edges. Each edge is one of either: an interprocedural
-    edge, an intraprocedural edge, or a conditional edge.
-\end{itemize}
-\end{definition}
-
-\subsubsection{Intraprocedural Control Flow Analysis}
-The intraprocedural Control Flow Analysis, that is, the Control Flow within a
-single method, is constructed as follows:
-
-For every statement, a basic block is inserted, containing that statement.
-
-For the compound statements, we insert edges using the following approach:
-
-\begin{description}
-    \item[\javainline{while}]
-    \item[\javainline{if else}] 
-    \item[\javainline{switch}] 
-\end{description}
-
-
-\subsection{Reachability Analysis}
-Given a Control Flow Graph, a depth-first search is performed on the node $v \in V$ 
-that corresponds to the entry point of the method to be verified. The subgraph 
-containing only the nodes that are reached from $v$ is constructed.
+%\subsection{Control Flow Analysis}
+%We Control Flow Analysis (CFA) is the first step in the analysis process. We 
+%take the abstract syntax tree of the input program and transform it into the 
+%control flow graph (CFG).
+%
+%\begin{definition}
+%The Control Flow Graph (CFG) of a program $P$ is a directed graph $G_P=(V,E)$
+%where
+%
+%\begin{itemize}
+%    \item $V$ is the set of nodes. Each node is one of either: the entry point 
+%    of a method, the exit point of a method, a method call, or a basic block.
+%
+%    \item $E$ is the set of edges. Each edge is one of either: an interprocedural
+%    edge, an intraprocedural edge, or a conditional edge.
+%\end{itemize}
+%\end{definition}
+%
+%\subsubsection{Intraprocedural Control Flow Analysis}
+%The intraprocedural Control Flow Analysis, that is, the Control Flow within a
+%single method, is constructed as follows:
+%
+%For every statement, a basic block is inserted, containing that statement.
+%
+%For the compound statements, we insert edges using the following approach:
+%
+%\begin{description}
+%    \item[\javainline{while}]
+%    \item[\javainline{if else}] 
+%    \item[\javainline{switch}] 
+%\end{description}
+%
+%
+%\subsection{Reachability Analysis}
+%Given a Control Flow Graph, a depth-first search is performed on the node $v \in V$ 
+%that corresponds to the entry point of the method to be verified. The subgraph 
+%containing only the nodes that are reached from $v$ is constructed.

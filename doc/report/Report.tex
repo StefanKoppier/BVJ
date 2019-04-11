@@ -50,11 +50,27 @@
 
 \chapter*{Introduction}
 
+We present a tool that allows bounded model checking of Java source code. The
+tool works a layer over JBMC, a bounded verification tool for Java bytecode, 
+developed by Lucas Cordeiro et al. \cite{ckkst2018}. Built on the CPROVER
+framework, which also drives the industrial strength bounded model checking tool 
+CBMC.
+
+We were inspired to develop this tool by CRUST \cite{toman2015crust}. CRUST is a 
+bounded model checking tool to find memory problems in Rust source code, and we 
+wanted a similar infrastructure to do further research on bounded model checking
+of Java source code.
+
+The advantage of using this tool, over using JBMC itself is that we provide an 
+interface for Java source code, instead of Java bytecode.
+
+\section*{Features}
+
+\section*{Comparison between JBMC}
+
+\section*{An overview of the tool}
+
 \tableofcontents
-
-\input{Features/Features.tex}
-
-\input{Semantics/Semantics.tex}
 
 \input{Phases/Phases.tex}
 
