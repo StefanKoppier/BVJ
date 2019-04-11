@@ -18,6 +18,8 @@ instance {-# OVERLAPS #-} Ord (LNode a) where
 
 data CFGNodeValue 
     = StatNode        CompoundStmt'  -- ^ The statement of the node.
+    | ForInitNode     ForInit'       -- ^ The for loop init of the node.
+    | ForUpdateNode   Exps'          -- ^ The for loop update of the node.
     | CatchNode       Catch'         -- ^ The catch of the node.
     | FinallyNode     CompoundStmts' -- ^ The finally of the node.
     | CallNode        Scope          -- ^ The method that is being called.

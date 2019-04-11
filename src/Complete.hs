@@ -1,4 +1,8 @@
-module Complete where
+module Complete(
+      module Auxiliary.Phase
+    , module Auxiliary.Pretty
+    , run
+) where
 
 import Auxiliary.Phase
 import Auxiliary.Pretty
@@ -10,6 +14,14 @@ import Verification.Phase
 import Verification.JBMCResult
 import Verification.Pretty
 
+run :: Arguments -> FilePath -> IO ()
+run args file = do
+    content <- readFile file
+    result  <- runExceptT $ allPhases args content
+    case result of
+        Left  failure -> putStrLn $ "An error occurred: " ++ show failure
+        Right _       -> return ()
+
 allPhases :: Phase String CProverResults
 allPhases args file = do
     ast      <- parsingPhase args file
@@ -20,3 +32,4 @@ allPhases args file = do
     liftIO $ printHeader "FINAL RESULT"
     liftIO $ printPretty results
     return results
+    

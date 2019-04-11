@@ -85,8 +85,24 @@ paths (_,_,_,_,0) _ (_, _, _, _:_)
     = []
 
 -- Case: a statement.
-paths acc graph (_,currentNode, StatNode (Stmt' stat), neighbours)
+paths acc graph (_, currentNode, StatNode (Stmt' stat), neighbours)
     = concatMap (next (prepend currentNode (PathStmt stat) acc) graph . createEdge currentNode) neighbours
+
+-- Case: a for initializer node.
+paths acc graph (x, currentNode, ForInitNode init, neighbours)
+    = concatMap (next (prepends currentNode acc stats) graph . createEdge currentNode) neighbours
+    where
+        stats = case init of
+                    ForLocalVars' modifiers ty decls
+                        -> [PathStmt (Decl' modifiers ty decls)]
+                    ForInitExps' exps
+                        -> map (PathStmt . ExpStmt') exps
+
+-- Case: a for update node.
+paths acc graph (_, currentNode, ForUpdateNode exps, neighbours)
+    = concatMap (next (prepends currentNode acc stats) graph . createEdge currentNode) neighbours
+    where
+        stats = map (PathStmt . ExpStmt') exps
 
 -- Case: a compound statement.
 paths acc graph (_, currentNode, StatNode _, neighbours)

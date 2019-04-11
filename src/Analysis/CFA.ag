@@ -15,7 +15,7 @@ attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' MaybeCompoundSt
         MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
         ArrayIndex' Lhs' FieldAccess' Catches' Catch' AnnotationKeyValues' 
         AnnotationKeyValue' ElementValue' Annotation' Modifiers' Modifier'
-        FormalParams' FormalParam'
+        FormalParams' FormalParam' MaybeForInit' ForInit' MaybeExps'
     inh ast :: CompilationUnit'
 
 sem CompilationUnit'
@@ -23,7 +23,7 @@ sem CompilationUnit'
 
 attr    CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' 
         MaybeCompoundStmts' Catches' Catch' CompoundStmts' CompoundStmt' Stmt'  
-        SwitchBlocks' SwitchBlock'
+        SwitchBlocks' SwitchBlock' MaybeForInit' ForInit'
     syn nodes use {++} {[]} :: {CFGNodes}
     syn edges use {++} {[]} :: {CFGEdges}
     chn label               :: {Node}
@@ -32,8 +32,8 @@ attr    TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl' CompoundStmts'
         CompoundStmt' Stmt' SwitchBlocks' SwitchBlock' MaybeExp' Exps' Exp' 
         MethodInvocation' VarDecls' VarDecl' VarInits' VarInit' MaybeVarInits' 
         Lhs' ArrayIndex' FieldAccess' AnnotationKeyValues' AnnotationKeyValue' 
-        ElementValue' Annotation' Catches' Catch' Modifiers' Modifier' 
-        FormalParams' FormalParam' MaybeCompoundStmts'
+        ElementValue' Annotation' Catches' Catch' Modifiers' Modifier' MaybeExps'
+        FormalParams' FormalParam' MaybeCompoundStmts' MaybeForInit' ForInit'
     inh methods :: {Methods}
               
 attr    Decls' Decl' MemberDecl' CompoundStmts' CompoundStmt' Stmt' MaybeExp' Exps' 
@@ -41,10 +41,10 @@ attr    Decls' Decl' MemberDecl' CompoundStmts' CompoundStmt' Stmt' MaybeExp' Ex
         Lhs' ArrayIndex' FieldAccess' SwitchBlocks' SwitchBlock' Catches' Catch'
         AnnotationKeyValues' AnnotationKeyValue'  ElementValue' Annotation' 
         Modifiers' Modifier' FormalParams' FormalParam' MaybeCompoundStmts'
+        MaybeForInit' ForInit' MaybeExps'
     inh className :: {String}
 
 attr    CompilationUnit' TypeDecls' TypeDecl' ClassDecl' Decls' Decl' MemberDecl'
-        Catches' Catch'
     syn methods use {M.union} {M.empty} :: {Methods} 
 
 include "CFA/Statement.ag"

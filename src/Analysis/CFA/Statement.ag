@@ -5,14 +5,13 @@
 --------------------------------------------------------------------------------
 
 attr    MaybeCompoundStmts' CompoundStmts' CompoundStmt' Stmt' 
-        SwitchBlocks' SwitchBlock' Catches' Catch'
+        SwitchBlocks' SwitchBlock' Catches' Catch' MaybeForInit' ForInit'
     inh method                     :: Name'
     inh scopeEntries               :: {[BlockEntryType]}
     syn init                       :: {CFGNode}
     syn final                      :: {CFGNodes}
     syn breaks       use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
     syn continues    use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
---    syn returns      use {++} {[]} :: {[(CFGNode, [BlockEntryType])]}
 
 attr    CompoundStmt'
     syn guard :: {CFGNode}
@@ -38,23 +37,34 @@ sem CompoundStmts'
                                 -> @hd.edges ++ @tl.edges 
                                    ++ -- Edges from the final to the next statement.
                                    blockExitEdges (@hd.final, @tl.init) (ConditionalEntryType Nothing)
-                            While' _ guard _
-                                -> @hd.edges ++ @tl.edges
-                                   ++ -- Edge from the guard to the next statement.
-                                   blockExitEdge (@hd.guard, @tl.init) (ConditionalEntryType (Just (PreNot' guard)))
-                                   ++ -- Edges from the breaks to the next statement.
-                                   breakExitEdges (@hd.breaks, @tl.init)
+                            While' ident guard _
+                                -> let breaks = filter (isLabelOfThisNode ident . fst) @hd.breaks
+                                    in @hd.edges ++ @tl.edges
+                                       ++ -- Edge from the final to the next statement.
+                                       intraEdges (@hd.final, @tl.init)
+                                       ++ -- Edges from the breaks to the next statement.
+                                       breakExitEdges (breaks, @tl.init) @lhs.scopeEntries
+                            For' ident _ guard _ _
+                                -> let breaks = filter (isLabelOfThisNode ident . fst) @hd.breaks
+                                    in @hd.edges ++ @tl.edges
+                                       ++ -- Edge from the final to the next statement.
+                                       intraEdges (@hd.final, @tl.init)
+                                       ++ -- Edges from the breaks to the next statement.
+                                       breakExitEdges (breaks, @tl.init) @lhs.scopeEntries
                             _   
                                 -> @hd.edges ++ @tl.edges 
                                    ++ seqEdges (@hd.final, @tl.init) (Just @hd.self) @tl.self
                 .nodes = @hd.nodes ++ @tl.nodes
                 .breaks = case @hd.self of
-                            While' ident _ _ -> (filter (not . isLabelOfThisNode ident . fst) @hd.breaks) ++ @tl.breaks
-                            _                -> @hd.breaks ++ @tl.breaks
+                            While' ident _ _ 
+                                -> (filter (not . isLabelOfThisNode ident . fst) @hd.breaks) ++ @tl.breaks
+                            For' ident _ _ _ _ 
+                                -> (filter (not . isLabelOfThisNode ident . fst) @hd.breaks) ++ @tl.breaks
+                            _   -> @hd.breaks ++ @tl.breaks
             hd  .label = @lhs.label
                 .scopeEntries = case @hd.self of 
-                                    Block' _ _ -> (BlockEntryType Nothing) : @lhs.scopeEntries; 
-                                    _          -> @lhs.scopeEntries
+                                    Block' _ _     -> BlockEntryType Nothing : @lhs.scopeEntries
+                                    _              -> @lhs.scopeEntries
             tl  .label        = @hd.label
                 .scopeEntries = @lhs.scopeEntries
 
@@ -62,10 +72,6 @@ sem CompoundStmts'
                 .final = noneNodes
 
 sem MaybeCompoundStmts'
-    | Just      lhs.label = @just.label
-                   .init  = @just.init
-                   .final = @just.final
-
     | Nothing   lhs.label = @lhs.label
                    .init  = noneNode
                    .final = noneNodes
@@ -79,49 +85,90 @@ sem CompoundStmt'
                     stat .label         = @lhs.label
                          .scopeEntries  = @lhs.scopeEntries
       
-    | IfThenElse'   lhs  .label     = @stat2.label
-                         .init      = let self = statNode (new @exp.label) @self
-                                        in ifNoneNode @exp.init self
-                         .final     = @stat1.final ++ @stat2.final
-                         .nodes     = let self = statNode (new @exp.label) @self
-                                        in self : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
-                         .edges     = let self = statNode (new @exp.label) @self
-                                        in @stat1.edges ++ @stat2.edges ++ @exp.edges
-                                           ++ -- Edge from condition to true branch.
-                                           blockEntryEdge (self, @stat1.init) (ConditionalEntryType (Just @exp.self))
-                                           ++ -- Edge from condition to false branch.
-                                           blockEntryEdge (self, @stat2.init) (ConditionalEntryType (Just (PreNot' @exp.self)))
-                    exp  .label     = @lhs.label
-                         .statNode  = new @exp.label
-                    stat1.label     = new @exp.label
+    | IfThenElse'   lhs  .label         = @stat2.label
+                         .init          = let self = statNode (new @exp.label) @self
+                                            in ifNoneNode @exp.init self
+                         .final         = @stat1.final ++ @stat2.final
+                         .nodes         = let self = statNode (new @exp.label) @self
+                                            in self : @exp.nodes ++ @stat1.nodes ++ @stat2.nodes
+                         .edges         = let self = statNode (new @exp.label) @self
+                                            in @stat1.edges ++ @stat2.edges ++ @exp.edges
+                                               ++ -- Edge from condition to true branch.
+                                               blockEntryEdge (self, @stat1.init) (ConditionalEntryType (Just @exp.self))
+                                               ++ -- Edge from condition to false branch.
+                                              blockEntryEdge (self, @stat2.init) (ConditionalEntryType (Just (PreNot' @exp.self)))
+                    exp  .label        = @lhs.label
+                         .statNode     = new @exp.label
+                    stat1.label        = new @exp.label
                          .scopeEntries = ConditionalEntryType Nothing : @lhs.scopeEntries
-                    stat2.label     = @stat1.label
+                    stat2.label        = @stat1.label
                          .scopeEntries = ConditionalEntryType Nothing : @lhs.scopeEntries
 
-    | While'        lhs .label      = @body.label
-                        .init       = let self = statNode (new @exp.label) @self
-                                        in ifNoneNode @exp.init self
-                        .final      = let self = statNode (new @exp.label) @self
-                                        in if null @exp.init then [self] else [@exp.init]
-                        .nodes      = let self = statNode (new @exp.label) @self
-                                        in self : @body.nodes ++ @exp.nodes
-                        .edges      = let self      = statNode (new @exp.label) @self
-                                          continues = filter (isLabelOfThisNode @ident . fst) @body.continues
-                                          init      = ifNoneNode @exp.init self
-                                        in @body.edges ++ @exp.edges
-                                           ++ -- Edge from condition to the body.
-                                           blockEntryEdge (self, @body.init) (ConditionalEntryType (Just @exp.self))
-                                           ++ -- Edge from end of body to the condition.
-                                           blockExitEdges (@body.final, init) (ConditionalEntryType Nothing)
-                                           ++ -- Edge from continues of this loop to the condition.
-                                           continueExitEdges (continues, init) @lhs.scopeEntries
-                        .continues  = filter (not . isLabelOfThisNode @ident . fst) @body.continues
-                        .guard      = statNode (new @exp.label) @self
-                        .scopeEntries = @lhs.scopeEntries
-                    exp .label      = @lhs.label
-                        .statNode   = new @exp.label
-                    body.label      = new @exp.label
-                        .scopeEntries = ConditionalEntryType Nothing : @lhs.scopeEntries
+    | While'        lhs .label          = new @body.label
+                        .init           = let self = statNode (new @exp.label) @self
+                                            in ifNoneNode @exp.init self
+                        .final          = [statNode (new @exp.label) @self]
+                        .nodes          = let (While' _ guard _) = @self
+                                              self       = statNode (new @exp.label) @self
+                                            in self : @body.nodes ++ @exp.nodes
+                        .edges          = let (While' _ guard _) = @self
+                                              self       = statNode (new @exp.label) @self
+                                              continues  = filter (isLabelOfThisNode @ident . fst) @body.continues
+                                              init       = ifNoneNode @exp.init self
+                                            in @body.edges ++ @exp.edges
+                                               ++ -- Edge from condition to the body.
+                                               blockEntryEdge (self, @body.init) (ConditionalEntryType (Just @exp.self))
+                                               ++ -- Edge from end of body to the condition.
+                                               blockExitEdges (@body.final, init) (ConditionalEntryType Nothing)
+                                               ++ -- Edge from continues of this loop to the condition.
+                                               continueExitEdges (continues, init) @lhs.scopeEntries
+                        .continues      = filter (not . isLabelOfThisNode @ident . fst) @body.continues
+                        .guard          = statNode (new @exp.label) @self
+                    exp .label          = @lhs.label
+                        .statNode       = new @exp.label
+                    body.label          = new @exp.label
+                        .scopeEntries   = ConditionalEntryType Nothing : @lhs.scopeEntries
+
+    | For'          lhs     .label          = new @body.label
+                            .init           = let selfLabel = new @exp.label
+                                                  self      = ifNoneNode @exp.init (statNode selfLabel @self)
+                                                in maybe self (const @initial.init) @initial.self
+                            .final          = [statNode (new @exp.label) @self]
+                            .nodes          = let (For' _ _ guard _ _) = @self
+                                                  selfLabel   = new @exp.label
+                                                  self        = statNode selfLabel @self
+                                                  updateLabel = new @update.label
+                                                  update      = forUpdateNode updateLabel @update.self
+                                                  assumption  = statNode (new @body.label) (Stmt' $ Assume' (PreNot' guard))
+                                                in self : assumption : @initial.nodes ++ @exp.nodes ++ @update.nodes ++ @body.nodes ++ update
+                            .edges          = let (For' _ _ guard _ _) = @self
+                                                  selfLabel   = new @exp.label
+                                                  self        = statNode selfLabel @self
+                                                  updateLabel = new @update.label
+                                                  update      = forUpdateNode updateLabel @update.self
+                                                  init        = maybe (ifNoneNode @exp.init self) (const (ifNoneNode @update.init (head update))) @update.self
+                                                  continues   = filter (isLabelOfThisNode @ident . fst) @body.continues
+                                                in @body.edges ++ @initial.edges ++ @exp.edges ++ @update.edges
+                                                   ++ -- Edge from initial to guard.
+                                                   intraEdges (@initial.final, ifNoneNode @exp.init self)
+                                                   ++ -- Edge from guard to body.
+                                                   blockEntryEdge (self, @body.init) (ConditionalEntryType (Just @exp.self))
+                                                   ++ -- Edge from the body to the update or condition.
+                                                   blockExitEdges (@body.final, init) (ConditionalEntryType Nothing)
+                                                   ++ -- Edge from the update to the condition.
+                                                   intraEdges (update, self)
+                                                   ++ -- Edge from continues of this loop to the update or condition.
+                                                   continueExitEdges (continues, init) @lhs.scopeEntries
+                            .continues      = filter (not . isLabelOfThisNode @ident . fst) @body.continues
+                            .guard          = statNode (new @initial.label) @self
+                    initial .label          = @lhs.label
+                    exp     .label          = @initial.label
+                            .statNode       = new @exp.label
+                    update  .label          = new @exp.label
+                            .statNode       = new @update.label
+                    body    .label          = maybe @update.label (const (new @update.label)) @update.self
+                            .scopeEntries   = ConditionalEntryType Nothing : @lhs.scopeEntries
+
 {-
     | Switch'       lhs     .label     = @cases.label
                             .init      = let self = statNode (new @exp.label) @self
@@ -138,6 +185,7 @@ sem CompoundStmt'
                             .guard     = @exp.self
                             .previous  = []
 -}
+
     | Try'          lhs     .label  = @finally.label
                             .init   = statNode (new @lhs.label) @self
                             .final  = maybe @catches.final (const @finally.final) @finally.self
@@ -158,6 +206,29 @@ sem CompoundStmt'
                     stat    .label  = new @lhs.label
                     catches .label  = @stat.label
                     finally .label  = maybe @catches.label (const (new @catches.label)) @finally.self
+
+sem MaybeForInit'
+    | Nothing   lhs .init  = noneNode
+                    .final = []
+
+sem ForInit'
+    | ForLocalVars' lhs     .label      = new @decls.label
+                            .init       = let self = forInitNode (new @decls.label) @self
+                                            in ifNoneNode @decls.init self
+                            .final      = [forInitNode (new @decls.label) @self]
+                            .nodes      = let self = forInitNode (new @decls.label) @self
+                                            in self : @decls.nodes
+                    decls   .label      = @lhs.label
+                            .statNode   = new @decls.label
+
+    | ForInitExps'  lhs .label      = new @exps.label
+                        .init       = let self = forInitNode (new @exps.label) @self
+                                        in ifNoneNode @exps.init self
+                        .final      = [forInitNode (new @exps.label) @self]
+                        .nodes      = let self = forInitNode (new @exps.label) @self
+                                        in self : @exps.nodes
+                    exps.label      = @lhs.label
+                        .statNode   = new @exps.label
 
 attr    SwitchBlocks'
     inh parent   :: {CFGNode}
@@ -286,7 +357,6 @@ sem Stmt'
                     .nodes      = let self = statNode (new @exp.label) (Stmt' @self)
                                     in self : @exp.nodes
                     .edges      = @exp.edges
-                --    .returns    = [(statNode (new @exp.label) (Stmt' @self), @lhs.scopeEntries)]
                 exp .label      = @lhs.label
                     .statNode   = 1 + @lhs.label + @exp.numberOfCalls
 

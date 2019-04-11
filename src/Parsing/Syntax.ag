@@ -111,6 +111,12 @@ data CompoundStmt'
     | While'        ident   :: {Maybe String}
                     exp     :: Exp'
                     body    :: CompoundStmt'
+
+    | For'          ident   :: {Maybe String}
+                    initial :: MaybeForInit'
+                    exp     :: Exp'
+                    update  :: MaybeExps'
+                    body    :: CompoundStmt'
                     
     | Switch'       exp     :: Exp'
                     cases   :: SwitchBlocks'
@@ -146,6 +152,15 @@ data Stmt'
 
     | Throw'        exp         :: Exp'
 deriving Stmt' : Eq, Show
+
+type MaybeForInit' = maybe ForInit'
+
+data ForInit'
+    | ForLocalVars' modifiers :: Modifiers'
+                    ty        :: Type'
+                    decls     :: VarDecls'
+    | ForInitExps'  exps      :: Exps'
+deriving ForInit' : Eq, Show
 
 type SwitchBlocks' = [SwitchBlock']
 
@@ -189,6 +204,8 @@ deriving VarInit' : Eq, Show
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
+
+type MaybeExps' = maybe Exps'
 
 type Exps' = [Exp']
 

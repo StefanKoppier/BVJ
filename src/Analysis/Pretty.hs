@@ -20,6 +20,12 @@ instance Pretty CFGNodeValue where
     pretty (StatNode s)    
         = pretty s
 
+    pretty (ForInitNode init)
+        = pretty init
+
+    pretty (ForUpdateNode update)
+        = commas update
+
     pretty (CatchNode c)    
         = pretty c
         
@@ -47,7 +53,7 @@ instance Pretty CFGEdgeValue where
 
     pretty IntraEdge     
         = "intra edge"
-
+        
     pretty (BlockEntryEdge entryType)
         = "scope entry edge of" <+> quotes (pretty entryType)
 

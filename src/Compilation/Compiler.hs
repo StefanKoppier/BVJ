@@ -37,10 +37,16 @@ create progress program dir id = do
     let jarPath     = actualDir ++ "/Program.jar"
     liftIO $ createDirectory (dropFileName programPath)
     liftIO $ writeFile programPath (toString program)
-    liftIO $ javac programPath
-    liftIO $ jar jarPath
-    liftIO $ incProgress progress
-    return jarPath
+    javacResult <- liftIO $ javac programPath
+    case javacResult of
+        Left  javacFailure -> throwE javacFailure
+        Right _            -> do
+            jarResult <- liftIO $ jar jarPath
+            case jarResult of
+                Left  jarFailure -> throwE jarFailure
+                Right _          -> do
+                    liftIO $ incProgress progress
+                    return jarPath
 
 build :: CompilationUnit' -> ProgramPath -> PhaseResult CompilationUnit'
 build unit@(CompilationUnit' package originalImports _) path = do

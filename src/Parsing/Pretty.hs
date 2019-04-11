@@ -137,10 +137,10 @@ instance Pretty CompoundStmt' where
         = text ident <> colon <+> lbrace $+$ nest 4 (pretty s) $+$ rbrace
     pretty (IfThenElse' g s1 s2)     
         = text "if" <+> parens (pretty g) $+$ pretty s1 $+$ text "else" $+$  pretty s2
-    pretty (While' (Just ident) g s) 
-        = text ident <> text ": while" <+> parens (pretty g) $+$ pretty s
-    pretty (While' Nothing g s)      
-        = text "while" <+> parens (pretty g) $+$ pretty s
+    pretty (While' ident g s)      
+        = pIdent ident <+> text "while" <+> parens (pretty g) $+$ pretty s
+    pretty (For' ident init guard update body)
+        = pIdent ident <+> text "for" <> parens (pForInit init <+> pretty guard <> semi <+> pForUpdate update) $+$ pretty body
     pretty (Switch' e cs)            
         = text "switch" <+> parens (pretty e) $+$ lbrace $+$ pretty cs $+$ rbrace
     pretty (Try' stat catches Nothing)
@@ -150,6 +150,24 @@ instance Pretty CompoundStmt' where
           $+$ text "finally" $+$ lbrace $+$ tab (pretty finally) $+$ rbrace 
     pretty (Stmt' s)
         = pretty s
+
+instance Pretty ForInit' where
+    pretty (ForLocalVars' modifiers ty decls)
+        = pretty modifiers <+> pretty ty <+> pretty decls
+    pretty (ForInitExps' exps)
+        = commas exps
+
+pForInit :: MaybeForInit' -> Doc
+pForInit Nothing     = semi
+pForInit (Just init) = pretty init <> semi
+
+pForUpdate :: MaybeExps' -> Doc
+pForUpdate Nothing     = empty
+pForUpdate (Just exps) = commas exps
+
+pIdent :: Maybe String -> Doc
+pIdent Nothing      = empty
+pIdent (Just ident) = text ident <+> char ':'
 
 instance Pretty Stmt' where
     pretty (Decl' ms ty vars)        = pretty ms <+> pretty ty <+> pretty vars <> semi

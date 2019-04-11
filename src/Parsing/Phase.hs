@@ -247,7 +247,7 @@ transformStmt = foldStmt alg
         alg = (                    transformBlock
               ,                    transformIf
               ,                    transformIfThenElse
-              , \ g s           -> While' Nothing <$> transformExp g <*> s
+              ,                    transformWhile
               ,                    transformFor
               , \ m t i g s     -> throwSyntacticalError "for (iterator)"
               ,                    compound Empty'
@@ -263,14 +263,8 @@ transformStmt = foldStmt alg
               , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
-        labelize l (While' _ g s) = While' l g s
-        labelize l (Block' _ ss)  = Block' Nothing (labelizeFirstWhile l ss)
-
-labelizeFirstWhile :: Maybe String -> CompoundStmts' -> CompoundStmts'
-labelizeFirstWhile l (While' _ guard body:stats) 
-    = While' l guard body : stats
-labelizeFirstWhile l (stat:stats)
-    = stat : labelizeFirstWhile l stats
+        labelize l (While' _ g s)   = While' l g s
+        labelize l (For' _ i g u s) = For' l i g u s
 
 transformIf :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformIf guard stat = transformIfThenElse guard stat (pure $ Block' Nothing [emptyStmt])
@@ -289,31 +283,34 @@ transformToBlock stat = do
         Block' _ _ -> stat
         _          -> return $ Block' Nothing [emptyStmt, stat', emptyStmt]
 
--- | Transforms a for loop into an equivalent while loop.
+transformWhile :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
+transformWhile guard body = do
+    guard' <- transformExp guard
+    body'  <- body
+    return $ Block' Nothing [emptyStmt, While' Nothing guard' body', Stmt' $ Assume' (PreNot' guard')]
+
 transformFor :: Maybe ForInit -> Maybe Exp -> Maybe [Exp] -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformFor init guard update body = do
-    init'     <- maybe (pure emptyStmt) transformForInit init
-    guard'    <- maybe (pure $ Lit' $ Boolean' True) transformExp guard
-    update'   <- maybe (pure []) transformForUpdate update
-    body'     <- body
-    whileBody <- transformForBody body' update'
-    let while = While' Nothing guard' whileBody
-    pure (Block' Nothing [init', while, emptyStmt])
+   init'   <- transformForInit init
+   guard'  <- maybe (pure $ Lit' $ Boolean' True) transformExp guard
+   update' <- transformForUpdate update
+   body'   <- body
+   return $ Block' Nothing [emptyStmt, For' Nothing init' guard' update' body', Stmt' $ Assume' (PreNot' guard')]
 
-transformForInit :: ForInit -> PhaseResult CompoundStmt'
-transformForInit (ForLocalVars ms ty ds)
-    = (\ ms' ty' -> Stmt' . Decl' ms' ty') <$> transformModifiers ms <*> transformType ty <*> transformVarDecls ty ds
+transformForInit :: Maybe ForInit -> PhaseResult (Maybe ForInit')
+transformForInit Nothing 
+    = pure Nothing
+transformForInit (Just (ForLocalVars modifiers ty decls)) = do
+    modifiers' <- transformModifiers modifiers
+    ty'        <- transformType ty
+    decls'     <- transformVarDecls ty decls
+    return $ Just (ForLocalVars' modifiers' ty' decls')
+transformForInit (Just (ForInitExps exps))
+    = Just . ForInitExps' <$> transformExps exps
 
-transformForBody :: CompoundStmt' -> CompoundStmts' -> PhaseResult CompoundStmt'
-transformForBody (Block' _ ss) update -- TODO: check this ident
-    = pure $ Block' Nothing (ss ++ update)
-transformForBody s update
-    = pure $ Block' Nothing (s : update)
-
-transformForUpdate :: [Exp] -> PhaseResult CompoundStmts'
-transformForUpdate es = do
-    es' <- transformExps es
-    pure $ map (Stmt' . ExpStmt') es'
+transformForUpdate :: Maybe [Exp] -> PhaseResult (Maybe [Exp'])
+transformForUpdate Nothing     = pure Nothing
+transformForUpdate (Just exps) = Just <$> transformExps exps
 
 transformSwitchBlock :: SwitchBlock -> PhaseResult SwitchBlock'
 transformSwitchBlock (SwitchBlock (SwitchCase e) s) 

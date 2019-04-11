@@ -59,7 +59,6 @@ rename name = do
     acc <- getAccumulator
     let renames = acc M.! name
     let ((scope, callNumber), renames2) = findAndRemoveMaximumCallNumber renames
-    --let ((scope, callNumber):renames) = acc M.! name
     let acc2 = M.insert name renames2 acc
     updateAccumulator (const acc2) 
     return $ renameMethodCall name scope callNumber

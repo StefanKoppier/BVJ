@@ -49,6 +49,13 @@ new = (1+)
 statNode :: Node -> CompoundStmt' -> CFGNode
 statNode node stat = (node, StatNode stat)
 
+forUpdateNode :: Node -> MaybeExps' -> CFGNodes
+forUpdateNode _    Nothing     = []
+forUpdateNode node (Just exps) = [(node, ForUpdateNode exps)]
+
+forInitNode :: Node -> ForInit' -> CFGNode
+forInitNode node init = (node, ForInitNode init)
+
 -- | Create a new CFG catch node.
 catchNode :: Node -> Catch' -> CFGNode
 catchNode node catch = (node, CatchNode catch)
@@ -166,9 +173,12 @@ continueExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
     | otherwise 
         = [(from, to, BlockExitsEdge entries)]
 
-breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> CFGEdges
-breakExitEdges (froms, to)
-    = concatMap ( \ from -> returnExitEdge (from, to)) froms
+breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
+breakExitEdges (froms, to) entries
+    = trace ("all entries: " ++ show entries)
+        concatMap ( \ (from, entries') -> breakExitEdge ((from, exits entries'), to)) froms
+    where
+        exits entries' = trace ("current entries: " ++ show entries') $ take (length entries' - length entries) entries'
 
 breakExitEdge :: ((CFGNode, [BlockEntryType]), CFGNode) -> CFGEdges
 breakExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
@@ -186,7 +196,21 @@ returnExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
         = []
     | otherwise 
         = [(from, to, BlockExitsEdge entries)]
+{-
+whileExitEdge :: (CFGNode, CFGNode) -> Exp' -> CFGEdges
+whileExitEdge (fromNode@(from, _), toNode@(to, _)) guard
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise
+        = [(from, to, BlockEntryExitEdge )]
 
+forExitEdge :: (CFGNode, CFGNode) -> Exp' -> CFGEdges
+forExitEdge (fromNode@(from, _), toNode@(to, _)) guard
+    | fromNode == noneNode || toNode == noneNode
+        = []
+    | otherwise
+        = [(from, to, BlockExitsEdge [BlockEntryType Nothing, ConditionalEntryType (Just (PreNot' guard))])]
+-}
 --------------------------------------------------------------------------------
 -- Auxiliary functions
 --------------------------------------------------------------------------------
