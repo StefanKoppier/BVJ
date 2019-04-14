@@ -23,6 +23,7 @@ The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its re
     * [`transformers`](http://hackage.haskell.org/package/transformers)
     * [`containers`](http://hackage.haskell.org/package/containers)
     * [`parallel-io`](http://hackage.haskell.org/package/parallel-io)
+    * [`simple-get-opt`](http://hackage.haskell.org/package/simple-get-opt)
 
 ## Usage
 
