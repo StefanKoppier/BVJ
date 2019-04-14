@@ -14,9 +14,11 @@ import Verification.Phase
 import Verification.JBMCResult
 import Verification.Pretty
 
-run :: Arguments -> FilePath -> IO ()
-run args file = do
-    content <- readFile file
+run :: Arguments -> IO ()
+run args@Arguments{program} = do
+    putStrLn "Verification arguments: "
+    printPretty args
+    content <- readFile program
     result  <- runExceptT $ allPhases args content
     case result of
         Left  failure -> putStrLn $ "An error occurred: " ++ show failure

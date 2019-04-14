@@ -13,10 +13,10 @@ import Parsing.Utility
 import Compilation.CompiledUnit
 
 verificationPhase :: Phase CompiledUnits CProverResults
-verificationPhase args@Arguments{keepOutputFiles,verbosity} programs = do
+verificationPhase args@Arguments{removeOutputFiles,verbosity} programs = do
     liftIO $ printInformation verbosity programs
     let results = liftIO $ runAsync args programs
-    unless keepOutputFiles
+    when removeOutputFiles
         (liftIO removeWorkingDir)
     ExceptT results
     

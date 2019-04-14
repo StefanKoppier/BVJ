@@ -2,17 +2,18 @@ module Auxiliary.Arguments(
       module Parsing.Syntax
     , module Linearization.Path  
     , Arguments(..)
-    , defaultArgs
 ) where
     
-import Auxiliary.Pretty   (Verbosity(..))
+import Text.PrettyPrint
+import Auxiliary.Pretty
 import Parsing.Syntax     
 import Linearization.Path
 
 data Arguments = Arguments {
-      verbosity            :: Verbosity
+      program              :: FilePath
+    , verbosity            :: Verbosity
     , numberOfThreads      :: Int
-    , keepOutputFiles      :: Bool
+    , removeOutputFiles    :: Bool
     , maximumDepth         :: Int
     , pathFilter           :: CompilationUnit' -> ProgramPaths -> ProgramPaths
     , jbmcEnableAssertions :: Bool
@@ -20,14 +21,8 @@ data Arguments = Arguments {
     , jbmcUnwind           :: Maybe Int
   }
 
-defaultArgs :: Arguments
-defaultArgs = Arguments {
-      verbosity            = Informative
-    , numberOfThreads      = 4
-    , keepOutputFiles      = False
-    , maximumDepth         = 100
-    , pathFilter           = const id
-    , jbmcEnableAssertions = True
-    , jbmcDepth            = Nothing
-    , jbmcUnwind           = Nothing
-}
+instance Pretty Arguments where
+    pretty Arguments{program, numberOfThreads, maximumDepth}
+        = "Program to be verified" <+> quotes (pretty program)
+        <+> "using" <+> pretty numberOfThreads <+> "threads" <> comma
+        <+> "and maximum depth" <+> pretty maximumDepth <> dot
