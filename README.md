@@ -2,7 +2,7 @@
 
 BVJ is a Bounded Model Checking tool for Java source code, supporting a subset
 of the Java language. The tool uses [JBMC](https://github.com/diffblue/cbmc) as
-its verification back-end. For more in-depth information, check out the [documentation](doc/Documentation.pdf)
+its verification back-end. For more in-depth information, check out the [documentation](doc/Documentation.pdf).
 
 ## Requirements
 The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its requirements:
