@@ -42,7 +42,7 @@ Parameters:
 Flags:
   -c           --compact                         Display less information.
   -r           --remove                          Remove the output files.
-  -k[DEPTH]    --depth[=DEPTH]                   Maximum program path generation `depth`.
+  -k[DEPTH]    --depth[=DEPTH]                   Maximum program path generation depth.
   -t[THREADS]  --threads[=THREADS]               Number of threads.
   -u[UNWIND]   --unwind[=UNWIND]                 Maximum loop unwinding in JBMC.
                --verification-depth[=VER-DEPTH]  Maximum depth in JBMC.
