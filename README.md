@@ -50,4 +50,4 @@ Flags:
                --verification-depth[=VER-DEPTH]  Maximum depth in JBMC.
 ```
 
-For example, the command `bvj "examples/Test.java" -c -k10 -t4` verifies the file `examples/Test.java` with minimal information, with a maximum program path depth of 10, and uses 4 threads.
+For example, the command `bvj "examples/Test.java" -c -k10 -t4` verifies the file `examples/Test.java` printing minimal information, with a maximum program path depth of 10, and uses 4 threads.
