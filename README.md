@@ -7,8 +7,9 @@ its verification back-end.
 ## Requirements
 The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its requirements:
 
-1. Download and compile JBMC, ensure that jbmc can be found in the PATH variable. The manual for compilation of JBMC can be found [here](https://github.com/diffblue/cbmc/blob/develop/COMPILING.md).
-2. Install the required libraries used in the tool:
+1. Download and install the Java development kit, ensure that `javac` and `jar` can be found in the PATH variable.
+2. Download and compile JBMC, ensure that jbmc can be found in the PATH variable. The manual for compilation of JBMC can be found [here](https://github.com/diffblue/cbmc/blob/develop/COMPILING.md).
+3. Install the required libraries used in the tool:
     * [`fgl 5.7.0.0`](http://hackage.haskell.org/package/fgl-5.7.0.0)
     * [`directory 1.3.0.2`](http://hackage.haskell.org/package/directory-1.3.0.2)
     * [`terminal-progress-bar`](hackage.haskell.org/package/terminal-progress-bar)
