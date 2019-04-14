@@ -8,7 +8,7 @@ its verification back-end.
 The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its requirements:
 
 1. Download and install the Java development kit, ensure that `javac` and `jar` can be found in the PATH variable.
-2. Download and compile JBMC, ensure that jbmc can be found in the PATH variable. The manual for compilation of JBMC can be found [here](https://github.com/diffblue/cbmc/blob/develop/COMPILING.md).
+2. Download and compile JBMC, ensure that `jbmc` can be found in the PATH variable. The compilation manual of JBMC can be found [here](https://github.com/diffblue/cbmc/blob/develop/COMPILING.md).
 3. Install the required libraries used in the tool:
     * [`fgl 5.7.0.0`](http://hackage.haskell.org/package/fgl-5.7.0.0)
     * [`directory 1.3.0.2`](http://hackage.haskell.org/package/directory-1.3.0.2)
@@ -26,11 +26,11 @@ The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its re
 
 ## Usage
 
-The tool can be used in two ways: using GHCi, and by execution of the executable.
+The tool can be used in two ways: using GHCi, and by running the executable.
 
 ### Using GHCi
 
-When using GHCi, the function `verify` and `verifyWithMaximumDepth`, defined in  [Main.hs](app/Main.hs), can be used. The `arguments` constant can be used to directly tweak the verification tool.
+When using GHCi, the functions `verify` and `verifyWithMaximumDepth`, defined in  [Main.hs](app/Main.hs), can be used. The `arguments` constant can be used to directly tweak the verification tool.
 
 ### Running the executable
 
