@@ -17,8 +17,6 @@ import           Linearization.Renaming
 import           Auxiliary.Phase
 import           Auxiliary.Pretty
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Linearization phase
 --------------------------------------------------------------------------------

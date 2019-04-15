@@ -10,8 +10,6 @@ import Parsing.Pretty
 import Parsing.Fold
 import Parsing.Utility
 
-import Debug.Trace
-
 buildMethodExp :: CompilationUnit' -> [VarDeclId'] -> Exp' -> Exp'
 buildMethodExp unit locals
     = foldExp alg

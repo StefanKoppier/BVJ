@@ -9,8 +9,6 @@ import Parsing.Utility
 import Auxiliary.Phase
 import Auxiliary.Pretty
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Parsing phase
 --------------------------------------------------------------------------------

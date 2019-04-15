@@ -5,14 +5,12 @@ import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Analysis.CFG
 
-import           Debug.Trace
-
 -- | Map containing the entry nodes and exit nodes of all methods.
 type Methods = M.Map Scope (Node, Node)
 
 -- | Node representation of a non-existing node.
 noneNode :: CFGNode
-noneNode = (-1, trace "access of noneNode" undefined)
+noneNode = (-1, undefined)
 
 ifNoneNode :: CFGNode -> CFGNode -> CFGNode
 ifNoneNode node alternative
@@ -175,10 +173,9 @@ continueExitEdge ((fromNode@(from, _), entries), toNode@(to, _))
 
 breakExitEdges :: ([(CFGNode, [BlockEntryType])], CFGNode) -> [BlockEntryType] -> CFGEdges
 breakExitEdges (froms, to) entries
-    = trace ("all entries: " ++ show entries)
-        concatMap ( \ (from, entries') -> breakExitEdge ((from, exits entries'), to)) froms
+    = concatMap ( \ (from, entries') -> breakExitEdge ((from, exits entries'), to)) froms
     where
-        exits entries' = trace ("current entries: " ++ show entries') $ take (length entries' - length entries) entries'
+        exits entries' = take (length entries' - length entries) entries'
 
 breakExitEdge :: ((CFGNode, [BlockEntryType]), CFGNode) -> CFGEdges
 breakExitEdge ((fromNode@(from, _), entries), toNode@(to, _))

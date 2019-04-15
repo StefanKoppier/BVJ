@@ -45,37 +45,5 @@ instance Pretty CFGAdj where
     pretty = brackets . commas
 
 instance Pretty (CFGEdgeValue, Node) where
-    pretty (v, n) = parens (pretty v <> comma <> pretty n)
-
-instance Pretty CFGEdgeValue where
-    pretty (InterEdge _) 
-        = "inter edge"
-
-    pretty IntraEdge     
-        = "intra edge"
-        
-    pretty (BlockEntryEdge entryType)
-        = "scope entry edge of" <+> quotes (pretty entryType)
-
-    pretty (BlockExitEdge entryType)
-        = "scope exit edge of" <+> quotes (pretty entryType)
-        
-    pretty (BlockExitEntryEdge exitType entryType)
-        = "scope exit and entry edge of" 
-            <+> quotes (pretty exitType) <+> "to" <+> quotes (pretty entryType)
-
-    pretty (BlockExitsEdge exits)
-        = "scope exits"
-
-instance Pretty BlockEntryType where
-    pretty TryEntryType = "try"
-
-    pretty (CatchEntryType exception)
-        = "catch" <+> maybe empty pretty exception
-
-    pretty (ConditionalEntryType exp)
-        = "conditional" <+> maybe empty pretty exp
-        
-    pretty FinallyEntryType = "finally"
-
-    pretty (BlockEntryType _) = "block"
+    pretty (_, n) = pretty n
+    

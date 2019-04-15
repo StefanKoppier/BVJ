@@ -15,8 +15,6 @@ import           Parsing.Syntax
 import           Analysis.Pretty                 ()
 import           Auxiliary.Pretty 
 
-import Debug.Trace
-
 type StmtManipulations = M.Map G.Node RenamingOperations
 
 type RenamingOperations = M.Map Name' [(Scope, Int)]

@@ -9,8 +9,6 @@ import Linearization.Path
 import Compilation.Compiler.Statement
 import Compilation.CompiledUnit
 
-import Debug.Trace
-
 buildMethod :: CompilationUnit' -> ProgramPath -> PhaseResult Decl'
 buildMethod unit path = do
     let name = snd . snd . head $ path

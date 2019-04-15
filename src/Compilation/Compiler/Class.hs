@@ -9,8 +9,6 @@ import Auxiliary.Phase
 import Linearization.Path
 import Compilation.Compiler.Method
 
-import Debug.Trace
-
 buildClass :: CompilationUnit' -> ProgramPath -> PhaseResult TypeDecl'
 buildClass unit path = do
     let methodGroups = (groupBy ((==) `on` (snd . snd)) . sortOn (snd . snd)) path

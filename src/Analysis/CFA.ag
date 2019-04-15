@@ -5,7 +5,6 @@ import           Data.Graph.Inductive.Graph
 import           Parsing.Syntax
 import           Parsing.Utility
 import           Analysis.CFA.Utility
-import           Debug.Trace
 }
 
 include "../Parsing/Syntax.ag"

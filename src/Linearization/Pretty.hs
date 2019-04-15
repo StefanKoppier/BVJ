@@ -21,14 +21,7 @@ instance Pretty PathType where
         = pretty stat
 
     pretty (PathEntry entry) 
-        = char '{' <+> quotes (pretty entry)
-        --text "entry of" <+> pretty entry
+        = char '{'
 
     pretty (PathExit exit)  
-        = char '}' <+> quotes (pretty exit)
-            --text "exit of" <+> pretty exit
-{-
-    pretty (PathExitEntry exit entry)  
-        = char '}' <+> char '{'
-        --text "exit and entry of" <+> pretty entry <+> pretty exit
--}
+        = char '}'

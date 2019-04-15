@@ -17,8 +17,6 @@ import Compilation.CompiledUnit
 import Compilation.Compiler.Class
 import Compilation.Compiler.Method
 
-import Debug.Trace
-
 compile :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
 compile progress unit dir id path = do
     program <- runExceptT $ build unit path

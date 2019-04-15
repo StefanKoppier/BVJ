@@ -5,8 +5,6 @@ import Auxiliary.Phase
 import Auxiliary.Pretty
 import Parsing.Syntax
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Files
 --------------------------------------------------------------------------------
@@ -363,7 +361,7 @@ instance Pretty ElementValue' where
         = pretty init
 
     pretty (ElementAnnotation' annotation)
-        = trace "element annotation" undefined
+        = pretty annotation
         
 instance Pretty Scope where
     pretty (Scope scopePackage scopeClass scopeMember)

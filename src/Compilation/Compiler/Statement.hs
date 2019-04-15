@@ -7,8 +7,6 @@ import Data.Accumulator
 import Compilation.Compiler.Expression
 import Compilation.CompiledUnit
 
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Method block building
 --------------------------------------------------------------------------------
@@ -47,9 +45,6 @@ buildStmts statBuilder stats@(entry@(PathEntry TryEntryType):_) = do
 buildStmts statBuilder (PathExit _:stats) 
     = buildStmts statBuilder stats
 
-buildStmts _ (stat:stats)
-    = trace (show stat) undefined
-
 buildTryCatchStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (CompoundStmt', [PathType])
 buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
     let index                = findIndex 0 0 entry stats
@@ -81,7 +76,7 @@ buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
 buildFinally _ stats = return (Nothing, stats)
 
 findIndex :: Int -> Int -> PathType -> [PathType] -> Int
-findIndex _ _ _ [] = trace "no according exit block found" undefined
+findIndex _ _ _ [] = error "no according exit block found"
 
 findIndex x i (PathEntry ty) (PathStmt _:rest)
     = findIndex x (i+1) (PathEntry ty) rest
@@ -140,13 +135,7 @@ buildVarInit unit (InitArray' (Just inits))
 --------------------------------------------------------------------------------
 -- Constructor statement building
 --------------------------------------------------------------------------------
-    
-{-
-buildConstructorStmt :: CompilationUnit' -> PathStmt -> MethodAccumulator CompoundStmt'
-buildConstructorStmt unit (PathStmt s, _) = buildConstructorStmt' unit s
-buildConstructorStmt _ x                  = trace (show x) undefined
--}
-
+ 
 buildConstructorStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundStmt'
 buildConstructorStmt unit (Decl' modifiers ty vars) = do
     vars' <- mapM (buildConstructorDecl unit) vars
