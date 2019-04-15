@@ -32,7 +32,7 @@ The tool can be used in two ways: using GHCi, and by running the executable.
 
 ### Using GHCi
 
-When using GHCi, the functions `verify` and `verifyWithMaximumDepth`, defined in  [Main.hs](app/Main.hs), can be used. The `arguments` constant can be used to directly tweak the verification tool.
+When using GHCi, the functions `verify`, `verifyWithMaximumDepth`, and `verifyFunctionWithMaximumDepth`, defined in [Main.hs](app/Main.hs), can be used. The `arguments` constant can be used to directly tweak the verification tool.
 
 ### Running the executable
 
