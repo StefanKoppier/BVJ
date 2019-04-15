@@ -1,7 +1,6 @@
 module Analysis.Phase(
       analysisPhase
     , controlFlowAnalysisSubphase
-    , reachabilityAnalysisSubphase
 ) where
 
 import           Auxiliary.Phase
@@ -21,8 +20,7 @@ import           Data.Graph.Inductive.Query.DFS      (dfs)
 analysisPhase :: Phase CompilationUnit' CFG
 analysisPhase args unit = do 
     liftIO $ printHeader "2. PROGRAM ANALYSIS"
-    cfg <- controlFlowAnalysisSubphase args unit
-    reachabilityAnalysisSubphase args cfg
+    controlFlowAnalysisSubphase args unit
     
 --------------------------------------------------------------------------------
 -- Control Flow Analysis subphase
@@ -36,13 +34,17 @@ controlFlowAnalysisSubphase _ unit = do
 
 --------------------------------------------------------------------------------
 -- Reachability Analysis subphase
+--
+-- Disabled as we can now verify any function, instead of only the main function.
+-- The code is left here to be reïmplemented if wanted.
 --------------------------------------------------------------------------------
 
+{-
 reachabilityAnalysisSubphase :: Subphase CFG CFG
-reachabilityAnalysisSubphase _ graph@CFG{cfg} = do
+reachabilityAnalysisSubphase Arguments{function} graph@CFG{cfg} = do
     liftIO $ printHeader "2.b reachability analysis"
     liftIO $ printPretty graph
-    case entryOfMain graph of
+    case entryOfMethod scope graph of
         Just (init, _) -> return CFG{cfg = reachableFrom init cfg}
         Nothing        -> throwSemanticalError (UndefinedMethodReference ["main"])
         
@@ -50,3 +52,4 @@ reachabilityAnalysisSubphase _ graph@CFG{cfg} = do
 -- reachable from the starting node.
 reachableFrom :: G.DynGraph ge => G.Node -> ge a b -> ge a b
 reachableFrom s g = G.subgraph (dfs [s] g) g
+-}

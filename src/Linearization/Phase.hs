@@ -5,6 +5,7 @@ module Linearization.Phase(
 import           Data.Graph.Inductive
 import qualified Data.Map              as M
 import           Data.Stack            as S
+import           Data.List.Split
 import           Data.Accumulator            
 import           Data.Maybe
 import           Analysis.CFG
@@ -23,12 +24,12 @@ import Debug.Trace
 --------------------------------------------------------------------------------
 
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
-linearizationPhase args@Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg})
+linearizationPhase args@Arguments{function, maximumDepth, verbosity} (unit, graph@CFG{cfg})
     | (Just method)     <- entryMethod
-    , (Just (entry, _)) <- entryOfMain graph = do
+    , (Just (entry, _)) <- entryOfMethod method graph = do
         liftIO $ printInformation verbosity graph
         let history   = M.fromList [(n, 0) | (_,MethodEntryNode n) <- labNodes cfg]
-        let callStack = S.singleton (method, "main", -1)
+        let callStack = S.singleton (method, functionName, -1)
         let acc       = (history, M.empty, callStack, [[]], maximumDepth)
         let ps        = map (clean . reverse) $ paths acc graph (context cfg entry)
         liftIO $ printText ("Generated " ++ show (length ps) ++ " program path(s).")
@@ -37,9 +38,10 @@ linearizationPhase args@Arguments{maximumDepth, verbosity} (unit, graph@CFG{cfg}
         return filteredPs
     | otherwise = do
         liftIO $ printInformation verbosity graph
-        throwSemanticalError (UndefinedMethodReference ["main"])
+        throwSemanticalError (UndefinedMethodReference [functionName])
     where
-        entryMethod      = findMainScope unit
+        functionName = maybe "main" (last . splitOn ".") function 
+        entryMethod  = maybe (findMainScope unit) (findMethodScope unit . splitOn ".") function 
 
 printInformation :: Verbosity -> CFG -> IO ()
 printInformation verbosity graph = do
@@ -131,15 +133,21 @@ paths acc graph (_,currentNode, MethodEntryNode scope, neighbours)
     = concatMap (next acc graph . createEdge currentNode) neighbours
 
 -- Case: the exit of a method with no neighbours, i.e. the final statement.
-paths (_,_,_,paths,_) graph (_,_, MethodExitNode scope, [])
-    = paths
+--paths (_,_,_,paths,_) graph (_,_, MethodExitNode scope, [])
+--    = paths
 
 -- Case: the exit of a method.
-paths (history, manipulations, callStack, ps, k) graph (_,currentNode, MethodExitNode scope, neighbours)
-    = let (_, _, destination) = fromJust $ S.peek callStack
-          acc1                = (history, manipulations, S.pop callStack, ps, k)
-          [(edgeValue, _)]    = filter ((destination ==) . snd) neighbours
-       in next acc1 graph (currentNode, destination, edgeValue)
+paths (history, manipulations, callStack, paths, k) graph (_,currentNode, MethodExitNode scope, neighbours)
+    -- Case: the exit of a method with one stack frame left, i.e. the final statement.
+    | S.size callStack == 1
+        = paths
+
+    -- Case: the non-final exit of a method.
+    | otherwise
+        = let (_, _, destination) = fromJust $ S.peek callStack
+              acc1                = (history, manipulations, S.pop callStack, paths, k)
+              [(edgeValue, _)]    = filter ((destination ==) . snd) neighbours
+           in next acc1 graph (currentNode, destination, edgeValue)
 
 -- | Create a CFGEdge from a node a destination, and edge value.
 createEdge :: Node -> (CFGEdgeValue, Node) -> CFGEdge

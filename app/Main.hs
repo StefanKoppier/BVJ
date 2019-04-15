@@ -12,8 +12,9 @@ import Complete
 arguments :: Arguments
 arguments = Arguments {
       verbosity            = Informative
+    , function             = Nothing  
     , numberOfThreads      = 4
-    , removeOutputFiles    = True
+    , removeOutputFiles    = False
     , maximumDepth         = 10
     , pathFilter           = const id
     , jbmcEnableAssertions = True
@@ -25,6 +26,11 @@ arguments = Arguments {
 verifyWithMaximumDepth :: Int -> FilePath -> IO ()
 verifyWithMaximumDepth depth file 
     = run arguments{maximumDepth=depth, program=file}
+
+-- | Verify the given source file with a maximum depth and function to verify.
+verifyFunctionWithMaximumDepth :: Int -> String -> FilePath -> IO ()
+verifyFunctionWithMaximumDepth depth func file
+    = run arguments{maximumDepth=depth, program=file, function=Just func}
 
 -- | Verify the given source file.
 verify :: FilePath -> IO ()
@@ -48,6 +54,14 @@ options = OptSpec {
         , Option ['r'] ["remove"]
           "Remove the output files."
           $ NoArg $ \ a -> Right a { removeOutputFiles = True }
+
+        -- Verify a different function than main.
+        , Option ['f'] ["function"]
+          "Verify the function."
+          $ OptArg "FUNCTION" $ \ f a
+            -> case f of
+                Just f' -> Right a { function = Just f' }
+                Nothing -> Right a
 
         -- Maximum program path generation depth. 
         , Option ['k'] ["depth"]

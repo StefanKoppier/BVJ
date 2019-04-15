@@ -3,9 +3,7 @@ module Verification.Phase(
 ) where
     
 import Control.Concurrent.ParallelIO.Local
-import Control.Monad
 import System.Command
-import System.Directory
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Verification.JBMCResult
@@ -13,11 +11,9 @@ import Parsing.Utility
 import Compilation.CompiledUnit
 
 verificationPhase :: Phase CompiledUnits CProverResults
-verificationPhase args@Arguments{removeOutputFiles,verbosity} programs = do
+verificationPhase args@Arguments{verbosity} programs = do
     liftIO $ printInformation verbosity programs
     let results = liftIO $ runAsync args programs
-    when removeOutputFiles
-        (liftIO removeWorkingDir)
     ExceptT results
     
 printInformation :: Verbosity -> CompiledUnits -> IO ()
@@ -34,30 +30,34 @@ runAsync args@Arguments{numberOfThreads} programs = do
     return (sequence results)
 
 verify :: Arguments -> ProgressBar -> CompiledUnit -> IO (Either PhaseError CProverResult)
-verify args progress (program, file) =
-    case findMainClass program of 
-        Just mainClass -> do
-            result <- jbmc file mainClass args
-            incProgress progress
-            runExceptT $ parseXML result
-        Nothing -> return undefined
-
-removeWorkingDir :: IO ()
-removeWorkingDir = removeDirectoryRecursive workingDir
+verify args@Arguments{function} progress (program, file) = do
+    result <- case function of
+                Just function'
+                    -> jbmc file (Left function') args
+                Nothing
+                    -> case findMainClass program of 
+                        Just mainClass -> jbmc file (Right mainClass) args
+                        Nothing        -> return undefined
+    incProgress progress
+    runExceptT $ parseXML result
     
-jbmc :: FilePath -> String -> Arguments -> IO String
-jbmc file mainClass args = do
+jbmc :: FilePath -> Either String String -> Arguments -> IO String
+jbmc file target args = do
     (Stdout result, Exit _, Stderr _) <- command [] "jbmc" jbmcArgs
     return result
     where
         jbmcArgs = [ file
                    , "--xml-ui"
                    , "--classpath", "./lib/core-models.jar"
-                   , "--main-class", mainClass
                    ]
+                   ++ targetArg target
                    ++ ["--no-assertions" | not $ jbmcEnableAssertions args]
                    ++ depthArg  (jbmcDepth args)
                    ++ unwindArg (jbmcUnwind args)
+
+targetArg :: Either String String -> [String]
+targetArg (Right mainClass) = ["--main-class", mainClass]
+targetArg (Left function)   = ["--function", function]
 
 depthArg :: Maybe Int -> [String]
 depthArg Nothing  = []

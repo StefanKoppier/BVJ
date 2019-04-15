@@ -23,13 +23,13 @@ getMethod unit (Scope _ scopeClass scopeMember)
     -- Case: the method is a method.
     | otherwise
         = findMethod scopeMember (fromJust $ findClass scopeClass unit)
-
+{-
 containsNonStaticFieldWithName :: ClassDecl' -> String -> Bool
 containsNonStaticFieldWithName classDecl field
     = let fields          = getFields classDecl
           nonStaticFields = filter (not . isStatic) fields
        in any (containsFieldWithName field) nonStaticFields 
-
+-}
 getParams :: MemberDecl' -> [FormalParam']
 getParams (MethodDecl' _ _ _ params _)    = params
 getParams (ConstructorDecl' _ _ params _) = params
@@ -141,3 +141,13 @@ findMainScope unit@(CompilationUnit' package _ _)
         = Just $ Scope package className "main"
     | otherwise
         = Nothing
+
+findMethodScope :: CompilationUnit' -> Name' -> Maybe Scope
+findMethodScope (CompilationUnit' _ _ _) [className, methodName] 
+    = Just $ Scope Nothing className methodName
+
+findMethodScope (CompilationUnit' _ _ _) name
+    = Just $ Scope (Just packageName) className methodName
+    where
+        packageLength = length name - 2
+        (packageName, [className, methodName]) = splitAt packageLength name

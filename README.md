@@ -23,6 +23,7 @@ The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its re
     * [`transformers`](http://hackage.haskell.org/package/transformers)
     * [`containers`](http://hackage.haskell.org/package/containers)
     * [`parallel-io`](http://hackage.haskell.org/package/parallel-io)
+    * [`split`](http://hackage.haskell.org/package/split)
     * [`simple-get-opt`](http://hackage.haskell.org/package/simple-get-opt)
 
 ## Usage
@@ -42,12 +43,13 @@ Parameters:
   File    Path to the file to be verified.
 
 Flags:
-  -c           --compact                         Display less information.
-  -r           --remove                          Remove the output files.
-  -k[DEPTH]    --depth[=DEPTH]                   Maximum program path generation depth.
-  -t[THREADS]  --threads[=THREADS]               Number of threads.
-  -u[UNWIND]   --unwind[=UNWIND]                 Maximum loop unwinding in JBMC.
-               --verification-depth[=VER-DEPTH]  Maximum depth in JBMC.
+  -c            --compact                         Display less information.
+  -r            --remove                          Remove the output files.
+  -f[FUNCTION]  --function[=FUNCTION]             Verify the function.
+  -k[DEPTH]     --depth[=DEPTH]                   Maximum program path generation depth.
+  -t[THREADS]   --threads[=THREADS]               Number of threads.
+  -u[UNWIND]    --unwind[=UNWIND]                 Maximum loop unwinding in JBMC.
+                --verification-depth[=VER-DEPTH]  Maximum depth in JBMC.
 ```
 
 For example, the command `bvj "examples/Test.java" -c -k10 -t4` verifies the file `examples/Test.java` printing minimal information, with a maximum program path depth of 10, and uses 4 threads.

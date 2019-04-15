@@ -11,6 +11,7 @@ import Linearization.Path
 
 data Arguments = Arguments {
       program              :: FilePath
+    , function             :: Maybe String
     , verbosity            :: Verbosity
     , numberOfThreads      :: Int
     , removeOutputFiles    :: Bool
@@ -22,7 +23,9 @@ data Arguments = Arguments {
   }
 
 instance Pretty Arguments where
-    pretty Arguments{program, numberOfThreads, maximumDepth}
-        = "Program to be verified" <+> quotes (pretty program)
-        <+> "using" <+> pretty numberOfThreads <+> "threads" <> comma
+    pretty Arguments{program, function, numberOfThreads, maximumDepth}
+        = "Verifying the program" <+> quotes (pretty program) <+> function'
+        <+> "using" <+> pretty numberOfThreads <+> "threads" <> comma 
         <+> "and maximum depth" <+> pretty maximumDepth <> dot
+        where
+            function' = maybe empty (\ f -> "and function" <+> quotes (pretty f)) function 

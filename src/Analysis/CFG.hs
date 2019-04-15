@@ -72,13 +72,22 @@ newtype CFG = CFG { cfg :: Gr CFGNodeValue CFGEdgeValue }
 constructCFG :: CFGNodes -> CFGEdges -> CFG
 constructCFG nodes edges = (CFG . insEdges edges . insNodes nodes) empty
 
-entryOfMain :: CFG -> Maybe CFGNode
+{-entryOfMain :: CFG -> Maybe CFGNode
 entryOfMain CFG{cfg}
     | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
     | otherwise = Nothing
     where
         entry = nodes $ labfilter (\case (MethodEntryNode (Scope _ _ method)) 
                                             -> method == "main"
+                                         _  -> False) cfg
+-}
+entryOfMethod :: Scope -> CFG -> Maybe CFGNode
+entryOfMethod method CFG{cfg}
+    | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
+    | otherwise = Nothing
+    where
+        entry = nodes $ labfilter (\case (MethodEntryNode scope) 
+                                            -> scope == method
                                          _  -> False) cfg
 
 isIntraEdge :: CFGEdgeValue -> Bool

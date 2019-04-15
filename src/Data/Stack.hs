@@ -5,6 +5,7 @@ module Data.Stack (
     , peek
     , update
     , empty
+    , size
     , singleton
     , toList
     , fromList
@@ -39,6 +40,9 @@ update x = push x . pop
 
 empty :: Stack a
 empty = Stack []
+
+size :: Stack a -> Int
+size (Stack xs) = length xs 
 
 singleton :: a -> Stack a
 singleton x = Stack [x]

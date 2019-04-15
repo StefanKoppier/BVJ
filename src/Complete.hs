@@ -4,6 +4,8 @@ module Complete(
     , run
 ) where
 
+import Control.Monad
+import System.Directory
 import Auxiliary.Phase
 import Auxiliary.Pretty
 import Parsing.Phase
@@ -25,7 +27,7 @@ run args@Arguments{program} = do
         Right _       -> return ()
 
 allPhases :: Phase String CProverResults
-allPhases args file = do
+allPhases args@Arguments{removeOutputFiles} file = do
     ast      <- parsingPhase args file
     cfg      <- analysisPhase args ast
     paths    <- linearizationPhase args (ast, cfg)
@@ -33,5 +35,9 @@ allPhases args file = do
     results  <- verificationPhase args programs
     liftIO $ printHeader "FINAL RESULT"
     liftIO $ printPretty results
+    when removeOutputFiles
+        (liftIO removeWorkingDir)
     return results
     
+removeWorkingDir :: IO ()
+removeWorkingDir = removeDirectoryRecursive workingDir
