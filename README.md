@@ -5,7 +5,7 @@ of the Java language. The tool uses [JBMC](https://github.com/diffblue/cbmc) as
 its verification back-end. For more in-depth information, check out the [documentation](doc/Documentation.pdf).
 
 ## Requirements
-The tool is tested using GHC 8.2.2 and JBMC 5.11. To install the tool and its requirements:
+The tool is tested using GHC 8.2.2 and JBMC 5.11. To build/use the tool install the following requirements:
 
 1. Download and install the Java development kit, ensure that `javac` and `jar` can be found in the PATH variable.
 2. Download and compile JBMC, ensure that `jbmc` can be found in the PATH variable. The compilation manual of JBMC can be found [here](https://github.com/diffblue/cbmc/blob/develop/COMPILING.md).
