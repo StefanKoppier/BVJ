@@ -3,9 +3,7 @@ module Analysis.Pretty where
 import Data.Graph.Inductive.Graph (Node, context, nodes)
 import Text.PrettyPrint
 import Analysis.CFG
-import Parsing.Syntax
-import Parsing.Utility
-import Parsing.Pretty
+import Parsing.Pretty()
 import Auxiliary.Pretty
 
 instance Pretty CFG where
@@ -20,8 +18,8 @@ instance Pretty CFGNodeValue where
     pretty (StatNode s)    
         = pretty s
 
-    pretty (ForInitNode init)
-        = pretty init
+    pretty (ForInitNode forInit)
+        = pretty forInit
 
     pretty (ForUpdateNode update)
         = commas update

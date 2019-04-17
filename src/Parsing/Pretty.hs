@@ -3,8 +3,6 @@ module Parsing.Pretty where
 import Text.PrettyPrint
 import Auxiliary.Phase
 import Auxiliary.Pretty
-import Parsing.Syntax
-
 --------------------------------------------------------------------------------
 -- Files
 --------------------------------------------------------------------------------
@@ -83,7 +81,7 @@ instance Pretty FormalParam' where
 preAndInlineModifiers :: (Modifiers', Modifiers') -> Modifiers' -> (Modifiers', Modifiers')
 preAndInlineModifiers acc []
     = acc
-preAndInlineModifiers (l1, l2) (m@(Annotation' a):ms)
+preAndInlineModifiers (l1, l2) (m@(Annotation' _):ms)
     = preAndInlineModifiers (l1 ++ [m], l2) ms
 preAndInlineModifiers (l1, l2) (m:ms)
     = (l1, l2 ++ (m:ms))

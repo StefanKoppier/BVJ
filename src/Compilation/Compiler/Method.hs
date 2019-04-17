@@ -5,7 +5,6 @@ import Data.Accumulator
 import Parsing.Syntax
 import Parsing.Utility
 import Auxiliary.Phase
-import Linearization.Path
 import Compilation.Compiler.Statement
 import Compilation.CompiledUnit
 

@@ -37,14 +37,14 @@ sem CompoundStmts'
                                 -> @hd.edges ++ @tl.edges 
                                    ++ -- Edges from the final to the next statement.
                                    blockExitEdges (@hd.final, @tl.init) (ConditionalEntryType Nothing)
-                            While' ident guard _
+                            While' ident _ _
                                 -> let breaks = filter (isLabelOfThisNode ident . fst) @hd.breaks
                                     in @hd.edges ++ @tl.edges
                                        ++ -- Edge from the final to the next statement.
                                        intraEdges (@hd.final, @tl.init)
                                        ++ -- Edges from the breaks to the next statement.
                                        breakExitEdges (breaks, @tl.init) @lhs.scopeEntries
-                            For' ident _ guard _ _
+                            For' ident _ _ _ _
                                 -> let breaks = filter (isLabelOfThisNode ident . fst) @hd.breaks
                                     in @hd.edges ++ @tl.edges
                                        ++ -- Edge from the final to the next statement.
@@ -108,13 +108,11 @@ sem CompoundStmt'
                         .init           = let self = statNode (new @exp.label) @self
                                             in ifNoneNode @exp.init self
                         .final          = [statNode (new @exp.label) @self]
-                        .nodes          = let (While' _ guard _) = @self
-                                              self       = statNode (new @exp.label) @self
+                        .nodes          = let self = statNode (new @exp.label) @self
                                             in self : @body.nodes ++ @exp.nodes
-                        .edges          = let (While' _ guard _) = @self
-                                              self       = statNode (new @exp.label) @self
-                                              continues  = filter (isLabelOfThisNode @ident . fst) @body.continues
-                                              init       = ifNoneNode @exp.init self
+                        .edges          = let self      = statNode (new @exp.label) @self
+                                              continues = filter (isLabelOfThisNode @ident . fst) @body.continues
+                                              init      = ifNoneNode @exp.init self
                                             in @body.edges ++ @exp.edges
                                                ++ -- Edge from condition to the body.
                                                blockEntryEdge (self, @body.init) (ConditionalEntryType (Just @exp.self))
@@ -141,8 +139,7 @@ sem CompoundStmt'
                                                   update      = forUpdateNode updateLabel @update.self
                                                   assumption  = statNode (new @body.label) (Stmt' $ Assume' (PreNot' guard))
                                                 in self : assumption : @initial.nodes ++ @exp.nodes ++ @update.nodes ++ @body.nodes ++ update
-                            .edges          = let (For' _ _ guard _ _) = @self
-                                                  selfLabel   = new @exp.label
+                            .edges          = let selfLabel   = new @exp.label
                                                   self        = statNode selfLabel @self
                                                   updateLabel = new @update.label
                                                   update      = forUpdateNode updateLabel @update.self
@@ -200,9 +197,9 @@ sem CompoundStmt'
                                            ++ -- Edge from stat to init of catches.
                                            blockExitEntryEdges (@stat.final, @catches.init) TryEntryType (CatchEntryType (Just @catches.exception))
                                            ++ -- Edge from last catch to finally, if it exists.
-                                           maybe [] (\ finallyNode -> blockExitEntryEdges (@catches.final, finallyNode) (CatchEntryType Nothing) FinallyEntryType) finally
+                                           maybe [] (\ n -> blockExitEntryEdges (@catches.final, n) (CatchEntryType Nothing) FinallyEntryType) finally
                                            ++ -- Edge from finally to body of finally, if it exists.
-                                           maybe [] (\ finallyNode -> intraEdge (finallyNode, @finally.init)) finally
+                                           maybe [] (\ n -> intraEdge (n, @finally.init)) finally
                     stat    .label  = new @lhs.label
                     catches .label  = @stat.label
                     finally .label  = maybe @catches.label (const (new @catches.label)) @finally.self

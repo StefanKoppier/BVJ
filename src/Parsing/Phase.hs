@@ -5,7 +5,6 @@ import Language.Java.Syntax
 import Language.Java.Pretty (prettyPrint)
 import Language.Java.Fold
 import Parsing.Syntax
-import Parsing.Utility
 import Auxiliary.Phase
 import Auxiliary.Pretty
 
@@ -147,6 +146,7 @@ transformModifier Static         = pure Static'
 transformModifier StrictFP       = pure StrictFP'
 transformModifier Transient      = pure Transient'
 transformModifier Volatile       = pure Volatile'
+transformModifier Native         = throwSyntacticalError "native"
 transformModifier (Annotation a) = Annotation' <$> transformAnnotation a
 transformModifier Synchronized_  = pure Synchronized'
 
@@ -247,17 +247,17 @@ transformStmt = foldStmt alg
               ,                    transformIfThenElse
               ,                    transformWhile
               ,                    transformFor
-              , \ m t i g s     -> throwSyntacticalError "for (iterator)"
+              , \ _ _ _ _ _     -> throwSyntacticalError "for (iterator)"
               ,                    compound Empty'
               ,                    fmap (Stmt' . ExpStmt') . transformExp
               , \ g m           -> (\ m' -> Stmt' . Assert' m') <$> transformExp g <*> transformMaybeExp m
               , \ e bs          -> Switch' <$> transformExp e <*> mapM transformSwitchBlock bs
-              , \ s e           -> throwSyntacticalError "do"
+              , \ _ _           -> throwSyntacticalError "do"
               ,                    compound . Break' . transformMaybeIdent
               ,                    compound . Continue' . transformMaybeIdent
-              , \ e             -> Stmt' . Return' <$> transformMaybeExp e
-              , \ e s           -> throwSyntacticalError "synchronized"
-              , \ e             -> Stmt' . Throw' <$> transformExp e
+              ,                    fmap (Stmt' . Return') . transformMaybeExp
+              , \ _ _           -> throwSyntacticalError "synchronized"
+              ,                    fmap (Stmt' . Throw') . transformExp
               , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
@@ -340,6 +340,8 @@ transformExp = foldExp alg
         alg :: ExpAlgebra (PhaseResult Exp')
         alg = ExpAlgebra {
           lit  = fmap Lit' . transformLiteral
+        , classLit = \ _ 
+            -> throwSyntacticalError "class literal"  
         , this = pure This'
         , thisClass = \ _
             -> throwSyntacticalError "this class"
@@ -417,11 +419,11 @@ transformFieldAccess (SuperFieldAccess _)
     = throwSyntacticalError "field access of super class"
 
 transformInstanceCreation :: [TypeArgument] -> TypeDeclSpecifier -> [Argument] -> Maybe ClassBody -> PhaseResult Exp'
-transformInstanceCreation (ty:tys) _ _ _ = throwSyntacticalError "generics"
-transformInstanceCreation _ _ _ (Just b) = throwSyntacticalError "anonymous class creation"
+transformInstanceCreation (_:_) _ _ _ = throwSyntacticalError "generics"
+transformInstanceCreation _ _ _ (Just _) = throwSyntacticalError "anonymous class creation"
 transformInstanceCreation [] (TypeDeclSpecifier ty) args Nothing
     = InstanceCreation' <$> transformClassType ty <*> transformExps args 
-transformInstanceCreation _ s _ _ = throwSyntacticalError "generics"
+transformInstanceCreation _ _ _ _ = throwSyntacticalError "generics"
 
 transformOp:: Op -> PhaseResult Op'
 transformOp Mult    = pure Mult'

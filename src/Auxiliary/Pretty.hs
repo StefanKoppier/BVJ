@@ -106,9 +106,9 @@ type ProgressBar = PB.ProgressBar ()
 
 progressBar :: Int -> IO ProgressBar
 progressBar count
-    = let style   = PB.defStyle{PB.styleWidth=PB.ConstantWidth 80} 
+    = let pbStyle = PB.defStyle{PB.styleWidth=PB.ConstantWidth 80} 
           initial = PB.Progress{PB.progressDone=0, PB.progressTodo=count, PB.progressCustom = ()}
-       in PB.newProgressBar style 2 initial
+       in PB.newProgressBar pbStyle 2 initial
 
 incProgress :: ProgressBar -> IO ()
 incProgress bar = PB.incProgress bar 1

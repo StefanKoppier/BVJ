@@ -1,10 +1,9 @@
 module Analysis.CFG where
 
-import qualified Data.Map                          as M
-import           Data.Maybe
-import           Parsing.Syntax
-import           Data.Graph.Inductive.Graph    
-import           Data.Graph.Inductive.PatriciaTree    
+import Data.Maybe
+import Parsing.Syntax
+import Data.Graph.Inductive.Graph    
+import Data.Graph.Inductive.PatriciaTree    
 
 instance {-# OVERLAPS #-} Eq (LNode a) where
     (x,_) == (y,_) = x == y
@@ -70,17 +69,8 @@ type CFGContext = (CFGAdj, Node, CFGNodeValue, CFGAdj)
 newtype CFG = CFG { cfg :: Gr CFGNodeValue CFGEdgeValue }
 
 constructCFG :: CFGNodes -> CFGEdges -> CFG
-constructCFG nodes edges = (CFG . insEdges edges . insNodes nodes) empty
+constructCFG ns es = (CFG . insEdges es . insNodes ns) empty
 
-{-entryOfMain :: CFG -> Maybe CFGNode
-entryOfMain CFG{cfg}
-    | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
-    | otherwise = Nothing
-    where
-        entry = nodes $ labfilter (\case (MethodEntryNode (Scope _ _ method)) 
-                                            -> method == "main"
-                                         _  -> False) cfg
--}
 entryOfMethod :: Scope -> CFG -> Maybe CFGNode
 entryOfMethod method CFG{cfg}
     | [entry'] <- entry = Just (entry', fromJust $ lab cfg entry')
@@ -94,6 +84,7 @@ isIntraEdge :: CFGEdgeValue -> Bool
 isIntraEdge IntraEdge                = True
 isIntraEdge (BlockEntryEdge _)       = True
 isIntraEdge (BlockExitEdge _)        = True
+isIntraEdge (BlockExitsEdge _)       = True
 isIntraEdge (BlockExitEntryEdge _ _) = True
 isIntraEdge (InterEdge _)            = False
 

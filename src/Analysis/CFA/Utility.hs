@@ -84,13 +84,15 @@ methodExitNode node scope = (node, MethodExitNode scope)
 --------------------------------------------------------------------------------
 
 callEdge :: (Node, Maybe Scope) -> Methods -> Maybe CFGEdge
-callEdge (from, Nothing) _ = Nothing
+callEdge (_, Nothing) _ = Nothing
+
 callEdge (from, Just to) methods = do
     toNode <- fst <$> (methods M.!? to)
     return (from, toNode, InterEdge to)
 
 returnEdge :: (Maybe Scope, Node) -> Methods -> Maybe CFGEdge
-returnEdge (Nothing, to) _ = Nothing
+returnEdge (Nothing, _) _ = Nothing
+
 returnEdge (Just from, to) methods = do
     fromNode <- snd <$> (methods M.!? from)
     return (fromNode, to, InterEdge from)
@@ -140,7 +142,7 @@ seqEdges (froms, to) currentStat nextStats
     = concatMap (\ from -> seqEdge (from, to) currentStat nextStats) froms
 
 seqEdge :: (CFGNode, CFGNode) -> Maybe CompoundStmt' -> CompoundStmts' -> CFGEdges
-seqEdge edge@(fromNode@(from, fromInfo), toNode@(to, toInfo)) currentStat nextStats
+seqEdge edge@(fromNode, toNode) currentStat nextStats
     -- Case: no destination node.
     | fromNode == noneNode || toNode == noneNode
         = []

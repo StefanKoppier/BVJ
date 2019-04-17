@@ -7,8 +7,7 @@ module Linearization.Path(
     , PathType(..)
 ) where
     
-import Text.PrettyPrint
-import Analysis.CFG     (BlockEntryType(..))
+import Analysis.CFG   (BlockEntryType(..))
 import Parsing.Syntax
 
 type ProgramPaths = [ProgramPath]

@@ -3,15 +3,12 @@ module Analysis.Phase(
     , controlFlowAnalysisSubphase
 ) where
 
-import           Auxiliary.Phase
-import           Auxiliary.Pretty
-import           Parsing.Syntax
-import           Parsing.Pretty
-import           Analysis.CFA
-import           Analysis.CFG
-import           Analysis.Pretty
-import qualified Data.Graph.Inductive.Graph     as G
-import           Data.Graph.Inductive.Query.DFS      (dfs)
+import Auxiliary.Phase
+import Auxiliary.Pretty
+import Parsing.Pretty()
+import Analysis.CFA
+import Analysis.CFG
+import Analysis.Pretty()
 
 --------------------------------------------------------------------------------
 -- Main analysis phase

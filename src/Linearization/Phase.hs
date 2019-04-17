@@ -22,14 +22,14 @@ import           Auxiliary.Pretty
 --------------------------------------------------------------------------------
 
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
-linearizationPhase args@Arguments{function, maximumDepth, verbosity} (unit, graph@CFG{cfg})
+linearizationPhase Arguments{function, maximumDepth, verbosity} (unit, graph@CFG{cfg})
     | (Just method)     <- entryMethod
     , (Just (entry, _)) <- entryOfMethod method graph = do
         liftIO $ printInformation verbosity graph
         let history   = M.fromList [(n, 0) | (_,MethodEntryNode n) <- labNodes cfg]
         let callStack = S.singleton (method, functionName, -1)
         let acc       = (history, M.empty, callStack, [[]], maximumDepth)
-        let ps        = map (clean . reverse) $ paths acc graph (context cfg entry)
+        let ps        = map reverse $ paths acc graph (context cfg entry)
         liftIO $ printText ("Generated " ++ show (length ps) ++ " program path(s).")
         return ps
     | otherwise = do
@@ -45,12 +45,6 @@ printInformation verbosity graph = do
     case verbosity of
         Informative -> printPretty graph
         _           -> return ()
-
-clean :: ProgramPath -> ProgramPath
-clean []                               = []
-clean ((PathStmt (Continue' _), i):ps) = (PathStmt Empty', i) : clean ps
-clean ((PathStmt (Break' _)   , i):ps) = (PathStmt Empty', i) : clean ps
-clean (s:ps)                           = s : clean ps
 
 --------------------------------------------------------------------------------
 -- Program path generation
@@ -82,10 +76,10 @@ paths acc graph (_, currentNode, StatNode (Stmt' stat), neighbours)
     = concatMap (next (prepend currentNode (PathStmt stat) acc) graph . createEdge currentNode) neighbours
 
 -- Case: a for initializer node.
-paths acc graph (x, currentNode, ForInitNode init, neighbours)
+paths acc graph (_, currentNode, ForInitNode forInit, neighbours)
     = concatMap (next (prepends currentNode acc stats) graph . createEdge currentNode) neighbours
     where
-        stats = case init of
+        stats = case forInit of
                     ForLocalVars' modifiers ty decls
                         -> [PathStmt (Decl' modifiers ty decls)]
                     ForInitExps' exps
@@ -110,29 +104,29 @@ paths acc graph (_, currentNode, FinallyNode _, neighbours)
     = concatMap (next acc graph . createEdge currentNode) neighbours
 
 -- Case: a method call node.
-paths (history,manipulations,callStack,paths,k) graph (_, currentNode, CallNode scope statNode name, [edge@(_,neighbour)])
+paths (history, manipulations, callStack, ps, k) graph (_, currentNode, CallNode scope statNode name, [edge])
     = let callNumber     = history M.! scope
           history1       = M.insert scope (callNumber + 1) history
           newName        = renameMethodName scope callNumber
           manipulations1 = insertManipulation statNode name (scope, callNumber) manipulations
           callStack1     = S.push (scope, newName, currentNode + 1) callStack
-          acc1           = (history1, manipulations1, callStack1, paths, k)
+          acc1           = (history1, manipulations1, callStack1, ps, k)
        in next acc1 graph (createEdge currentNode edge)
 
 -- Case: the entry of a method.
-paths acc graph (_,currentNode, MethodEntryNode scope, neighbours)
+paths acc graph (_,currentNode, MethodEntryNode _, neighbours)
     = concatMap (next acc graph . createEdge currentNode) neighbours
 
 -- Case: the exit of a method.
-paths (history, manipulations, callStack, paths, k) graph (_,currentNode, MethodExitNode scope, neighbours)
+paths (history, manipulations, callStack, ps, k) graph (_,currentNode, MethodExitNode _, neighbours)
     -- Case: the exit of a method with one stack frame left, i.e. the final statement.
     | S.size callStack == 1
-        = paths
+        = ps
 
     -- Case: the non-final exit of a method.
     | otherwise
         = let (_, _, destination) = fromJust $ S.peek callStack
-              acc1                = (history, manipulations, S.pop callStack, paths, k)
+              acc1                = (history, manipulations, S.pop callStack, ps, k)
               [(edgeValue, _)]    = filter ((destination ==) . snd) neighbours
            in next acc1 graph (currentNode, destination, edgeValue)
 

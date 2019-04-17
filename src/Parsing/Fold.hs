@@ -32,24 +32,25 @@ foldExp (ExpAlgebra' fLit fThis fInstanceCreation fArrayCreate fArrayCreateInit
                      fPreMinus fPreBitCompl fPreNot fBinOp fCond fAssign) 
     = fold
     where
-        fold e = case e of
-                    Lit' lit -> fLit lit
-                    This' -> fThis
-                    InstanceCreation' classType args -> fInstanceCreation classType (map fold args)
-                    ArrayCreate' t exps dim -> fArrayCreate t (map fold exps) dim
-                    ArrayCreateInit' t dim arrayInit -> fArrayCreateInit t dim arrayInit
-                    FieldAccess' fieldAccess -> fFieldAccess fieldAccess
-                    MethodInv' invocation -> fMethodInv invocation
-                    ArrayAccess' i is -> fArrayAccess i (map fold is)
-                    ExpName' name -> fExpName name
-                    PostIncrement' e -> fPostIncrement (fold e)
-                    PostDecrement'  e -> fPostDecrement  (fold e)
-                    PreIncrement' e -> fPreIncrement (fold e)
-                    PreDecrement'  e -> fPreDecrement  (fold e)
-                    PrePlus' e -> fPrePlus (fold e)
-                    PreMinus' e -> fPreMinus (fold e)
-                    PreBitCompl' e -> fPreBitCompl (fold e)
-                    PreNot' e -> fPreNot (fold e)
-                    BinOp' e1 op e2 -> fBinOp (fold e1) op (fold e2)
-                    Cond' g e1 e2 -> fCond (fold g) (fold e1) (fold e2)
-                    Assign' lhs assOp e -> fAssign lhs assOp (fold e)
+        fold expr 
+            = case expr of
+                Lit' lit -> fLit lit
+                This' -> fThis
+                InstanceCreation' classType args -> fInstanceCreation classType (map fold args)
+                ArrayCreate' t exps dim -> fArrayCreate t (map fold exps) dim
+                ArrayCreateInit' t dim arrayInit -> fArrayCreateInit t dim arrayInit
+                FieldAccess' fieldAccess -> fFieldAccess fieldAccess
+                MethodInv' invocation -> fMethodInv invocation
+                ArrayAccess' i is -> fArrayAccess i (map fold is)
+                ExpName' name -> fExpName name
+                PostIncrement' e -> fPostIncrement (fold e)
+                PostDecrement'  e -> fPostDecrement  (fold e)
+                PreIncrement' e -> fPreIncrement (fold e)
+                PreDecrement'  e -> fPreDecrement  (fold e)
+                PrePlus' e -> fPrePlus (fold e)
+                PreMinus' e -> fPreMinus (fold e)
+                PreBitCompl' e -> fPreBitCompl (fold e)
+                PreNot' e -> fPreNot (fold e)
+                BinOp' e1 op e2 -> fBinOp (fold e1) op (fold e2)
+                Cond' g e1 e2 -> fCond (fold g) (fold e1) (fold e2)
+                Assign' lhs assOp e -> fAssign lhs assOp (fold e)

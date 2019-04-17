@@ -4,37 +4,32 @@ import System.Directory
 import System.FilePath.Posix
 import System.Command
 import System.Exit
-import System.IO
 import Data.List
 import Data.Function         (on)
 import Auxiliary.Phase
-import Parsing.Syntax
-import Parsing.Utility
-import Parsing.Fold
 import Auxiliary.Pretty
-import Linearization.Path
 import Compilation.CompiledUnit
 import Compilation.Compiler.Class
 import Compilation.Compiler.Method
 
 compile :: Arguments -> ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
-compile Arguments{pathFilter} progress unit dir id path = do
+compile Arguments{pathFilter} progress unit dir identifer path = do
     program <- runExceptT $ build unit path
     case program of
         Left  fProgram -> return $ Left fProgram
         Right sProgram ->
             case pathFilter sProgram of
                 Just program' -> do
-                    file <- runExceptT $ create progress sProgram dir id
+                    file <- runExceptT $ create progress program' dir identifer
                     case file of
                         Left  fFile -> return $ Left fFile
-                        Right sFile -> return $ Right (CompiledUnit sProgram sFile)
+                        Right sFile -> return $ Right (CompiledUnit program' sFile)
                 Nothing ->
                     return $ Right FilteredUnit
 
 create :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> PhaseResult FilePath
-create progress program dir id = do
-    let actualDir   = dir ++ "/" ++ show id
+create progress program dir identifier = do
+    let actualDir   = dir ++ "/" ++ show identifier
     let programPath = actualDir ++ "/Program.java"
     let jarPath     = actualDir ++ "/Program.jar"
     liftIO $ createDirectory (dropFileName programPath)

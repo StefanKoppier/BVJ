@@ -1,17 +1,13 @@
 module Compilation.Compiler.Expression where
 
-import Data.Either
-import Data.List
 import Data.Maybe
 import Auxiliary.Phase
-import Auxiliary.Pretty
-import Parsing.Syntax
-import Parsing.Pretty
+import Parsing.Pretty()
 import Parsing.Fold
 import Parsing.Utility
 
 buildMethodExp :: CompilationUnit' -> [VarDeclId'] -> Exp' -> Exp'
-buildMethodExp unit locals
+buildMethodExp unit _
     = foldExp alg
     where
         alg :: ExpAlgebra' Exp'
@@ -68,7 +64,7 @@ buildConstructorExp unit locals
         }
 
 modifyInstanceCreation :: CompilationUnit' -> ClassType' -> Exps' -> Exp'
-modifyInstanceCreation unit@(CompilationUnit' _ _ decls) ty@(ClassType' name) args
+modifyInstanceCreation unit ty@(ClassType' _) args
     | isDefinedConstructor unit ty
         = MethodInv' (MethodCall' (createConstructorCallName ty) args)
     | otherwise
@@ -77,6 +73,9 @@ modifyInstanceCreation unit@(CompilationUnit' _ _ decls) ty@(ClassType' name) ar
 buildConstructorLhs :: CompilationUnit' -> [VarDeclId'] -> Lhs' -> Lhs'
 buildConstructorLhs unit locals (Field' (PrimaryFieldAccess' e field))
     = Field' $ PrimaryFieldAccess' (buildConstructorExp unit locals e) field
+
+buildConstructorLhs _ _ f@(Field' (ClassFieldAccess' _ _))
+    = f
 
 buildConstructorLhs _ locals f@(Name' name)
     -- Case: the variable is not a local declaration.
@@ -88,20 +87,24 @@ buildConstructorLhs _ locals f@(Name' name)
     | otherwise
         = f
 
+buildConstructorLhs unit locals (Array' (ArrayIndex' array indices))
+    = let array'   = buildConstructorExp unit locals array
+          indices' = map (buildConstructorExp unit locals) indices
+       in Array' $ ArrayIndex' array' indices'
+
 isLocalDeclaration :: String -> [VarDeclId'] -> Bool
 isLocalDeclaration variable declarations
     = variable `elem` [s | (VarId' s) <- declarations]
 
 isDefinedConstructor :: CompilationUnit' -> ClassType' -> Bool
-isDefinedConstructor unit@(CompilationUnit' _ _ decls) (ClassType' name)
-    = let className = toClassName "" (last name) 
-       in isJust (findClass className unit)
+isDefinedConstructor unit (ClassType' name)
+    = isJust (findClass (toClassName "" (last name)) unit)
 
 createConstructorCallName :: ClassType' -> Name'
 createConstructorCallName (ClassType' name)
     = init name ++ [toClassName "" (last name), last name]
     
 toClassName :: String -> String -> String
-toClassName acc []       = acc
-toClassName acc ('_':xs) = acc
-toClassName acc (x:xs)   = toClassName (acc ++ [x]) xs
+toClassName acc []      = acc
+toClassName acc ('_':_) = acc
+toClassName acc (x:xs)  = toClassName (acc ++ [x]) xs

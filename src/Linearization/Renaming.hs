@@ -12,8 +12,7 @@ import           Data.Function
 import           Data.List
 import           Data.Accumulator
 import           Parsing.Syntax
-import           Analysis.Pretty                 ()
-import           Auxiliary.Pretty 
+import           Analysis.Pretty()
 
 type StmtManipulations = M.Map G.Node RenamingOperations
 
@@ -31,24 +30,24 @@ insertManipulation node name value manipulations
         oldValue  = manipulations M.!? node
 
 renameMethodName :: Scope -> Int -> String
-renameMethodName (Scope scopePackage scopeClass scopeMember) callNumber
+renameMethodName (Scope _ scopeClass scopeMember) callNumber
     = newCallName
     where
         newCallName = scopeClass ++ "_" ++  scopeMember ++ show callNumber
 
 renameMethodCall :: Name' -> Scope -> Int -> Name'
-renameMethodCall name s@(Scope scopePackage scopeClass scopeMember) callNumber
+renameMethodCall name (Scope _ scopeClass scopeMember) callNumber
     = changeLast newCallName name
     where
         newCallName = scopeClass ++ "_" ++ scopeMember ++ show callNumber
 
 changeLast :: a -> [a] -> [a]
-changeLast x [_]    = [x]
-changeLast x (v:xs) = v : changeLast x xs 
+changeLast v [_]    = [v]
+changeLast v (x:xs) = x : changeLast v xs 
 
 findAndRemoveMaximumCallNumber :: [(Scope, Int)] -> ((Scope, Int), [(Scope, Int)])
 findAndRemoveMaximumCallNumber elems
-    = let zipped    = zip elems [0..]
+    = let zipped    = zip elems ([0..] :: [Int])
           (maxi, i) = maximumBy (compare `on` (snd . fst)) zipped
        in (maxi, map fst (filter ((i /=) . snd) zipped))
 
@@ -101,7 +100,7 @@ renameExp (InstanceCreation' (ClassType' name) args) = do
 
 renameExp (ArrayCreate' ty sizes unspecified) = do
     sizes' <- mapM renameExp sizes
-    return $ ArrayCreate' ty sizes unspecified
+    return $ ArrayCreate' ty sizes' unspecified
 
 renameExp (ArrayCreateInit' ty dimensions inits) = do
     inits' <- mapM renameVarInit inits
@@ -198,6 +197,9 @@ renameFieldAccess :: FieldAccess' -> RenamingAcc FieldAccess'
 renameFieldAccess (PrimaryFieldAccess' exp field) = do
     exp' <- renameExp exp
     return $ PrimaryFieldAccess' exp' field
+    
+renameFieldAccess (ClassFieldAccess' ty field)
+    = return $ ClassFieldAccess' ty field
 
 renameLhs :: Lhs' -> RenamingAcc Lhs'
 renameLhs (Field' access) = do

@@ -6,21 +6,16 @@ module Compilation.Phase(
 import Control.Concurrent.ParallelIO.Local
 import Control.Monad
 import Data.Dates
-import Data.Maybe
 import System.Directory
 import Auxiliary.Phase
 import Auxiliary.Pretty
-import Linearization.Path
-import Linearization.Pretty
+import Linearization.Pretty()
 import Compilation.Compiler
-import Parsing.Syntax
-import Data.Accumulator
 import Compilation.CompiledUnit
 
 compilationPhase :: Phase (CompilationUnit', ProgramPaths) CompiledUnits
 compilationPhase args@Arguments{verbosity} (unit, paths) = do
     liftIO $ printInformation verbosity paths
-    liftIO createWorkingDir
     results <- ExceptT (runAsync args unit paths)
     return [compiled | compiled@(CompiledUnit _ _) <- results]
 
@@ -44,11 +39,6 @@ runAsync args@Arguments{numberOfThreads} unit paths = do
     results  <- withPool numberOfThreads (\ pool -> parallel pool tasks)
     putStrLn ""
     return (sequence results)
-
-createWorkingDir :: IO ()
-createWorkingDir = do 
-    createDirectoryIfMissing False workingDir
-    return ()
     
 timeString :: DateTime -> String
 timeString DateTime{year,month,day,hour,minute,second}

@@ -2,9 +2,8 @@ module Linearization.Pretty where
 
 import Text.PrettyPrint
 import Auxiliary.Pretty
-import Parsing.Syntax
-import Parsing.Pretty
-import Analysis.Pretty
+import Parsing.Pretty()
+import Analysis.Pretty()
 import Linearization.Path
 
 instance Pretty ProgramPaths where
@@ -14,14 +13,23 @@ instance Pretty ProgramPath where
     pretty = hsep . map pretty
 
 instance Pretty PathStmt where
-    pretty (stat,_) = pretty stat
+    pretty (stat, _) = pretty stat
 
 instance Pretty PathType where
     pretty (PathStmt stat)  
         = pretty stat
 
-    pretty (PathEntry entry) 
-        = char '{'
+    pretty (PathEntry TryEntryType) 
+        = "try" <+> lbrace
+        
+    pretty (PathEntry (CatchEntryType (Just e))) 
+        = "catch" <+> parens (pretty e) <+> lbrace
+    
+    pretty (PathEntry FinallyEntryType) 
+        = "finally" <+> lbrace
+        
+    pretty (PathEntry _) 
+        = lbrace
 
-    pretty (PathExit exit)  
-        = char '}'
+    pretty (PathExit _)  
+        = rbrace

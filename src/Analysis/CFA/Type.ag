@@ -62,7 +62,7 @@ generateTypesFromStmt _ _ _
         = M.empty
 
 getResultClassNameOfInvocation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Maybe String
-getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name args)) = do
+getResultClassNameOfInvocation unit package className types (MethodInv' (MethodCall' name _)) = do
     scope         <- getScopeOfInvocation unit package (Just className) types name
     method        <- getMethod unit scope
     nonVoidTy     <- getReturnTypeOfMethod method
@@ -71,14 +71,14 @@ getResultClassNameOfInvocation unit package className types (MethodInv' (MethodC
     return resultName
 
 getScopeOfCreation :: CompilationUnit' -> Maybe Name' -> String -> TypeEnvironment -> Exp' -> Maybe Scope
-getScopeOfCreation unit package _ _ (InstanceCreation' (ClassType' [name]) args)
+getScopeOfCreation unit package _ _ (InstanceCreation' (ClassType' [name]) _)
     | Just _ <- findClass name unit
         = Just $ Scope package name name
     | otherwise
         = Nothing
 
 getScopeOfInvocation :: CompilationUnit' -> Maybe Name' -> Maybe String -> TypeEnvironment -> Name' -> Maybe Scope
-getScopeOfInvocation unit package className types [name]
+getScopeOfInvocation unit package className _ [name]
     | Just className' <- className
     , Just classDecl  <- findClass className' unit
     , Just _          <- findMethod name classDecl

@@ -2,7 +2,6 @@ module Compilation.Compiler.Statement where
 
 import Parsing.Syntax
 import Auxiliary.Phase
-import Linearization.Path
 import Data.Accumulator
 import Compilation.Compiler.Expression
 import Compilation.CompiledUnit
@@ -23,7 +22,7 @@ buildStmts statBuilder (PathStmt stat:stats) = do
     stats' <- buildStmts statBuilder stats
     return (stat' : stats')
 
-buildStmts statBuilder (entry@(PathEntry (ConditionalEntryType e)):stats) = do
+buildStmts statBuilder (entry@(PathEntry (ConditionalEntryType _)):stats) = do
     let index = findIndex 0 0 entry stats
     let (blockBody, restStats) = splitAt index stats
     block <- keepOldAccumulator (Block' Nothing <$> buildStmts statBuilder blockBody)
@@ -37,7 +36,7 @@ buildStmts statBuilder (entry@(PathEntry (BlockEntryType label)):stats) = do
     restStats' <- buildStmts statBuilder restStats
     return (block : restStats')
 
-buildStmts statBuilder stats@(entry@(PathEntry TryEntryType):_) = do
+buildStmts statBuilder stats@(PathEntry TryEntryType:_) = do
     (try, restStats) <- keepOldAccumulator (buildTryCatchStmts statBuilder stats)
     restStats'       <- buildStmts statBuilder restStats
     return (try : restStats')
@@ -76,7 +75,9 @@ buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
 buildFinally _ stats = return (Nothing, stats)
 
 findIndex :: Int -> Int -> PathType -> [PathType] -> Int
-findIndex _ _ _ [] = error "no according exit block found"
+findIndex _ _ _            [] = error "no according exit block found"
+findIndex _ _ (PathExit _) _  = error "findIndex should only be called on an entry."
+findIndex _ _ (PathStmt _) _  = error "findIndex should only be called on an entry."
 
 findIndex x i (PathEntry ty) (PathStmt _:rest)
     = findIndex x (i+1) (PathEntry ty) rest
@@ -99,20 +100,32 @@ buildMethodStmt unit (Decl' modifiers ty vars)
     = Stmt' . Decl' modifiers ty <$> mapM (buildMethodDecl unit) vars
 buildMethodStmt _ Empty'
     = return $ Stmt' Empty'
+
 buildMethodStmt unit (ExpStmt' exp) = do
     locals <- getAccumulator
     return $ Stmt' (ExpStmt' (buildMethodExp unit locals exp))
+
 buildMethodStmt unit (Assert' exp message) = do
     locals <- getAccumulator
     return $ Stmt' (Assert' (buildMethodExp unit locals exp) message)
+
 buildMethodStmt unit (Assume' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Assume' (buildMethodExp unit locals exp))
+
+buildMethodStmt _ (Break' _) =
+    return $ Stmt' Empty'
+
+buildMethodStmt _ (Continue' _) =
+    return $ Stmt' Empty'
+
 buildMethodStmt unit (Return' (Just exp)) = do
     locals <- getAccumulator
     return $ Stmt' (Return' (Just (buildMethodExp unit locals exp)))
+
 buildMethodStmt _ (Return' Nothing) =
     return $ Stmt' (Return' Nothing)
+
 buildMethodStmt unit (Throw' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Throw' (buildMethodExp unit locals exp))
@@ -126,10 +139,10 @@ buildMethodVarInit unit (InitExp' exp) = do
     locals <- getAccumulator
     return $ InitExp' (buildMethodExp unit locals exp)
     
-buildVarInit _ (InitArray' Nothing) 
+buildMethodVarInit _ (InitArray' Nothing) 
     = return $ InitArray' Nothing
     
-buildVarInit unit (InitArray' (Just inits)) 
+buildMethodVarInit unit (InitArray' (Just inits)) 
     = InitArray' . Just <$> mapM (buildMethodVarInit unit) inits
 
 --------------------------------------------------------------------------------
@@ -140,19 +153,31 @@ buildConstructorStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundS
 buildConstructorStmt unit (Decl' modifiers ty vars) = do
     vars' <- mapM (buildConstructorDecl unit) vars
     return $ Stmt' (Decl' modifiers ty vars')
+
 buildConstructorStmt _ Empty'
     = return (Stmt' Empty')
+
 buildConstructorStmt unit (ExpStmt' exp) = do
     locals <- getAccumulator
     return $ Stmt' (ExpStmt' (buildConstructorExp unit locals exp))
+
 buildConstructorStmt unit (Assert' exp message) = do
     locals <- getAccumulator
     return $ Stmt' (Assert' (buildConstructorExp unit locals exp) message)
+
 buildConstructorStmt unit (Assume' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Assume' (buildConstructorExp unit locals exp))
+    
+buildConstructorStmt _ (Break' _) =
+    return $ Stmt' Empty'
+
+buildConstructorStmt _ (Continue' _) =
+    return $ Stmt' Empty'
+
 buildConstructorStmt _ (Return' _)
     = return $ Stmt' (Return' (Just (ExpName' ["_thisObj__"])))
+
 buildConstructorStmt unit (Throw' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Throw' (buildConstructorExp unit locals exp))
