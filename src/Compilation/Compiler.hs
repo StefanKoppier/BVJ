@@ -17,16 +17,20 @@ import Compilation.CompiledUnit
 import Compilation.Compiler.Class
 import Compilation.Compiler.Method
 
-compile :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
-compile progress unit dir id path = do
+compile :: Arguments -> ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
+compile Arguments{pathFilter} progress unit dir id path = do
     program <- runExceptT $ build unit path
     case program of
         Left  fProgram -> return $ Left fProgram
-        Right sProgram -> do
-            file <- runExceptT $ create progress sProgram dir id
-            case file of
-                Left  fFile -> return $ Left fFile
-                Right sFile -> return $ Right (sProgram, sFile)
+        Right sProgram ->
+            case pathFilter sProgram of
+                Just program' -> do
+                    file <- runExceptT $ create progress sProgram dir id
+                    case file of
+                        Left  fFile -> return $ Left fFile
+                        Right sFile -> return $ Right (CompiledUnit sProgram sFile)
+                Nothing ->
+                    return $ Right FilteredUnit
 
 create :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> PhaseResult FilePath
 create progress program dir id = do

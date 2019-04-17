@@ -31,9 +31,7 @@ linearizationPhase args@Arguments{function, maximumDepth, verbosity} (unit, grap
         let acc       = (history, M.empty, callStack, [[]], maximumDepth)
         let ps        = map (clean . reverse) $ paths acc graph (context cfg entry)
         liftIO $ printText ("Generated " ++ show (length ps) ++ " program path(s).")
-        filteredPs <- filteringPhase args (unit, ps)
-        liftIO $ printText ("After filtering " ++ show (length filteredPs) ++ " program path(s) remain.")
-        return filteredPs
+        return ps
     | otherwise = do
         liftIO $ printInformation verbosity graph
         throwSemanticalError (UndefinedMethodReference [functionName])
@@ -53,11 +51,6 @@ clean []                               = []
 clean ((PathStmt (Continue' _), i):ps) = (PathStmt Empty', i) : clean ps
 clean ((PathStmt (Break' _)   , i):ps) = (PathStmt Empty', i) : clean ps
 clean (s:ps)                           = s : clean ps
-
--- | Subphase allowing filtering of paths.
-filteringPhase :: Subphase (CompilationUnit', ProgramPaths) ProgramPaths
-filteringPhase Arguments{pathFilter} (unit, paths)
-    = return (pathFilter unit paths)
 
 --------------------------------------------------------------------------------
 -- Program path generation
@@ -129,10 +122,6 @@ paths (history,manipulations,callStack,paths,k) graph (_, currentNode, CallNode 
 -- Case: the entry of a method.
 paths acc graph (_,currentNode, MethodEntryNode scope, neighbours)
     = concatMap (next acc graph . createEdge currentNode) neighbours
-
--- Case: the exit of a method with no neighbours, i.e. the final statement.
---paths (_,_,_,paths,_) graph (_,_, MethodExitNode scope, [])
---    = paths
 
 -- Case: the exit of a method.
 paths (history, manipulations, callStack, paths, k) graph (_,currentNode, MethodExitNode scope, neighbours)

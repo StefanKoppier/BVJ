@@ -3,7 +3,10 @@ module Compilation.CompiledUnit where
 import Parsing.Syntax
 import Data.Accumulator
 
-type CompiledUnit  = (CompilationUnit', FilePath)
+data CompiledUnit
+    = CompiledUnit CompilationUnit' FilePath
+    | FilteredUnit
+    deriving (Show, Eq)
 
 type CompiledUnits = [CompiledUnit]
 

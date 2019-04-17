@@ -17,9 +17,9 @@ verificationPhase args@Arguments{verbosity} programs = do
     ExceptT results
     
 printInformation :: Verbosity -> CompiledUnits -> IO ()
-printInformation _ compiledUnits = do
+printInformation _ programs = do
     printHeader "5. VERIFICATION"
-    printText ("Verifying " ++ show (length compiledUnits) ++ " program(s).")
+    printText ("Verifying " ++ show (length programs) ++ " program(s).")
 
 runAsync :: Arguments -> CompiledUnits -> IO (Either PhaseError CProverResults)
 runAsync args@Arguments{numberOfThreads} programs = do
@@ -30,7 +30,7 @@ runAsync args@Arguments{numberOfThreads} programs = do
     return (sequence results)
 
 verify :: Arguments -> ProgressBar -> CompiledUnit -> IO (Either PhaseError CProverResult)
-verify args@Arguments{function} progress (program, file) = do
+verify args@Arguments{function} progress (CompiledUnit program file) = do
     result <- case function of
                 Just function'
                     -> jbmc file (Left function') args

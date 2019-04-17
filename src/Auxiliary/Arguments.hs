@@ -16,7 +16,7 @@ data Arguments = Arguments {
     , numberOfThreads      :: Int
     , removeOutputFiles    :: Bool
     , maximumDepth         :: Int
-    , pathFilter           :: CompilationUnit' -> ProgramPaths -> ProgramPaths
+    , pathFilter           :: CompilationUnit' -> Maybe CompilationUnit'
     , jbmcEnableAssertions :: Bool
     , jbmcDepth            :: Maybe Int
     , jbmcUnwind           :: Maybe Int
