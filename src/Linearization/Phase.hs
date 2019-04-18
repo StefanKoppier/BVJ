@@ -1,3 +1,7 @@
+{-|
+Module      : Linearization.Phase
+Description : Module containing the linearization phase.
+-}
 module Linearization.Phase(
     linearizationPhase
 ) where
@@ -21,6 +25,7 @@ import           Auxiliary.Pretty
 -- Linearization phase
 --------------------------------------------------------------------------------
 
+-- | Generates the program paths from the given control flow graph and AST.
 linearizationPhase :: Phase (CompilationUnit', CFG) ProgramPaths
 linearizationPhase Arguments{function, maximumDepth, verbosity} (unit, graph@CFG{cfg})
     | (Just method)     <- entryMethod
@@ -39,6 +44,7 @@ linearizationPhase Arguments{function, maximumDepth, verbosity} (unit, graph@CFG
         functionName = maybe "main" (last . splitOn ".") function 
         entryMethod  = maybe (findMainScope unit) (findMethodScope unit . splitOn ".") function 
 
+-- | Prints information about the linearization phase to the screen.
 printInformation :: Verbosity -> CFG -> IO ()
 printInformation verbosity graph = do
     printHeader "3. LINEARIZATION"
@@ -158,6 +164,7 @@ next acc graph@CFG{cfg} (currentNode, destinationNode, edgeValue)
                                                                       , BlockExitEdge exit])  
                     in paths acc1 graph neighbour
 
+-- | Maps the dge values to their corresponding program path values.
 getEdgeValues :: [CFGEdgeValue] -> [PathType]
 getEdgeValues []
     = []
@@ -166,10 +173,12 @@ getEdgeValues (BlockEntryEdge entry : stats)
 getEdgeValues (BlockExitEdge exit : stats)
     = PathExit exit : conditionalAssumption exit ++ getEdgeValues stats
         
+-- | Generate assumption statement from the conditional edge.
 conditionalAssumption :: BlockEntryType -> [PathType]
 conditionalAssumption (ConditionalEntryType (Just e)) = [PathStmt $ Assume' e] 
 conditionalAssumption _                               = [] 
 
+-- | Prepend the path items to all program paths.
 prepends :: Node -> PathAccumulator -> [PathType]  -> PathAccumulator
 prepends currentNode = foldr (prepend currentNode)
 

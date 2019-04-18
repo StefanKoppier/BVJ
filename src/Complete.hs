@@ -1,3 +1,7 @@
+{-|
+Module      : Complete
+Description : Module containing the interface to perform verification.
+-}
 module Complete(
       module Auxiliary.Phase
     , module Auxiliary.Pretty

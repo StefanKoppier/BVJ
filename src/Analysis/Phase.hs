@@ -1,3 +1,11 @@
+{-|
+Module      : Analysis.Phase
+Description : Module containing the analysis phase.
+
+This module contains contains the analysis phase. 
+Currently, it only contains the control flow anaylsis to construct to the control
+flow graph. Reachability analysis is disabled.
+-}
 module Analysis.Phase(
       analysisPhase
     , controlFlowAnalysisSubphase
@@ -14,6 +22,8 @@ import Analysis.Pretty()
 -- Main analysis phase
 --------------------------------------------------------------------------------
 
+-- | Performs the analysis on the compilation unit and returns the control flow
+-- graph. Currently it only performs control flow analysis.
 analysisPhase :: Phase CompilationUnit' CFG
 analysisPhase args unit = do 
     liftIO $ printHeader "2. PROGRAM ANALYSIS"
@@ -23,6 +33,7 @@ analysisPhase args unit = do
 -- Control Flow Analysis subphase
 --------------------------------------------------------------------------------
              
+-- | Performs the control flow analysis on the compilation unit.
 controlFlowAnalysisSubphase :: Subphase CompilationUnit' CFG
 controlFlowAnalysisSubphase _ unit = do
     liftIO $ printHeader "2.a control flow analysis"

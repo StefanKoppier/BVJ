@@ -1,3 +1,7 @@
+{-|
+Module      : Compilation.Compiler.Statement
+Description : Module containing the AST generation of statements.
+-}
 module Compilation.Compiler.Statement where
 
 import Parsing.Syntax
@@ -10,6 +14,7 @@ import Compilation.CompiledUnit
 -- Method block building
 --------------------------------------------------------------------------------
 
+-- | Generates the statements from the given program path.
 buildStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator CompoundStmts'
 buildStmts _ [] 
     = return []
@@ -44,6 +49,7 @@ buildStmts statBuilder stats@(PathEntry TryEntryType:_) = do
 buildStmts statBuilder (PathExit _:stats) 
     = buildStmts statBuilder stats
 
+-- | Generates the try catch finally from the given program path.
 buildTryCatchStmts :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (CompoundStmt', [PathType])
 buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
     let index                = findIndex 0 0 entry stats
@@ -53,6 +59,7 @@ buildTryCatchStmts statBuilder (entry@(PathEntry TryEntryType):stats) = do
     (finally, rest2) <- keepOldAccumulator (buildFinally statBuilder (drop 1 rest1))
     return (Try' try catches finally, rest2)
 
+-- | Generates the catch(es) from the given program path.
 buildCatches :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (Catches', [PathType])
 buildCatches statBuilder (ty@(PathEntry (CatchEntryType (Just e))):stats) = do
     let index                  = findIndex 0 0 ty stats
@@ -64,6 +71,7 @@ buildCatches statBuilder (ty@(PathEntry (CatchEntryType (Just e))):stats) = do
 
 buildCatches _ stats = return ([], stats)
 
+-- | Generates the finally from the given program path.
 buildFinally :: (Stmt' -> MethodAccumulator CompoundStmt') -> [PathType] -> MethodAccumulator (MaybeCompoundStmts', [PathType])
 buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
     let index                    = findIndex  0 0 ty stats
@@ -74,6 +82,8 @@ buildFinally statBuilder (ty@(PathEntry FinallyEntryType):stats) = do
 
 buildFinally _ stats = return (Nothing, stats)
 
+-- | Returns the index of the exit of a block that is entered. Throws an errors
+-- if the exit block is not found.
 findIndex :: Int -> Int -> PathType -> [PathType] -> Int
 findIndex _ _ _            [] = error "no according exit block found"
 findIndex _ _ (PathExit _) _  = error "findIndex should only be called on an entry."
@@ -95,6 +105,8 @@ findIndex x i (PathEntry ty) (PathExit exit:rest)
 -- Method statement building
 --------------------------------------------------------------------------------
 
+-- | Generates the statement in a method from a statement, accumulating the 
+-- locally declared variables.
 buildMethodStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundStmt'
 buildMethodStmt unit (Decl' modifiers ty vars)
     = Stmt' . Decl' modifiers ty <$> mapM (buildMethodDecl unit) vars
@@ -130,10 +142,12 @@ buildMethodStmt unit (Throw' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Throw' (buildMethodExp unit locals exp))
     
+-- | Generates the variable declaration in a method from a variable declaration.
 buildMethodDecl :: CompilationUnit' -> VarDecl' -> MethodAccumulator VarDecl'
 buildMethodDecl unit (VarDecl' id init) 
     = VarDecl' id <$> buildMethodVarInit unit init
 
+-- | Generates the variable initializer in a method from a variable initializer.
 buildMethodVarInit :: CompilationUnit' -> VarInit' -> MethodAccumulator VarInit'
 buildMethodVarInit unit (InitExp' exp) = do
     locals <- getAccumulator
@@ -149,6 +163,8 @@ buildMethodVarInit unit (InitArray' (Just inits))
 -- Constructor statement building
 --------------------------------------------------------------------------------
  
+-- | Generates the statement in a constructor from a statement, accumulating the 
+-- locally declared variables.
 buildConstructorStmt :: CompilationUnit' -> Stmt' -> MethodAccumulator CompoundStmt'
 buildConstructorStmt unit (Decl' modifiers ty vars) = do
     vars' <- mapM (buildConstructorDecl unit) vars
@@ -182,12 +198,14 @@ buildConstructorStmt unit (Throw' exp) = do
     locals <- getAccumulator
     return $ Stmt' (Throw' (buildConstructorExp unit locals exp))
     
+-- | Generates the variable declaration in a constructor from a variable declaration.
 buildConstructorDecl :: CompilationUnit' -> VarDecl' -> MethodAccumulator VarDecl'
 buildConstructorDecl unit (VarDecl' id init) = do
     updateAccumulator (id:)
     init' <- buildConstructorVarInit unit init
     return (VarDecl' id init')
 
+-- | Generates the variable initializer in a constructor from a variable initializer.
 buildConstructorVarInit :: CompilationUnit' -> VarInit' -> MethodAccumulator VarInit'
 buildConstructorVarInit unit (InitExp' exp) = do
     locals <- getAccumulator

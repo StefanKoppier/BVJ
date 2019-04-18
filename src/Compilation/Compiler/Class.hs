@@ -1,3 +1,7 @@
+{-|
+Module      : Compilation.Compiler.Class
+Description : Module containing the AST generation of a class.
+-}
 module Compilation.Compiler.Class where
 
 import Data.Maybe
@@ -8,6 +12,7 @@ import Parsing.Utility
 import Auxiliary.Phase
 import Compilation.Compiler.Method
 
+-- | Generates the class from the given program path.
 buildClass :: CompilationUnit' -> ProgramPath -> PhaseResult TypeDecl'
 buildClass unit path = do
     let methodGroups = (groupBy ((==) `on` (snd . snd)) . sortOn (snd . snd)) path

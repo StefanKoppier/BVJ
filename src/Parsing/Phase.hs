@@ -1,4 +1,15 @@
-module Parsing.Phase where
+{-|
+Module      : Parsing.Phase
+Description : Module containing the parsing phase.
+
+This module contains the parsing and syntax transformation phases. It parses the
+code of a given String and transforms it to the equivalent AST defined in 
+Parsing.Syntax.
+-}
+module Parsing.Phase(
+      parsingPhase
+    , syntaxTransformationSubphase
+) where
 
 import Language.Java.Parser hiding (methodRef)
 import Language.Java.Syntax
@@ -12,6 +23,7 @@ import Auxiliary.Pretty
 -- Parsing phase
 --------------------------------------------------------------------------------
 
+-- | Parses the given string and transforms it to the locally declared AST.
 parsingPhase :: Phase String CompilationUnit'
 parsingPhase args content = do
     liftIO $ printHeader "1. PARSING"
@@ -24,6 +36,7 @@ parsingPhase args content = do
 -- Syntax transformation subphase
 --------------------------------------------------------------------------------
 
+-- | Transforms the Language.Java.Syntax AST into the locally declared AST.
 syntaxTransformationSubphase :: Subphase CompilationUnit CompilationUnit'
 syntaxTransformationSubphase _ = transformCompilationUnit
 

@@ -1,8 +1,17 @@
+{-|
+Module      : Parsing.Pretty
+Description : Pretty instances of the data types declared in Parsing.Syntax.
+
+This module contains the Pretty instances of the data types declared in Parsing.Syntax.
+
+The Pretty instances generate compilable strings.
+-}
 module Parsing.Pretty where
 
 import Text.PrettyPrint
 import Auxiliary.Phase
 import Auxiliary.Pretty
+
 --------------------------------------------------------------------------------
 -- Files
 --------------------------------------------------------------------------------
@@ -78,6 +87,8 @@ instance Pretty FormalParam' where
     pretty (FormalParam' modifiers ty name) 
         = pretty modifiers <+> pretty ty <+> pretty name
 
+-- | Splits the given modifiers in two sets, the first set are defined before the
+-- element and the second set are defined on the same line.
 preAndInlineModifiers :: (Modifiers', Modifiers') -> Modifiers' -> (Modifiers', Modifiers')
 preAndInlineModifiers acc []
     = acc
@@ -153,14 +164,17 @@ instance Pretty ForInit' where
     pretty (ForInitExps' exps)
         = commas exps
 
+-- | Pretty print a for init.
 pForInit :: MaybeForInit' -> Doc
 pForInit Nothing     = semi
 pForInit (Just init) = pretty init <> semi
 
+-- | Pretty print a for update.
 pForUpdate :: MaybeExps' -> Doc
 pForUpdate Nothing     = empty
 pForUpdate (Just exps) = commas exps
 
+-- | Pretty print an identifier.
 pIdent :: Maybe String -> Doc
 pIdent Nothing      = empty
 pIdent (Just ident) = text ident <+> char ':'

@@ -1,3 +1,7 @@
+{-|
+Module      : Compilation.Compiler
+Description : Module containing the top level compilation functionality.
+-}
 module Compilation.Compiler where
 
 import System.Directory
@@ -12,6 +16,8 @@ import Compilation.CompiledUnit
 import Compilation.Compiler.Class
 import Compilation.Compiler.Method
 
+-- | Compiles the given program path and returns the compiled unit, which can be
+-- filtered.
 compile :: Arguments -> ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
 compile Arguments{pathFilter} progress unit dir identifer path = do
     program <- runExceptT $ build unit path
@@ -27,6 +33,8 @@ compile Arguments{pathFilter} progress unit dir identifer path = do
                 Nothing ->
                     return $ Right FilteredUnit
 
+-- | Compiles and packages the given compilation unit and increments the progress
+-- bar. Returns the path to the jar file.
 create :: ProgressBar -> CompilationUnit' -> FilePath -> Int -> PhaseResult FilePath
 create progress program dir identifier = do
     let actualDir   = dir ++ "/" ++ show identifier
@@ -45,6 +53,7 @@ create progress program dir identifier = do
                     liftIO $ incProgress progress
                     return jarPath
 
+-- | Transforms the program path to the compilation unit.
 build :: CompilationUnit' -> ProgramPath -> PhaseResult CompilationUnit'
 build unit@(CompilationUnit' package originalImports _) path = do
     let classGroups = (groupBy ((==) `on` className) . sortOn (snd . snd)) path
@@ -58,6 +67,7 @@ build unit@(CompilationUnit' package originalImports _) path = do
 -- Java compiler and jar calls
 --------------------------------------------------------------------------------
 
+-- | Runs the command `javac`.
 javac :: FilePath -> IO (Either PhaseError ())
 javac file = do
     (Stdout _, Exit e, Stderr _) <- command [] "javac" args
@@ -71,6 +81,7 @@ javac file = do
                , "-classpath", "./lib/core-models.jar"
                ]
 
+-- | Runs the command `jar`.
 jar :: FilePath -> IO (Either PhaseError ())
 jar file = do
     (Stdout _, Exit e, Stderr _) <- command [Cwd dir] "jar" args
@@ -78,7 +89,7 @@ jar file = do
         ExitSuccess   -> return $ Right ()
         ExitFailure _ -> return $ Left (ExternalError "jar creation (jar) failed.")
     where
-        dir = dropFileName file
+        dir  = dropFileName file
         args = [ "cfe"
                ,  takeFileName file
                , "-C", "./"

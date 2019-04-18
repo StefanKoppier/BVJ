@@ -1,3 +1,7 @@
+{-|
+Module      : Verification.Pretty
+Description : Pretty instances of the data types declared in Verification.JBMCResult.
+-}
 module Verification.Pretty where
 
 import qualified Data.ByteString.UTF8 as UTF8

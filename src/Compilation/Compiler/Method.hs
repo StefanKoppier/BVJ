@@ -1,3 +1,7 @@
+{-|
+Module      : Compilation.Compiler.Method
+Description : Module containing the AST generation of a method.
+-}
 module Compilation.Compiler.Method where
 
 import Data.Maybe
@@ -8,6 +12,7 @@ import Auxiliary.Phase
 import Compilation.Compiler.Statement
 import Compilation.CompiledUnit
 
+-- | Generates the method from the given program path.
 buildMethod :: CompilationUnit' -> ProgramPath -> PhaseResult Decl'
 buildMethod unit path = do
     let name = snd . snd . head $ path
@@ -28,11 +33,13 @@ buildMethod unit path = do
         scope  = (fst . snd . head) path
         method = fromJust $ getMethod unit scope
 
+-- | Generates the method body from the given program path.
 buildMethodBody :: CompilationUnit' -> ProgramPath -> MethodAccumulator CompoundStmts'
 buildMethodBody unit path = do
     let path' = map fst path
     buildStmts (buildMethodStmt unit) path'
 
+-- | Generates the constructor body from the given program path.
 buildConstructorBody :: CompilationUnit' -> ClassType' -> ProgramPath -> MethodAccumulator CompoundStmts'
 buildConstructorBody unit ty path = do
     let objCreation = Stmt' $ Decl' [] (RefType' (ClassRefType' ty)) [VarDecl' (VarId' "_thisObj__") (InitExp' (InstanceCreation' ty []))]
@@ -43,6 +50,7 @@ buildConstructorBody unit ty path = do
     where
         objReturn = Stmt' (Return' (Just (ExpName' ["_thisObj__"])))
 
+-- | Returns the class in which the path statement is defined in.
 className :: PathStmt -> String
 className (_, (Scope _ name _, _))
     = name

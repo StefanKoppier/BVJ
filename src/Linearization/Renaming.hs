@@ -1,3 +1,10 @@
+{-|
+Module      : Linearization.Renaming
+Description : Module containing the functionality to rename method calls in expressions.
+
+This module contains the functionality to rename method calls in expressions of
+statements at given nodes.
+-}
 module Linearization.Renaming(
       StmtManipulations
     , RenamingOperations
@@ -14,12 +21,17 @@ import           Data.Accumulator
 import           Parsing.Syntax
 import           Analysis.Pretty()
 
+-- | Map containing the renaming operations at specific nodes.
 type StmtManipulations = M.Map G.Node RenamingOperations
 
+-- | Map containing the original scope and call id for specific methods.
 type RenamingOperations = M.Map Name' [(Scope, Int)]
 
+-- | Renaming accumulator containing the renaming operations that need to be
+-- performed thus far.
 type RenamingAcc a = Accumulator RenamingOperations a
 
+-- | Inserts a renaming operation into the map.
 insertManipulation :: G.Node -> Name' -> (Scope, Int) -> StmtManipulations -> StmtManipulations
 insertManipulation node name value manipulations
     | Just oldValue' <- oldValue
@@ -29,28 +41,23 @@ insertManipulation node name value manipulations
     where
         oldValue  = manipulations M.!? node
 
+-- | Creates the name of a method using the given scope and call id.
 renameMethodName :: Scope -> Int -> String
 renameMethodName (Scope _ scopeClass scopeMember) callNumber
     = newCallName
     where
         newCallName = scopeClass ++ "_" ++  scopeMember ++ show callNumber
 
+-- | Creates the name of a method call using the given scope and call id.
 renameMethodCall :: Name' -> Scope -> Int -> Name'
 renameMethodCall name (Scope _ scopeClass scopeMember) callNumber
     = changeLast newCallName name
     where
-        newCallName = scopeClass ++ "_" ++ scopeMember ++ show callNumber
+        newCallName         = scopeClass ++ "_" ++ scopeMember ++ show callNumber
+        changeLast v [_]    = [v]
+        changeLast v (x:xs) = x : changeLast v xs 
 
-changeLast :: a -> [a] -> [a]
-changeLast v [_]    = [v]
-changeLast v (x:xs) = x : changeLast v xs 
-
-findAndRemoveMaximumCallNumber :: [(Scope, Int)] -> ((Scope, Int), [(Scope, Int)])
-findAndRemoveMaximumCallNumber elems
-    = let zipped    = zip elems ([0..] :: [Int])
-          (maxi, i) = maximumBy (compare `on` (snd . fst)) zipped
-       in (maxi, map fst (filter ((i /=) . snd) zipped))
-
+-- | Creates the new method call name and removes it from the accumulator.
 rename :: Name' -> RenamingAcc Name'
 rename name = do
     acc <- getAccumulator
@@ -59,6 +66,17 @@ rename name = do
     let acc2 = M.insert name renames2 acc
     updateAccumulator (const acc2) 
     return $ renameMethodCall name scope callNumber
+
+-- | Returns and removes the maximum renaming operation of the given map.
+findAndRemoveMaximumCallNumber :: [(Scope, Int)] -> ((Scope, Int), [(Scope, Int)])
+findAndRemoveMaximumCallNumber elems
+    = let zipped = zip elems ([0..] :: [Int])
+          (m, i) = maximumBy (compare `on` (snd . fst)) zipped
+       in (m, map fst (filter ((i /=) . snd) zipped))
+
+--------------------------------------------------------------------------------
+-- Traversals of the statements and expression to rename.
+--------------------------------------------------------------------------------
 
 renameStmt :: Stmt' -> RenamingAcc Stmt'
 renameStmt (Decl' ms ty vars) = do

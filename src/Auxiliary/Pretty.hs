@@ -1,3 +1,12 @@
+{-|
+Module      : Auxiliary.Pretty
+Description : Module containing printing utilities.
+
+This module contains the utilities to generate and print information to the screen.
+
+The progress bar utility is exposed in this module as well, which can be used to 
+render and update a progress bar.
+-}
 module Auxiliary.Pretty(
       Verbosity(..)  
     , Pretty(..)
@@ -71,7 +80,6 @@ dots = hcat . punctuate dot . map pretty
 stars :: Int -> Doc
 stars n = text $ replicate n '*'
 
---printHeader :: String -> IO (Either PhaseError ())
 printHeader :: String -> IO ()
 printHeader header = do
     let width   = 80

@@ -1,3 +1,7 @@
+{-|
+Module      : Analysis.Pretty
+Description : Pretty instances of the data types declared in Analysis.CFG.
+-}
 module Analysis.Pretty where
 
 import Data.Graph.Inductive.Graph (Node, context, nodes)

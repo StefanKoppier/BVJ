@@ -1,3 +1,7 @@
+{-|
+Module      : Linearization.Pretty
+Description : Pretty instances of the data types declared in Linearization.Path.
+-}
 module Linearization.Pretty where
 
 import Text.PrettyPrint

@@ -1,7 +1,12 @@
+{-|
+Module      : Parsing.Fold
+Description : Module containing a fold for expressions.
+-}
 module Parsing.Fold where
 
 import Parsing.Syntax
 
+-- | Fold definition of an Exp'.
 data ExpAlgebra' r = ExpAlgebra'
   { lit              :: Literal' -> r
   , this             :: r
@@ -25,6 +30,7 @@ data ExpAlgebra' r = ExpAlgebra'
   , assign           :: Lhs' -> AssignOp' -> r -> r
   }
 
+-- | Folds the given expression using the given algebra.
 foldExp :: ExpAlgebra' r -> Exp' -> r
 foldExp (ExpAlgebra' fLit fThis fInstanceCreation fArrayCreate fArrayCreateInit 
                      fFieldAccess fMethodInv fArrayAccess fExpName fPostIncrement 
