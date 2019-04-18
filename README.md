@@ -30,6 +30,8 @@ The tool is tested using GHC 8.2.2 and JBMC 5.11. To build/use the tool install 
 
 The tool can be used in two ways: using GHCi, and by running the executable.
 
+But first, the tool needs to be built. This can be done using the command `make repl`, which also automatically starts GHCi.
+
 ### Using GHCi
 
 When using GHCi, the functions `verify`, `verifyWithMaximumDepth`, and `verifyFunctionWithMaximumDepth`, defined in [Main.hs](app/Main.hs), can be used. The `arguments` constant can be used to directly tweak the verification tool.
