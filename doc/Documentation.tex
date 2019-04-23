@@ -3,92 +3,133 @@
 \usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
 \usepackage{listings}
 \usepackage{scrextend}
-\usepackage{enumitem}
+\usepackage[inline]{enumitem}
+\usepackage{multicol}
 \usepackage{float}
 \usepackage{amsmath}
 \usepackage{hyperref}
 \usepackage{todonotes}
 \usepackage{etoolbox}
+\usepackage{tikz}
+\usepackage{parskip}
 \usepackage[page]{appendix}
 
-\newcommand{\javainline}[1]{\lstinline[language=Java,basicstyle=\ttfamily]{#1}}
-\newcommand{\cinline}[1]{\lstinline[language=C,basicstyle=\ttfamily]{#1}}
+\usetikzlibrary{shapes,arrows,positioning}
+
+\newcommand\abstractname{Abstract}  %%% here
+\makeatletter
+\if@titlepage
+  \newenvironment{abstract}{%
+      \titlepage
+      \null\vfil
+      \@beginparpenalty\@lowpenalty
+      \begin{center}%
+        \bfseries \abstractname
+        \@endparpenalty\@M
+      \end{center}}%
+     {\par\vfil\null\endtitlepage}
+\else
+  \newenvironment{abstract}{%
+      \if@twocolumn
+        \section*{\abstractname}%
+      \else
+        \small
+        \begin{center}%
+          {\bfseries \abstractname\vspace{-.5em}\vspace{\z@}}%
+        \end{center}%
+        \quotation
+      \fi}
+      {\if@twocolumn\else\endquotation\fi}
+\fi
+\makeatother
+
+\newcommand{\javainline}[1]{\lstinline[language=Java
+                                      ,basicstyle=\ttfamily
+                                      ,showstringspaces=false]{#1}}
+
+\newcommand{\cinline}[1]{\lstinline[language=C
+                                   ,basicstyle=\ttfamily]{#1}}
+
+\newcommand{\haskellinline}[1]{\lstinline[language=Haskell
+                                         ,basicstyle=\ttfamily]{#1}}
+
+\newcommand{\command}[1]{\lstinline[basicstyle=\ttfamily]{#1}}
 
 \makeatletter
 \AtEndEnvironment{C}{\xdef\xlang{Language: C}}
-\AfterEndEnvironment{C}{\begin{flushright}\vspace{-7mm}\xlang\end{flushright}}
+\AfterEndEnvironment{C}{\begin{flushright}\vspace{-2mm}\xlang\end{flushright}}
 \makeatother
 
 \makeatletter
 \AtEndEnvironment{Java}{\xdef\xlang{Language: Java}}
-\AfterEndEnvironment{Java}{\begin{flushright}\vspace{-7mm}\xlang\end{flushright}}
+\AfterEndEnvironment{Java}{\begin{flushright}\vspace{-2mm}\xlang\end{flushright}}
 \makeatother
 
-
-\lstnewenvironment{Java}{
+\lstnewenvironment{Haskell}[2]{
+    \lstset{
+        language=java
+      , basicstyle=\ttfamily
+      , label=#1
+      , caption=#2
+      , mathescape=true
+      , showstringspaces=false
+    }}{}
+    
+\lstnewenvironment{Java}[2]{
     \lstset{
         language=java
       , basicstyle=\ttfamily
       , frame=single
+      , label=#1
+      , caption=#2
+      , mathescape=true
+      , showstringspaces=false
     }}{}
     
-\lstnewenvironment{C}{
+\lstnewenvironment{C}[2]{
     \lstset{
-           language=C
-         , basicstyle=\ttfamily
-         , frame=single
-        }}{}
-
+          language=C
+        , basicstyle=\ttfamily
+        , frame=single
+        , label=#1
+        , caption=#2
+    }}{}
+     
 \newtheorem{definition}{Definition}
 
 \begin{document}
 
-\title{A Bounded Verification Tool for Java}
-\author{Stefan Koppier}
+\title{A Bounded Verification Tool for Java source code}
+\author{Stefan Koppier, \\ 6002978}
 \maketitle
 
-\chapter*{Introduction}
+\begin{abstract}
+We present a bounded model checking tool for a subset of the Java language. The 
+tool allows the verification of user-defined assertions, and that runtime exceptions
+never occur. We have built our tool on top of JBMC, a bounded model checking tool 
+for Java bytecode. In this document we give a short description of JBMC, then
+describe the architecture of the tool and finally conclude with results and possible
+future work. The first results show that this tool successfully verifies the absence
+and presence of bugs in multiple programs, of which merge sort is one example.
+\end{abstract}
 
-We present a tool that allows bounded model checking of Java source code. The
-tool works a layer over JBMC, a bounded verification tool for Java bytecode, 
-developed by Lucas Cordeiro et al. \cite{ckkst2018}. Built on the CPROVER
-framework, which also drives the industrial strength bounded model checking tool 
-CBMC.
-
-We were inspired to develop this tool by CRUST \cite{toman2015crust}. CRUST is a 
-bounded model checking tool to find memory problems in Rust source code, and we 
-wanted a similar infrastructure to do further research on bounded model checking
-of Java source code.
-
-The advantage of using this tool, over using JBMC itself is that we provide an 
-interface for Java source code, instead of Java bytecode.
-
-\section*{Features}
-
-\section*{Comparison between JBMC}
-
-\section*{An overview of the tool}
+\input{Introduction.tex}
 
 \tableofcontents
 
+\input{JBMC.tex}
+
 \input{Phases/Phases.tex}
 
-\chapter{CProver}
+\input{Usage.tex}
 
-\section{Properties}
-
-\begin{labeling}{arithmetic over- and underflow\quad}
-    \item [array bounds] test
-    \item [pointer] test
-    \item [division by zero] test
-    \item [arithmetic over- and underflow] test
-    \item [shift greater than bit-width] test
-    \item [floating-point for +/-Inf] test
-    \item [floating-point for NaN] test
-    \item [user assertions] test
-\end{labeling}
+\input{Conclusion.tex}
 
 \bibliographystyle{plain}
-\bibliography{bibliography.bib} 
+\bibliography{bibliography.bib}
+
+\begin{appendices}
+    \input{Appendices/Examples.tex}
+\end{appendices}
 
 \end{document}

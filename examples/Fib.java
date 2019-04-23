@@ -1,6 +1,6 @@
 class Main {
     public static void main(String[] argv) {
-        assert fib(2) == 0 : "fib(2) != 1";
+        assert fib(2) == 1 : "fib(2) != 1";
     }
 
     public static int fib(int x) {

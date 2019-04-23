@@ -1,0 +1,63 @@
+\chapter{JBMC: a bounded model checking tool for Java bytecode} \label{chap:jbmc}
+The tool is built upon JBMC, an actively developed bounded model checker for 
+verifying Java bytecode \cite{ckkst2018}. JBMC is built upon the CProver framework,
+which is the basis of CBMC: an industrial strength bounded model checker for C 
+and C++ programs. JBMC works by translating Java bytecode into what they call a
+GOTO program; a control flow graph representation of the program. This GOTO 
+program is symbolically executed to generate a bit-vector formula. This bit-vector
+formula is verified by a SAT or SMT solver, which by default is MiniSat 
+\cite{een2003extensible}.
+
+JBMC has support for checking that runtime exceptions do not occur and that 
+user-defined assertions are valid. Assertions are natively supported in Java 
+and can be written using the \javainline{assert e;} and \javainline{assert e : "foo";} 
+statements. Assumptions can be written using a method call: \javainline{CProver.assume(e);}.
+
+The team of JBMC actively maintains a model of the Java Class Library (JCL), 
+the standard library included with the Java language. Currently, the main support
+of the model is focussed on including the Exception and String types. The model
+is maintained on GitHub\footnote{https://github.com/diffblue/java-models-library}.
+
+\section{Future work of JBMC}
+The team working on JBMC claim in their tool paper \cite{ckkst2018} that there
+currently is no support for the Java Native Interface, reflection, generics, 
+lambda expressions, or multi-threaded programs. Their current plan is to extend 
+JBMC to support the latter three.
+
+\section{A small survey of formal verification tools for Java}
+Besides JBMC, there exist several tools that aim to achieve a similar result.
+
+JayHorn is a framework for verifying Java bytecode \cite{kahsai2016jayhorn}. It 
+works by transforming the input to Horn clauses and solving these clauses using 
+a theorem prover. JayHorn claims to have soundness as its main focus. Although 
+they claim soundness as their main focus, the development has not yet reached a
+point that this is the case. They do not have a stable release thus far that is
+sound. The project has recent activity in their GitHub codebase, so it seems to
+be under active development. On their GitHub 
+page\footnote{https://github.com/jayhorn/jayhorn}, they state that the following
+features are not fully sound:
+
+\begin{itemize}
+    \item JNI, implicit method invocations (finalizers, class initializers, Thread.<init>, etc.)
+    \item integer overflow
+    \item exceptions and flow related to that
+    \item reflection API (e.g., Method.invoke(), Class.newInstance)
+    \item invokedynamic
+    \item code generation at runtime, dynamic loading
+    \item different class loaders
+    \item key native methods (Object.run, Object.doPrivileged)
+\end{itemize}
+
+Java Pathfinder (jpf) is a system to fomrally verify Java bytecode \cite{havelund2000model}.
+JPF focusses on verifying the absence of deadlocks and user-defined assertions.
+JPF works by constructing a Promela program, which can be fed into SPIN to be
+verified for correctness. JPF was developed at the NASA Ames Research Center and
+was made open source in 2015 under the Apache 2.0 license. The project is hosted
+on GitHub\footnote{https://github.com/javapathfinder/}.
+
+Clausio Giovanni Demartini et al. \cite{Demartini1998ModelingAV} describe a 
+similar approach as jpf, the Java2Spin translator. Is also verifies the absence 
+of deadline, by translating a Java programs into a Promela program. Although 
+successful experimental results, I couldn't find a tool based on this paper under 
+active development. 
+

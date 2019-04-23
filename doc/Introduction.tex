@@ -1,0 +1,102 @@
+\chapter*{Introduction}
+We present a tool that allows bounded model checking of Java source code. The
+tool works as a layer over JBMC, a bounded verification tool for Java bytecode, 
+developed by Lucas Cordeiro et al. \cite{ckkst2018}. JBMC is developed using 
+the CPROVER framework, which also drives the industrial strength bounded model 
+checking tool CBMC \cite{ckl2004}.
+
+The development of this tool was inspired by CRUST. \cite{toman2015crust}. CRUST 
+is a bounded model checking tool to find memory problems in Rust source code. The
+goal of this project was to provide similar infrastructure as CRUST. That is: develop
+a basis to do further bounded model checking research of Java source code.
+
+The advantage of using this tool, over using JBMC itself is that we provide an 
+interface for Java source code, instead of Java bytecode. In terms, this allows for
+higher-level reasoning about the program path generation and verification process.
+
+The tool is hosted on GitHub\footnote{\url{https://github.com/StefanKoppier/BVJ}}.
+
+\section*{Structure of this document}
+The document contains four chapters and one appendix. In chapter 
+\ref{chap:jbmc}, we will give an introduction of JBMC and give an overview of 
+similar tools. Chapter 
+\ref{chap:phases} will explain the architecture of the tool, and explain each
+individual phase and what it tries to achieve. Chapter \ref{chap:usage} will
+give insight on how to use the tool. We will conclude in chapter \ref{chap:conclusion},
+where we also discuss possible future work. Appendix \ref{app:examples} show some
+examples and their results.
+
+\section*{A change of course*}
+Out initial approach was to compile the Java programs to program paths in C. This
+turned out to be too much work, so we changed our approach to generate program 
+paths in Java.
+
+\subsection*{A first approach: compiling to C}
+We first envisioned to compile all Java program paths to program paths in C. 
+We could then perform bounded model checking using CBMC \cite{ckl2004}. 
+
+The advantages we foresaw compiling to C were that CBMC is a more mature tool than
+JBMC. But after a while, the work required to translate the Java semantics to 
+equivalent C semantics turned out to be overwhelming for the time we had available. 
+More specifically, translating the exception handling system of Java required us 
+to define a semantically equivalent exception handling system in C, as the 
+language has no native support for exceptions. Besides the exception handling system, 
+compiling to C had more disadvantages. It required array initialization to contain 
+loop structures in the compiled code, something we wished to avoid. For example, 
+see the Java input program and compiled C program in listings \ref{listing:java_array} 
+and \ref{listing:c_array}. The array is initialized using constants, but suppose it 
+is initialized with some computationally heavy function, and the initialization 
+is inside some loop. This will generate many program paths which are hard to verify.
+
+\begin{Java}{listing:java_array}{Java program containing array initialization.}
+class Main {
+    public static void main() {
+        int[] array = new int[] { 1, 2 };
+    }
+}
+\end{Java}
+
+\begin{C}{listing:c_array}{Compiled C program containing the array initialization.}
+#include <stdlib.h>
+struct Int_Array {
+    __int32 * elements; __int32 length;
+};
+struct Int_Array * new_Array$0()
+{
+    __int32 initial[2] = { 1, 2 };
+    struct Int_Array * this = malloc(sizeof(struct Int_Array));
+    {
+        this->length = 2;
+        this->elements = calloc(2, sizeof(__int32));
+        for (__int32 i0 = 0; i0 < 2; ++i0)
+            this->elements[i0] = initial[i0];
+    }
+    return this;
+}
+void main()
+{
+    struct Int_Array * array = new_Array$0();
+}
+\end{C}
+
+We finalized the C version of the tool as version v0.1, which can be found on 
+GitHub\footnote{\url{https://github.com/StefanKoppier/BVJ/releases/tag/v0.1}}.
+The final C version has support for a similar Java subset as the Java version of
+the tool, excluding the exception handling system.
+
+\subsection*{A second approach: compiling to Java}
+The second approach was to compile our Java program to Java program paths, and
+verify these using JBMC \cite{ckkst2018}. 
+
+The main advantage of this approach is that we are semantically much closer to
+our input program, only a few modifications to the compiled program paths are
+needed. The main initial advantage is that the exception handling system is 
+supported, which doesn't require us to define our own. Other advantages are that 
+this approach is more extensible; it is easier to add new features, for it not 
+requires a equivalent semantical C definition of the new features.
+
+A disadvantage of the Java version of the tool is that JBMC is less mature than
+CBMC. But the upside is that JBMC received funding and thus is in active 
+development.
+
+The rest of this document describes the Java version of the tool.

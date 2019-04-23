@@ -1,0 +1,59 @@
+\chapter{How to use the tool} \label{chap:usage}
+The tool can be used in two ways: using GHCi and by running the excutable. The tool
+can be build using the command \command{make repl}, which also starts GHCi.
+
+When GHCi is used, there are 3 functions which provide an easy to use interface
+to verify: \haskellinline{verify}, \haskellinline{verifyWithMaximumDepth}, and
+\haskellinline{verifyFunctionWithMaximumDepth}. There is an \haskellinline{arguments}
+constant defined which allow for the tweaking of the arguments for the verification
+process.
+
+When running the executable, the arguments in listing \ref{listing:arguments} 
+can be used to tweak the argument for the verification process. For example,
+the command \command{bvj "examples/Test.java" -c -k10 -t4} verifies the file
+\command{examples/Test.java} printing minimal information, with a maximum
+program path length of 10 and uses 4 threads.
+
+\begin{lstlisting}[basicstyle=\small\ttfamily, caption={Argument for the executable}, label={listing:arguments}]
+Parameters:
+File    Path to the file to be verified.
+
+Flags:
+-c           --compact                        Display less information.
+-r           --remove                         Remove the output files.
+-f[FUNCTION] --function[=FUNCTION]            Verify the function.
+-k[DEPTH]    --depth[=DEPTH]                  Maximum program path generation depth.
+-t[THREADS]  --threads[=THREADS]              Number of threads.
+-u[UNWIND]   --unwind[=UNWIND]                Maximum loop unwinding in JBMC.
+             --verification-depth[=VER-DEPTH] Maximum depth in JBMC.
+\end{lstlisting}
+
+\section{Prerequisites}
+Using the tool requires the following:
+
+\begin{enumerate}
+    \item The Java development kit installed, ensure that \command{javac} and
+    \command{jar} can be found in the PATH variable;
+    \item the JBMC tool, ensure that that \command{jbmc} can be found in the PATH 
+    variable;
+    \item the following Haskell libraries:
+    \begin{multicols}{3}
+        \begin{itemize}
+            \item \command{fgl 5.7.0.0}
+            \item \command{directory 1.3.0.2}
+            \item \command{terminal-progress-bar}
+            \item \command{command}
+            \item \command{filepath}
+            \item \command{dates}
+            \item \command{pretty}
+            \item \command{xeno}
+            \item \command{utf8-string}
+            \item \command{language-java}
+            \item \command{transformers}
+            \item \command{containers}
+            \item \command{parallel-io}
+            \item \command{split}
+            \item \command{simple-get-opt}
+        \end{itemize}
+    \end{multicols}
+\end{enumerate}
