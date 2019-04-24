@@ -28,9 +28,9 @@ data Arguments = Arguments {
     , removeOutputFiles    :: Bool
     -- | The maximum depth to generate program paths for.
     , maximumDepth         :: Int
-    -- | The program path filter function. When this function returns Nothing, 
+    -- | The program path map filter function. When this function returns Nothing, 
     -- for a specific path, this path will not be verified.
-    , pathFilter           :: CompilationUnit' -> Maybe CompilationUnit'
+    , pathMapFilter        :: CompilationUnit' -> Maybe CompilationUnit'
     -- | Enable assertions in JBMC.
     , jbmcEnableAssertions :: Bool
     -- | Sets the maximum depth in JBMC, if Just.

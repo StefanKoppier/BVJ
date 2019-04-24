@@ -56,3 +56,9 @@ Flags:
 ```
 
 For example, the command `bvj "examples/Test.java" -c -k10 -t4` verifies the file `examples/Test.java` printing minimal information, with a maximum program path depth of 10, and uses 4 threads.
+
+## Acknowledgement
+
+This product includes software developed by Daniel Kroening, Edmund Clarke,
+Computer Science Department, University of Oxford
+Computer Science Department, Carnegie Mellon University

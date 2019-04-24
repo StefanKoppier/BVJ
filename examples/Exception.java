@@ -9,6 +9,5 @@ class Main {
         } finally {
             assert true;
         }
-        ;
     }
 }
