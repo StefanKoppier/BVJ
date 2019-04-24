@@ -5,14 +5,7 @@ class Main {
         try {
             throw new Exception();
         } catch (Exception e) {
-            try {
-                assert e != null;
-            } catch (Exception e) {
-
-            } finally {
-                ;
-            }
-            ;
+            assert e != null;
         } finally {
             assert true;
         }

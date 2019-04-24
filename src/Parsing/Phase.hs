@@ -275,6 +275,16 @@ transformStmt = foldStmt alg
               )
         labelize l (While' _ g s)   = While' l g s
         labelize l (For' _ i g u s) = For' l i g u s
+        labelize l (Block' l' s)    = Block' l' (labelizeFirst l s)
+        
+labelizeFirst :: Maybe String -> CompoundStmts' -> CompoundStmts'
+labelizeFirst _ [] = []
+labelizeFirst label (stat:stats)
+    = case stat of
+        While' _ g s   -> While' label g s : stats
+        For' _ i g u s -> For' label i g u s : stats
+        Block' l' s    -> Block' l' (labelizeFirst label s) : stats
+        _              -> stat : labelizeFirst label stats
 
 transformIf :: Exp -> PhaseResult CompoundStmt' -> PhaseResult CompoundStmt'
 transformIf guard stat = transformIfThenElse guard stat (pure $ Block' Nothing [emptyStmt])

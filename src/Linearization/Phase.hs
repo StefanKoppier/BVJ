@@ -157,7 +157,7 @@ next acc graph@CFG{cfg} (currentNode, destinationNode, edgeValue)
                 -> let acc1 = prepends currentNode acc (getEdgeValues [BlockExitEdge exit]) 
                     in paths acc1 graph neighbour
             BlockExitsEdge exits
-                -> let acc1 = prepends currentNode acc (getEdgeValues (map BlockExitEdge exits)) 
+                -> let acc1 = prepends currentNode acc (getEdgeValues (map BlockExitEdge (reverse exits)))
                     in paths acc1 graph neighbour
             BlockExitEntryEdge exit entry
                 -> let acc1 = prepends currentNode acc (getEdgeValues [ BlockEntryEdge entry
