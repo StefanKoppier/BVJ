@@ -2,14 +2,18 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                BVJ
-version:             0.1.0.0
--- synopsis:            
--- description:         
+version:             0.1.0.1
+synopsis:            A bounded model checking tool for Java.
+description:         We present a bounded model checking tool for Java source code.
+                     The tool is hosted on GitHub <https://github.com/StefanKoppier/BVJ>.
+
+                     The tool can be used by executing the following functions:
+                     @verify "examples/Loop.java"@
+                     @verifyWithMaximumDepth 20 "examples/Sort.java"@
 license:             BSD3
 license-file:        LICENSE
 author:              Stefan Koppier
 maintainer:          s.koppier@students.uu.nl
--- copyright:           
 category:            Verification
 build-type:          Simple
 extra-source-files:  src/Analysis/CFA.ag

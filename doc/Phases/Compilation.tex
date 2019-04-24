@@ -23,8 +23,19 @@ record value, shown in listing \ref{listing:path_filter}. This function allows
 for the adjustment and filtering of specific abstract syntax trees that are
 created from the generated program paths.
 \begin{Haskell}{listing:path_filter}{Filtering record value of \haskellinline{Arguments}.}
-pathFilter :: CompilationUnit' -> Maybe CompilationUnit'
+pathMapFilter :: CompilationUnit' -> Maybe CompilationUnit'
 \end{Haskell}
 When this function results in \haskellinline{Nothing}, the abstract syntax tree 
 will be filtered. When this function results in \haskellinline{Just p}, the 
 abstract syntax tree \haskellinline{p} will be verified.
+
+\subsection{Java and unreachable code}
+The Java language specification \cite{Gosling:2014:JLS:2636997} states in section
+14.21 that unreachable code is treated as a compile-time error. Generated program 
+paths containing \javainline{throw} or \javainline{return} statements can contain 
+unreachable code, which will fail to compile. 
+
+This will currently result in a failure in the compilation phase. A solution would
+be to define the \haskellinline{pathMapFilter} function to modify the abstract 
+syntax tree such that it no longer contains unreachable code as defined by the
+Java language specification.

@@ -114,12 +114,11 @@ transformBlock :: Block -> PhaseResult CompoundStmt'
 transformBlock (Block ss) = Block' Nothing <$> transformBlockStmts ss
 
 transformMaybeBlock :: Maybe Block -> PhaseResult MaybeCompoundStmts'
-transformMaybeBlock Nothing           = pure Nothing
-transformMaybeBlock (Just (Block [])) = pure Nothing
-transformMaybeBlock (Just (Block b))  = Just <$> transformBlockStmts b
+transformMaybeBlock Nothing          = pure Nothing
+transformMaybeBlock (Just (Block b)) = Just <$> transformBlockStmts b
 
 transformBlockStmts :: [BlockStmt] -> PhaseResult CompoundStmts'
-transformBlockStmts []     = return []
+transformBlockStmts []     = return [emptyStmt]
 transformBlockStmts (s:ss) = do
     s'  <- transformBlockStmt s
     ss' <- transformBlockStmts ss
@@ -271,7 +270,7 @@ transformStmt = foldStmt alg
               ,                    fmap (Stmt' . Return') . transformMaybeExp
               , \ _ _           -> throwSyntacticalError "synchronized"
               ,                    fmap (Stmt' . Throw') . transformExp
-              , \ (Block b) c f -> Try' <$> transformBlockStmts b <*> transformCatches c <*> transformMaybeBlock f
+              ,                    transformTry
               , \ (Ident l) s   -> labelize (Just l) <$> s
               )
         labelize l (While' _ g s)   = While' l g s
@@ -328,6 +327,13 @@ transformSwitchBlock (SwitchBlock (SwitchCase e) s)
     = SwitchBlock' . Just <$> transformExp e <*> transformBlock (Block s)
 transformSwitchBlock (SwitchBlock Default s) 
     = SwitchBlock' Nothing <$> transformBlock (Block s)
+
+transformTry :: Block -> [Catch] -> Maybe Block -> PhaseResult CompoundStmt'
+transformTry (Block body) catches finally = do
+    body'    <- transformBlockStmts body
+    catches' <- transformCatches catches
+    finally' <- transformMaybeBlock finally
+    return $ Block' Nothing [emptyStmt, Try' body' catches' finally', emptyStmt]
 
 transformCatches :: [Catch] -> PhaseResult Catches'
 transformCatches = mapM transformCatch

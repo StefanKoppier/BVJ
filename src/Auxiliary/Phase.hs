@@ -22,9 +22,11 @@ module Auxiliary.Phase(
 
 import Control.Monad.Trans.Except
 import Control.Monad.IO.Class
+import Text.PrettyPrint
 import Parsing.Syntax
 import Analysis.CFG
 import Auxiliary.Arguments
+import Auxiliary.Pretty
 
 -- | The directory to compile and verify the program paths in.
 workingDir :: FilePath
@@ -49,7 +51,7 @@ data PhaseError
     | SemanticalError  SemanticalError
     | SyntacticalError String
     | ResultError      String
-    | ExternalError    String
+    | ExternalError    String (Maybe String)
     deriving (Show, Eq)
 
 -- | Data type containing the different semantical errors.
@@ -75,5 +77,19 @@ throwResultError :: String -> PhaseResult a
 throwResultError = throwE . ResultError
 
 -- | Throws an external error.
-throwExternalError :: String -> PhaseResult a
-throwExternalError = throwE . ExternalError
+throwExternalError :: String -> Maybe String -> PhaseResult a
+throwExternalError message = throwE . ExternalError message
+
+instance Pretty PhaseError where
+    pretty (ParsingError e)     = text e
+    pretty (SemanticalError e)  = pretty e
+    pretty (SyntacticalError e) = text e
+    pretty (ResultError e)      = text e
+    pretty (ExternalError s i)  = text s $+$ newline <> maybe empty text i
+
+instance Pretty SemanticalError where
+    pretty (UndefinedMethodReference name) 
+        = text "undefined method reference" <+> quotes (dots name)
+
+    pretty (UndefinedClassReference name) 
+        = text "undefined class reference" <+> quotes (text name)

@@ -64,8 +64,10 @@ Given a constructor or method $M$ with body $S$, we will have:
     V &=\{node(M_{entry}), node(M_{exit})\} \cup V(S) \\ \\
     E &=
     \begin{cases}
-      edge(node(M_{entry}), node(M_{exit}))                               & \text{if } V(S) = \emptyset \\
-      edge(node(M_{entry}), init(S)) \cup edges(final(S), node(M_{exit})) & \text{otherwise}
+      edge(node(M_{entry}), node(M_{exit})) 
+        & \text{if } V(S) = \emptyset \\
+      edge(node(M_{entry}), init(S)) \cup edges(final(S), node(M_{exit})) \cup E(S)
+        & \text{otherwise}
     \end{cases}
 \end{align*}
 
@@ -129,8 +131,8 @@ Given a while loop $L$, with guard $g$ and body $S$, we have:
     \end{cases} \\ \\
     final(L) &= \{node(L)\} \\ \\
     V &= \{node(L)\} \cup V(S) \cup V(g) \\ \\
-    E &= edge(node(L), init(S)) \cup edges(final(S), node(L))
-       \\ & \quad \cup edges(continues(L), node(L)) \cup E(S) \cup E(g)
+    E &= edge(node(L), init(S)) \cup edges(final(S), init(L))
+       \\ & \quad \cup edges(continues(L), init(L)) \cup E(S) \cup E(g)
 \end{align*}
 
 where $continues(L)$ denotes the \javainline{continue} statements that belong

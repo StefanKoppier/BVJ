@@ -19,12 +19,12 @@ import Compilation.Compiler.Method
 -- | Compiles the given program path and returns the compiled unit, which can be
 -- filtered.
 compile :: Arguments -> ProgressBar -> CompilationUnit' -> FilePath -> Int -> ProgramPath -> IO (Either PhaseError CompiledUnit)
-compile Arguments{pathFilter} progress unit dir identifer path = do
+compile Arguments{pathMapFilter} progress unit dir identifer path = do
     program <- runExceptT $ build unit path
     case program of
         Left  fProgram -> return $ Left fProgram
         Right sProgram ->
-            case pathFilter sProgram of
+            case pathMapFilter sProgram of
                 Just program' -> do
                     file <- runExceptT $ create progress program' dir identifer
                     case file of
@@ -70,10 +70,12 @@ build unit@(CompilationUnit' package originalImports _) path = do
 -- | Runs the command `javac`.
 javac :: FilePath -> IO (Either PhaseError ())
 javac file = do
-    (Stdout _, Exit e, Stderr _) <- command [] "javac" args
+    (Stdout _, Exit e, Stderr errMessage) <- command [] "javac" args
     case e of
-        ExitSuccess   -> return $ Right ()
-        ExitFailure _ -> return $ Left (ExternalError "java compilation to bytecode (javac) failed")
+        ExitSuccess   
+            -> return $ Right ()
+        ExitFailure _ 
+            -> return $ Left (ExternalError "java compilation to bytecode (javac) failed" (Just errMessage))
     where
         dir  = dropFileName file
         args = [ file
@@ -84,10 +86,12 @@ javac file = do
 -- | Runs the command `jar`.
 jar :: FilePath -> IO (Either PhaseError ())
 jar file = do
-    (Stdout _, Exit e, Stderr _) <- command [Cwd dir] "jar" args
+    (Stdout _, Exit e, Stderr errMessage) <- command [Cwd dir] "jar" args
     case e of
-        ExitSuccess   -> return $ Right ()
-        ExitFailure _ -> return $ Left (ExternalError "jar creation (jar) failed.")
+        ExitSuccess   
+            -> return $ Right ()
+        ExitFailure _ 
+            -> return $ Left (ExternalError "jar creation (jar) failed" (Just errMessage))
     where
         dir  = dropFileName file
         args = [ "cfe"

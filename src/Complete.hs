@@ -28,7 +28,7 @@ run args@Arguments{program} = do
     content <- readFile program
     result  <- runExceptT $ allPhases args content
     case result of
-        Left  failure -> putStrLn $ "An error occurred: " ++ show failure
+        Left  failure -> putStrLn $ "An error occurred: " ++ toString failure
         Right _       -> return ()
 
 -- | Phase running all individual phases.

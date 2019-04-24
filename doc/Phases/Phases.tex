@@ -29,22 +29,27 @@ and their inputs and outputs can be found in figure \ref{fig:phases_overview}.
 
         \node(input)             [intermediate]                       {Java source file};
         \node(parser)            [phase,below=of input] {Parsing};
+            \node() [right=of parser] {module \haskellinline{Parsing.Phase}};
         \node(ast)               [intermediate,below=of parser]   {Abstract Syntax Tree};
         \node(analyzer)          [phase,below=of ast]    {Control Flow\\Analysis};
+            \node() [right=of analyzer] {module \haskellinline{Analysis.Phase}};
         \node(cfg)               [intermediate,below=of analyzer]    {Control Flow Graph};
         \node(linearizer)        [phase,below=of cfg]              {Linearization};
+            \node() [right=of linearizer] {module \haskellinline{Linearization.Phase}};
         \node(path_dots)         [dots,below=of linearizer]      {$\cdots$};
         \node(path_1)            [intermediate,left=of path_dots] {$\text{Program Path}_1$};
         \node(path_n)            [intermediate,right=of path_dots] {$\text{Program Path}_n$};
         \node(compiler_dots)     [dots,below=of path_dots]      {$\cdots$};
         \node(compiler_1)        [phase,left=of compiler_dots] {Compilation};
         \node(compiler_n)        [phase,right=of compiler_dots] {Compilation};
+            \node() [right=of compiler_n] {module \haskellinline{Compilation.Phase}};
         \node(bytecode_dots)     [dots,below=of compiler_dots]      {$\cdots$};
         \node(bytecode_1)        [intermediate,left=of bytecode_dots] {$\text{Java Bytecode}_1$};
         \node(bytecode_n)        [intermediate,right=of bytecode_dots] {$\text{Java Bytecode}_n$};
         \node(verification_dots) [dots,below=of bytecode_dots]      {$\cdots$};
         \node(verification_1)    [phase,left=of verification_dots] {Verification};
         \node(verification_n)    [phase,right=of verification_dots] {Verification};
+            \node() [right=of verification_n] {module \haskellinline{Verification.Phase}};
         \node(results)           [intermediate,below of=verification_dots] {Verification Results};
 
         \draw[arrow,->] (input) -- (parser);
